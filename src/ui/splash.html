@@ -304,26 +304,24 @@
 <div class="settings-overlay" id="multiplayerLobbyModal" style="display: none;">
     <div class="settings-box" style="max-width: 500px; min-width: 400px;">
         <h3>МУЛЬТИПЛЕЕР</h3>
-        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-            <button id="createRoomBtn" class="mode-btn" style="flex: 1;">Створити кімнату</button>
-            <button id="refreshRoomsBtn" class="mode-btn" style="flex: 1;">Оновити список</button>
+        
+        <!-- Loading indicator -->
+        <div id="connectionLoading" style="display: none; margin-bottom: 15px; padding: 15px; background: rgba(243,156,18,0.1); border-radius: 6px; border: 1px solid rgba(243,156,18,0.2);">
+            <div style="color: #f39c12; font-size: 1.1em; margin-bottom: 8px;">Підключення</div>
+            <div id="loadingDots" style="color: #ccc; font-size: 1.2em; font-family: monospace;">...</div>
         </div>
-        <div id="roomsList" style="max-height: 200px; overflow-y: auto; margin-bottom: 15px; text-align: left;">
-            <div style="color: #666; text-align: center; padding: 20px;">Завантаження кімнат...</div>
-        </div>
-        <div style="margin-bottom: 15px; padding: 10px; background: rgba(243,156,18,0.1); border-radius: 6px; border: 1px solid rgba(243,156,18,0.2);">
-            <div style="color: #ccc; font-size: 0.85em; margin-bottom: 8px;">🌐 Сервер:</div>
-            <label style="display: block; color: #ccc; font-size: 0.85em; margin-bottom: 5px;">
-                <input type="radio" name="serverType" value="cloud" checked style="margin-right: 5px;"> Хмарний (онлайн)
-            </label>
-            <label style="display: block; color: #ccc; font-size: 0.85em; margin-bottom: 8px;">
-                <input type="radio" name="serverType" value="local" style="margin-right: 5px;"> Локальний (LAN)
-            </label>
-            <div id="customServerSection" style="display: none; margin-top: 8px;">
-                <input type="text" id="serverUrlInput" placeholder="https://your-server.com" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #f39c12; background: rgba(255,255,255,0.1); color: #fff; font-family: monospace; font-size: 0.9em;">
-                <button id="connectToServerBtn" class="mode-btn" style="width: 100%; margin-top: 8px; padding: 8px; font-size: 0.9em;">Підключитися</button>
+        
+        <!-- Rooms list (hidden during loading) -->
+        <div id="roomsListContainer" style="display: none;">
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <button id="createRoomBtn" class="mode-btn" style="flex: 1;">Створити кімнату</button>
+                <button id="refreshRoomsBtn" class="mode-btn" style="flex: 1;">Оновити список</button>
+            </div>
+            <div id="roomsList" style="max-height: 200px; overflow-y: auto; margin-bottom: 15px; text-align: left;">
+                <div style="color: #666; text-align: center; padding: 20px;">Немає активних кімнат</div>
             </div>
         </div>
+        
         <button id="backFromLobby" class="back-btn">Назад</button>
     </div>
 </div>
@@ -626,14 +624,8 @@
         let mySocketId = null;
 
         function getSelectedServerUrl() {
-            const serverType = document.querySelector('input[name="serverType"]:checked').value;
-            if (serverType === 'cloud') {
-                // Cloud server URL - замінити на свій після деплою
-                return 'https://colonization-server.up.railway.app';
-            } else {
-                // Local server
-                return 'http://localhost:3000';
-            }
+            // Cloud server URL - замінити на свій після деплою
+            return 'https://colonization.onrender.com';
         }
 
         function initMultiplayer() {
@@ -782,18 +774,29 @@
         });
 
         document.getElementById('multiplayerBtn').addEventListener('click', () => {
+            // Show loading state
+            document.getElementById('multiplayerLobbyModal').style.display = 'flex';
+            document.getElementById('connectionLoading').style.display = 'block';
+            document.getElementById('roomsListContainer').style.display = 'none';
+            
+            // Start animated dots
+            startLoadingAnimation();
+            
+            // Save server URL so index.html can use it when game starts
+            const serverUrl = getSelectedServerUrl();
+            sessionStorage.setItem('serverUrl', serverUrl);
+            
             initMultiplayer().then(() => {
-                showMultiplayerLobby();
+                // Hide loading, show rooms
+                document.getElementById('connectionLoading').style.display = 'none';
+                document.getElementById('roomsListContainer').style.display = 'block';
+                stopLoadingAnimation();
+                loadRoomsList();
             }).catch(err => {
                 console.error('Failed to connect to server:', err);
-                // Show manual connection option
-                const serverUrlInput = document.getElementById('serverUrlInput');
-                if (serverUrlInput) {
-                    serverUrlInput.style.borderColor = '#e74c3c';
-                    serverUrlInput.placeholder = 'Помилка: ' + err.message + '. Введіть адресу сервера вручну';
-                }
-                alert('Не вдалося автоматично підключитися до сервера.\n\nВведіть адресу сервера вручну в полі нижче та натисніть "Підключитися".\n\nДля локальної гри використовуйте: http://localhost:3000');
-                showMultiplayerLobby();
+                stopLoadingAnimation();
+                alert('Не вдалося підключитися до сервера.\n\nПеревірте підключення до інтернету та спробуйте знову.');
+                document.getElementById('multiplayerLobbyModal').style.display = 'none';
             });
         });
 
@@ -814,33 +817,6 @@
             loadRoomsList();
         });
 
-        // Manual server connection button
-        document.getElementById('connectToServerBtn').addEventListener('click', () => {
-            audioManager.playClickSound();
-            const serverUrl = document.getElementById('serverUrlInput').value.trim();
-            if (!serverUrl) {
-                alert('Введіть адресу сервера');
-                return;
-            }
-            
-            // Disconnect existing connection if any
-            if (mpClient) {
-                mpClient.disconnect();
-            }
-            
-            // Create new client and connect to specified server
-            mpClient = new MultiplayerClient();
-            mpClient.connect(serverUrl)
-                .then(() => {
-                    console.log('Connected to custom server:', serverUrl);
-                    alert('Підключено до сервера: ' + serverUrl);
-                    loadRoomsList();
-                })
-                .catch(err => {
-                    console.error('Failed to connect to custom server:', err);
-                    alert('Не вдалося підключитися: ' + err);
-                });
-        });
 
         document.getElementById('backFromLobby').addEventListener('click', () => {
             audioManager.playClickSound();
@@ -1015,20 +991,63 @@ document.getElementById('exitRoomBtn').addEventListener('click', () => {
                     // Show players list (including self as "Гравець (ви)")
                     updatePlayersListForGuest(data.players, mySocketId);
                     
-                    // Replace "Start Game" button with "Waiting for game..." text for guest
+                    // Replace "Start Game" button with animated "Waiting for game..." text for guest
                     document.getElementById('startGameContainer').innerHTML = `
                         <div style="color: #f39c12; font-size: 1.1em; padding: 10px; text-align: center;">
-                            ⏳ Очікування гри...
+                            Очікування гри<span id="waitingDots">...</span>
                         </div>
                     `;
                     
+                    // Start animated dots for waiting
+                    let waitingInterval = null;
+                    function startWaitingAnimation() {
+                        const dotsElement = document.getElementById('waitingDots');
+                        if (!dotsElement) return;
+                        let dotCount = 0;
+                        waitingInterval = setInterval(() => {
+                            dotCount = (dotCount % 3) + 1;
+                            dotsElement.textContent = '.'.repeat(dotCount);
+                        }, 500);
+                    }
+                    
+                    function stopWaitingAnimation() {
+                        if (waitingInterval) {
+                            clearInterval(waitingInterval);
+                            waitingInterval = null;
+                        }
+                    }
+                    
+                    startWaitingAnimation();
+                    
                     // Wait for game to start
                     mpClient.onGameStarted((data) => {
+                        stopWaitingAnimation();
                         // Store map in sessionStorage for guest to use in game
                         if (data && data.mapSeed) {
                             sessionStorage.setItem('multiplayerMap', JSON.stringify(data.mapSeed));
                         }
-                        window.location.href = 'index.html?mode=multiplayer&code=' + code;
+                        // Show "Підключення" with animated dots before redirecting
+                        document.getElementById('startGameContainer').innerHTML = `
+                            <div style="color: #f39c12; font-size: 1.1em; padding: 10px; text-align: center;">
+                                Підключення<span id="connectingDots">...</span>
+                            </div>
+                        `;
+                        // Start connecting animation
+                        let connectingInterval = null;
+                        let dotCount = 0;
+                        connectingInterval = setInterval(() => {
+                            dotCount = (dotCount % 3) + 1;
+                            const connectingDots = document.getElementById('connectingDots');
+                            if (connectingDots) {
+                                connectingDots.textContent = '.'.repeat(dotCount);
+                            }
+                        }, 500);
+                        
+                        // Redirect after short delay
+                        setTimeout(() => {
+                            clearInterval(connectingInterval);
+                            window.location.href = 'index.html?mode=multiplayer&code=' + code;
+                        }, 1500);
                     });
                 }).catch(err => {
                     alert('Помилка приєднання: ' + err);
@@ -1167,6 +1186,27 @@ document.getElementById('exitRoomBtn').addEventListener('click', () => {
         // Add hover sounds initially
         addHoverSounds();
 
+        // Loading animation
+        let loadingInterval = null;
+        
+        function startLoadingAnimation() {
+            const dotsElement = document.getElementById('loadingDots');
+            if (!dotsElement) return;
+            
+            let dotCount = 0;
+            loadingInterval = setInterval(() => {
+                dotCount = (dotCount % 3) + 1;
+                dotsElement.textContent = '.'.repeat(dotCount);
+            }, 500);
+        }
+        
+        function stopLoadingAnimation() {
+            if (loadingInterval) {
+                clearInterval(loadingInterval);
+                loadingInterval = null;
+            }
+        }
+        
         // Add hover sounds to dynamically created buttons
         const observer = new MutationObserver(() => {
             addHoverSounds();

@@ -2,6 +2,13 @@ const { app, BrowserWindow, Menu, dialog, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
+// Use a custom userData path to avoid cache conflicts between instances
+// This also prevents the "Unable to move the cache: Access is denied" warnings
+const devInstance = process.argv.includes('--dev-instance');
+if (devInstance) {
+    app.setPath('userData', path.join(app.getPath('appData'), 'Colonization-Dev'));
+}
+
 // Keep a global reference of the window object
 let mainWindow;
 let serverProcess = null;
@@ -78,7 +85,8 @@ function createWindow() {
 
 // This method will be called when Electron has finished initialization
 app.whenReady().then(() => {
-    startServer();
+    // Server is not started locally - using cloud server instead
+    // startServer(); // Disabled - using https://colonization.onrender.com
     createWindow();
 });
 

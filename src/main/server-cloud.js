@@ -129,7 +129,83 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Game actions
+    // Rejoin room after page navigation (when game starts)
+    // The room still exists because we DON'T delete it on disconnect during game
+    socket.on('rejoin-room', ({ roomCode, isHost }) => {
+        const room = rooms.get(roomCode);
+        
+        if (!room) {
+            // Room was somehow deleted (unlikely now), reject
+            console.log(`Player ${socket.id} tried to rejoin non-existent room ${roomCode}`);
+            return;
+        }
+        
+        if (isHost) {
+            room.host = socket.id;
+        }
+        
+        // Check if this player already exists (from a previous reconnect)
+        let existingPlayer = room.players.find(p => p.id === socket.id);
+        if (!existingPlayer) {
+            // Player not in room, add them
+            room.players.push({
+                id: socket.id,
+                name: 'Гравець',
+                isHost: isHost
+            });
+        } else {
+            // Update the existing player entry
+            existingPlayer.isHost = isHost;
+        }
+        
+        socket.join(roomCode);
+        console.log(`Player ${socket.id} rejoined room ${roomCode} (host: ${isHost})`);
+        
+        // Send the stored game state (map + buildings) to the rejoining player
+        if (room.gameState) {
+            socket.emit('game-started', { mapSeed: room.gameState });
+        }
+        
+        // Also send current buildings if any (stored separately in room)
+        if (room.buildings) {
+            socket.emit('sync-buildings', { buildings: room.buildings });
+        }
+    });
+
+    // Sync buildings (road, settlement, city) to all players in the room
+    socket.on('sync-build', ({ roomCode, type, data }) => {
+        const room = rooms.get(roomCode);
+        if (!room) return;
+        
+        // Store the building in room state
+        if (!room.buildings) {
+            room.buildings = { roads: [], settlements: [], cities: [] };
+        }
+        
+        if (type === 'road') {
+            if (!room.buildings.roads.includes(data.edgeKey)) {
+                room.buildings.roads.push(data.edgeKey);
+            }
+        } else if (type === 'settlement') {
+            if (!room.buildings.settlements.some(s => s === data.vertexKey)) {
+                room.buildings.settlements.push(data.vertexKey);
+            }
+        } else if (type === 'city') {
+            // Remove from settlements and add to cities
+            room.buildings.settlements = room.buildings.settlements.filter(s => s !== data.vertexKey);
+            if (!room.buildings.cities.includes(data.vertexKey)) {
+                room.buildings.cities.push(data.vertexKey);
+            }
+        }
+        
+        // Broadcast to ALL OTHER players in the room (not the sender)
+        socket.to(roomCode).emit('game-action', { 
+            action: 'build', 
+            data: { type, ...data } 
+        });
+    });
+
+    // Game actions (generic forwarding)
     socket.on('game-action', ({ roomCode, action, data }) => {
         socket.to(roomCode).emit('game-action', { action, data });
     });
@@ -138,27 +214,19 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         console.log('Player disconnected:', socket.id);
         
-        // Remove player from rooms
+        // IMPORTANT: We do NOT delete rooms on disconnect anymore!
+        // The room stays alive so players can rejoin after page navigation.
+        // Just remove the player from the room's player list.
         rooms.forEach((room, code) => {
             const playerIndex = room.players.findIndex(p => p.id === socket.id);
             if (playerIndex !== -1) {
-                const wasHost = room.host === socket.id;
                 room.players.splice(playerIndex, 1);
                 
-                // If host left, delete room and notify all players
-                if (wasHost) {
-                    // Notify all players in room that host left and room is closed
-                    io.to(code).emit('room-closed', {
-                        message: 'Хозяїн вийшов з кімнати'
-                    });
-                    rooms.delete(code);
-                } else {
-                    // Notify remaining players (use io.to instead of socket.to since socket is disconnected)
-                    io.to(code).emit('player-left', {
-                        playerId: socket.id,
-                        players: room.players
-                    });
-                }
+                // Notify remaining players that this player left (temporarily)
+                io.to(code).emit('player-left', {
+                    playerId: socket.id,
+                    players: room.players
+                });
             }
         });
         
@@ -166,7 +234,7 @@ io.on('connection', (socket) => {
         io.emit('rooms-list', getRoomsList());
     });
 
-    // Leave room explicitly
+    // Leave room explicitly (player clicks "Вийти" button - also delete room if host)
     socket.on('leave-room', ({ roomCode }) => {
         const room = rooms.get(roomCode);
         if (room) {

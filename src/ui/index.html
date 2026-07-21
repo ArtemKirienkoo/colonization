@@ -1413,15 +1413,19 @@ if(m==='road' && hoverEdge) {
             }
             renderMap(mapData, canvas, mapHexSize);
             updateBuildStats();
-            // Sync road building to other players
-            sendGameAction('build', { type: 'road', edgeKey: hoverEdge });
+            // Sync road building to other players (persists on server)
+            if (multiplayerClient && isMultiplayer) {
+                multiplayerClient.syncBuild('road', { edgeKey: hoverEdge });
+            }
         } else {
             if(isInitialPhaseComplete()) deductResources('road');
             gameState.roads.add(hoverEdge);
             renderMap(mapData, canvas, mapHexSize);
             updateBuildStats();
-            // Sync road building to other players
-            sendGameAction('build', { type: 'road', edgeKey: hoverEdge });
+            // Sync road building to other players (persists on server)
+            if (multiplayerClient && isMultiplayer) {
+                multiplayerClient.syncBuild('road', { edgeKey: hoverEdge });
+            }
         }
         hoverEdge = null;
     }
@@ -1447,8 +1451,10 @@ else if(m==='settlement' && hoverVertex) {
         });
         renderMap(mapData, canvas, mapHexSize);
         updateBuildStats();
-        // Sync settlement building to other players
-        sendGameAction('build', { type: 'settlement', vertexKey: hoverVertex });
+        // Sync settlement building to other players (persists on server)
+        if (multiplayerClient && isMultiplayer) {
+            multiplayerClient.syncBuild('settlement', { vertexKey: hoverVertex });
+        }
         hoverVertex = null;
     }
     // ========== ОСЬ ТУТ ВСТАВИТИ ВИПРАВЛЕНИЙ КОД ДЛЯ МІСТА ==========
@@ -1476,8 +1482,10 @@ else if(m==='city' && hoverVertex) {
         });
         renderMap(mapData, canvas, mapHexSize);
         updateBuildStats();
-        // Sync city building to other players
-        sendGameAction('build', { type: 'city', vertexKey: hoverVertex });
+        // Sync city building to other players (persists on server)
+        if (multiplayerClient && isMultiplayer) {
+            multiplayerClient.syncBuild('city', { vertexKey: hoverVertex });
+        }
         hoverVertex = null;
     }
 });
@@ -2062,28 +2070,36 @@ function initMultiplayer() {
         isHost = params.host;
         roomCode = params.code;
         
-        // Initialize Socket.IO connection
-        if (typeof io !== 'undefined') {
-            multiplayerClient = new MultiplayerClient();
-            
-            // Connect to server with dynamic URL from Electron API or fallback
-            const serverUrl = (window.electronAPI && window.electronAPI.getServerInfo) ? 
-                window.electronAPI.getServerInfo().then(info => info.publicUrl || info.localUrl || 'http://localhost:3000') : 
-                Promise.resolve('http://localhost:3000');
-            
-            serverUrl.then(url => {
-                console.log('Connecting to game server:', url);
-                return multiplayerClient.connect(url);
-            }).then(() => {
+            // Initialize Socket.IO connection
+            if (typeof io !== 'undefined') {
+                multiplayerClient = new MultiplayerClient();
+                
+                // Determine server URL:
+                // 1. First check sessionStorage for saved server URL (set by splash.html)
+                // 2. In browser, use current page origin (works for Render.com)
+                // 3. In Electron fallback to localhost:3000
+                const savedServerUrl = sessionStorage.getItem('serverUrl');
+                let serverUrl;
+                if (savedServerUrl) {
+                    serverUrl = Promise.resolve(savedServerUrl);
+                } else if (!window.electronAPI) {
+                    serverUrl = Promise.resolve(window.location.origin || 'http://localhost:3000');
+                } else {
+                    serverUrl = Promise.resolve('http://localhost:3000');
+                }
+                
+                serverUrl.then(url => {
+                    console.log('Connecting to game server:', url);
+                    return multiplayerClient.connect(url);
+                }).then(() => {
                     console.log('Connected to multiplayer server');
                     
+                    // Rejoin the room after navigation (the old socket disconnected)
+                    multiplayerClient.rejoinRoom(roomCode, isHost);
+                    
                     if (isHost) {
-                        // Host already created room, just wait for players
                         console.log('Host mode - room code:', roomCode);
-                        // Map was already sent to server in splash.html
-                        // Just wait for game to start
                     }
-                    // Note: Guest already joined room in splash.html, no need to join again here
                     
                     // Handle player joined/left events
                     multiplayerClient.onPlayerJoined((data) => {
@@ -2096,23 +2112,20 @@ function initMultiplayer() {
                         updatePlayersList(data.players);
                     });
                     
-// Handle game start with map sync
-                      multiplayerClient.onGameStarted((data) => {
-                          console.log('Game started with map seed:', data);
-                          if (data && data.mapSeed) {
-                              // Deserialize map (convert plain objects back to Map)
-                              const deserialized = deserializeMap(data.mapSeed);
-                              if (deserialized) {
-                                  mapData = deserialized;
-                                  // Resize canvas and calculate hex size before rendering
-                                  resizeCanvas();
-                                  const hexSize = calculateHexSize();
-                                  mapHexSize = hexSize; // Set global hex size
-                                  // Re-render map with synchronized data
-                                  renderMap(mapData, canvas, hexSize);
-                              }
-                          }
-                      });
+                    // Handle game start with map sync
+                    multiplayerClient.onGameStarted((data) => {
+                        console.log('Game started with map seed:', data);
+                        if (data && data.mapSeed) {
+                            const deserialized = deserializeMap(data.mapSeed);
+                            if (deserialized) {
+                                mapData = deserialized;
+                                resizeCanvas();
+                                const hexSize = calculateHexSize();
+                                mapHexSize = hexSize;
+                                renderMap(mapData, canvas, hexSize);
+                            }
+                        }
+                    });
                     
                     // Handle game actions from other players
                     multiplayerClient.onGameAction((data) => {
@@ -2121,10 +2134,9 @@ function initMultiplayer() {
                 })
                 .catch(err => {
                     console.error('Failed to connect to server:', err);
-                    // Continue in single-player mode
                     isMultiplayer = false;
                 });
-        }
+            }
     }
 }
 

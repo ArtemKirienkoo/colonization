@@ -164,6 +164,22 @@ class MultiplayerClient {
         this.socket.emit('store-map', { roomCode: this.roomCode, mapData });
     }
 
+    // Rejoin room after page navigation (when game starts)
+    rejoinRoom(roomCode, isHost) {
+        this.roomCode = roomCode;
+        this.isHost = isHost;
+        this.socket.emit('rejoin-room', { roomCode, isHost });
+    }
+
+    // Sync a building action to all players in the room (stores on server)
+    syncBuild(type, data) {
+        this.socket.emit('sync-build', {
+            roomCode: this.roomCode,
+            type,
+            data
+        });
+    }
+
     // Send game action to other players
     sendGameAction(action, data) {
         this.socket.emit('game-action', {
@@ -171,6 +187,11 @@ class MultiplayerClient {
             action,
             data
         });
+    }
+
+    // Handle sync-buildings (receiving all buildings after reconnect)
+    onSyncBuildings(callback) {
+        this.socket.on('sync-buildings', callback);
     }
 
     // Handle incoming game actions
