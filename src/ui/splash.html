@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Colonization - Запуск гри</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="multiplayer.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        
+        /* ===== CUSTOM CURSOR ===== */
+        /* Default: golden mouse cursor arrow */
+        html { cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2232%22 height=%2232%22 viewBox=%220 0 32 32%22%3E%3Cpath d=%22M7 8 L7 24 L12 18 L16 24 L20 20 L14 14 L23 14 Z%22 fill=%22%23f39c12%22 stroke=%22%23e67e22%22 stroke-width=%220.8%22 stroke-linejoin=%22round%22 opacity=%220.95%22/%3E%3C/svg%3E') 8 8, auto !important; }
+        body, body * { cursor: inherit !important; }
+        /* Hover: BIG WHITE arrow with golden glow on interactive elements */
+        button, .menu-btn, .mode-btn, .back-btn, .room-item, .yop-res-option, .primary, .secondary, .exit-btn, .volume-slider-container input[type="range"] {
+            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22 viewBox=%220 0 40 40%22%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f1c40f%22 stroke-width=%224%22 stroke-linejoin=%22round%22 opacity=%220.6%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22%23ffffff%22 stroke=%22%23f39c12%22 stroke-width=%221.5%22 stroke-linejoin=%22round%22/%3E%3C/svg%3E') 10 12, pointer !important;
+        }
+        /* Disabled: gray arrow */
+        .menu-btn[disabled], button[disabled], .disabled, .buy-dev-btn.disabled {
+            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2232%22 height=%2232%22 viewBox=%220 0 32 32%22%3E%3Cpath d=%22M7 8 L7 24 L12 18 L16 24 L20 20 L14 14 L23 14 Z%22 fill=%22%23888%22 stroke=%22%23666%22 stroke-width=%220.8%22 stroke-linejoin=%22round%22 opacity=%220.5%22/%3E%3C/svg%3E') 8 8, not-allowed !important;
+        }
+        body {
+            background: linear-gradient(135deg, #0d1b2a, #1a1a2e);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .background-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+        .hex-grid {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            opacity: 0.1;
+        }
+        .hex {
+            position: absolute;
+            background: linear-gradient(135deg, #2d7d3a, #1e5c28);
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+            animation: float 20s infinite ease-in-out;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(180deg); }
+        }
+        .main-content {
+            z-index: 1;
+            text-align: center;
+            padding: 40px;
+            background: rgba(26, 26, 46, 0.8);
+            border-radius: 20px;
+            border: 2px solid rgba(243, 156, 18, 0.3);
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+        }
+        .logo {
+            font-size: 4em;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #f39c12, #e74c3c, #8e44ad);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 5px;
+            text-shadow: 0 0 30px rgba(243, 156, 18, 0.3);
+        }
+        .title {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            color: #f39c12;
+            letter-spacing: 3px;
+        }
+        .subtitle {
+            font-size: 1.2em;
+            color: #888;
+            margin-bottom: 40px;
+        }
+        .menu-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .menu-btn {
+            padding: 15px 40px;
+            font-size: 1.1em;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            letter-spacing: 1px;
+            transition: all 0.3s;
+            min-width: 250px;
+        }
+        .menu-btn.primary {
+            background: linear-gradient(135deg, #f39c12, #e67e22);
+            color: #fff;
+        }
+        .menu-btn.primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(243, 156, 18, 0.4);
+        }
+        .menu-btn.secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ccc;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .menu-btn.secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: #fff;
+        }
+        .menu-btn.exit-btn:hover {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            color: #fff;
+            border-color: #e74c3c;
+            box-shadow: 0 10px 30px rgba(231, 76, 60, 0.4);
+        }
+        .version {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 20px;
+        }
+        .loading {
+            display: none;
+            margin-top: 20px;
+        }
+        .loading.active {
+            display: block;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(243, 156, 18, 0.3);
+            border-top: 3px solid #f39c12;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* ===== SETTINGS MODAL ===== */
+        .settings-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 3000;
+        }
+        .settings-box {
+            background: rgba(26,26,46,0.98);
+            border: 2px solid #f39c12;
+            border-radius: 12px;
+            padding: 24px 32px;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            box-shadow: 0 0 30px rgba(243,156,18,0.4);
+            text-align: center;
+            max-width: 420px;
+            min-width: 320px;
+        }
+        .settings-box h3 {
+            color: #f39c12;
+            margin-bottom: 16px;
+            font-size: 1.3em;
+        }
+        .settings-box button {
+            width: 100%;
+            padding: 14px 24px;
+            font-size: 1.05em;
+            margin: 6px 0;
+            background: linear-gradient(135deg, #f39c12, #e67e22);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .settings-box button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(243,156,18,0.4);
+        }
+        .settings-box button:active {
+            transform: translateY(0);
+        }
+        .settings-box button.back-btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ccc;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+.settings-box button.back-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2);
+        }
+        .settings-box button.back-btn.exit-btn:hover {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            color: #fff;
+            border-color: #e74c3c;
+            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
+        }
+
+        /* ===== VOLUME SETTINGS ===== */
+        .volume-slider-container {
+            margin: 12px 0;
+            text-align: left;
+        }
+        .volume-slider-container label {
+            display: block;
+            color: #ccc;
+            margin-bottom: 6px;
+            font-size: 0.95em;
+            font-weight: 600;
+        }
+        .volume-slider-container input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.1);
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        .volume-slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #f39c12;
+            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22 viewBox=%220 0 40 40%22%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f1c40f%22 stroke-width=%224%22 stroke-linejoin=%22round%22 opacity=%220.6%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22%23ffffff%22 stroke=%22%23f39c12%22 stroke-width=%221.5%22 stroke-linejoin=%22round%22/%3E%3C/svg%3E') 10 12, pointer !important;
+            border: 2px solid #fff;
+        }
+        .volume-slider-container input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #f39c12;
+            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22 viewBox=%220 0 40 40%22%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f1c40f%22 stroke-width=%224%22 stroke-linejoin=%22round%22 opacity=%220.6%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22%23ffffff%22 stroke=%22%23f39c12%22 stroke-width=%221.5%22 stroke-linejoin=%22round%22/%3E%3C/svg%3E') 10 12, pointer !important;
+            border: 2px solid #fff;
+        }
+        .volume-value {
+            color: #f1c40f;
+            font-weight: bold;
+            margin-left: 8px;
+        }
+
+        /* ===== ROOM ITEMS ===== */
+        .room-item:hover {
+            background: rgba(243, 156, 18, 0.15) !important;
+            border-color: #f1c40f !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="background-animation" id="bgAnimation"></div>
+    
+<div class="main-content">
+    <div class="logo">COLONIZATION</div>
+    <div class="menu-buttons">
+        <button class="menu-btn primary" id="newGameBtn">Нова гра</button>
+        <button class="menu-btn secondary" id="settingsBtn">Налаштування</button>
+        <button class="menu-btn secondary exit-btn" id="exitBtn">Вийти</button>
+    </div>
+    
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <div>Завантаження...</div>
+    </div>
+    
+    <div class="version">Версія 1.0.0</div>
+</div>
+
+<!-- Game Mode Selection Modal -->
+<div class="settings-overlay" id="gameModeModal" style="display: none;">
+    <div class="settings-box">
+        <h3>ВИБЕРІТЬ РЕЖИМ</h3>
+        <button id="singlePlayerBtn" class="mode-btn">Одиночна гра</button>
+        <button id="multiplayerBtn" class="mode-btn">Мультіплеєр</button>
+        <button id="backFromMode" class="back-btn">Назад</button>
+    </div>
+</div>
+
+<!-- Multiplayer Lobby Modal -->
+<div class="settings-overlay" id="multiplayerLobbyModal" style="display: none;">
+    <div class="settings-box" style="max-width: 500px; min-width: 400px;">
+        <h3>МУЛЬТИПЛЕЕР</h3>
+        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <button id="createRoomBtn" class="mode-btn" style="flex: 1;">Створити кімнату</button>
+            <button id="refreshRoomsBtn" class="mode-btn" style="flex: 1;">Оновити список</button>
+        </div>
+        <div id="roomsList" style="max-height: 200px; overflow-y: auto; margin-bottom: 15px; text-align: left;">
+            <div style="color: #666; text-align: center; padding: 20px;">Завантаження кімнат...</div>
+        </div>
+        <div style="margin-bottom: 15px; padding: 10px; background: rgba(243,156,18,0.1); border-radius: 6px; border: 1px solid rgba(243,156,18,0.2);">
+            <div style="color: #ccc; font-size: 0.85em; margin-bottom: 8px;">🌐 Сервер:</div>
+            <label style="display: block; color: #ccc; font-size: 0.85em; margin-bottom: 5px;">
+                <input type="radio" name="serverType" value="cloud" checked style="margin-right: 5px;"> Хмарний (онлайн)
+            </label>
+            <label style="display: block; color: #ccc; font-size: 0.85em; margin-bottom: 8px;">
+                <input type="radio" name="serverType" value="local" style="margin-right: 5px;"> Локальний (LAN)
+            </label>
+            <div id="customServerSection" style="display: none; margin-top: 8px;">
+                <input type="text" id="serverUrlInput" placeholder="https://your-server.com" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #f39c12; background: rgba(255,255,255,0.1); color: #fff; font-family: monospace; font-size: 0.9em;">
+                <button id="connectToServerBtn" class="mode-btn" style="width: 100%; margin-top: 8px; padding: 8px; font-size: 0.9em;">Підключитися</button>
+            </div>
+        </div>
+        <button id="backFromLobby" class="back-btn">Назад</button>
+    </div>
+</div>
+
+<!-- Create Room Modal -->
+<div class="settings-overlay" id="createRoomModal" style="display: none;">
+    <div class="settings-box">
+        <h3>СТВОРИТИ КІМНАТУ</h3>
+        <div class="volume-slider-container">
+            <label>Назва кімнати:</label>
+            <input type="text" id="roomNameInput" placeholder="Введіть назву кімнати" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #f39c12; background: rgba(255,255,255,0.1); color: #fff;">
+        </div>
+        <div class="volume-slider-container">
+            <label>Кількість гравців (2-4): <span class="volume-value" id="maxPlayersValue">4</span></label>
+            <input type="range" id="maxPlayersSelect" min="2" max="4" value="4">
+        </div>
+        <button id="confirmCreateRoom" class="mode-btn">Створити</button>
+        <button id="backFromCreateRoom" class="back-btn">Назад</button>
+    </div>
+</div>
+<!-- Room Created Modal -->
+<div class="settings-overlay" id="roomCreatedModal" style="display: none;">
+    <div class="settings-box">
+        <h3>КІМНАТА СТВОРЕНА</h3>
+        <div style="margin: 20px 0; padding: 15px; background: rgba(243,156,18,0.1); border-radius: 8px; border: 2px solid #f39c12;">
+            <div style="color: #f39c12; font-size: 1.2em; margin-bottom: 10px;">Код кімнати:</div>
+            <div style="display: flex; align-items: center; gap: 10px; justify-content: center;">
+                <div id="roomCodeDisplay" style="font-size: 2.5em; font-weight: bold; color: #f1c40f; letter-spacing: 3px; font-family: monospace;"></div>
+                <button id="copyRoomCodeBtn" title="Копіювати код" style="padding: 8px 12px; font-size: 1.2em; background: rgba(243,156,18,0.2); border: 1px solid #f39c12; border-radius: 6px; color: #f1c40f; cursor: pointer; transition: all 0.2s;">📋</button>
+            </div>
+        </div>
+        <div style="margin-bottom: 15px;">
+            <div style="color: #ccc; margin-bottom: 8px;">Гравці в кімнаті:</div>
+            <div id="playersList" style="display: flex; flex-direction: column; gap: 5px;"></div>
+        </div>
+        <div id="startGameContainer" style="margin-bottom: 10px;">
+            <button id="startGameBtn" class="mode-btn" style="background: linear-gradient(135deg, #27ae60, #229954);">Почати гру</button>
+        </div>
+        <button id="exitRoomBtn" class="back-btn exit-btn">Вийти</button>
+    </div>
+</div>
+
+<!-- Join Room Modal -->
+<div class="settings-overlay" id="joinRoomModal" style="display: none;">
+    <div class="settings-box">
+        <h3>ПРИЄДНАТИСЯ ДО КІМНАТИ</h3>
+        <div class="volume-slider-container">
+            <label>Код кімнати:</label>
+            <input type="text" id="joinCodeInput" placeholder="Введіть код кімнати" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #f39c12; background: rgba(255,255,255,0.1); color: #fff; text-transform: uppercase;">
+        </div>
+        <button id="confirmJoinRoom" class="mode-btn">Приєднатися</button>
+        <button id="backFromJoinRoom" class="back-btn">Назад</button>
+    </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="settings-overlay" id="settingsModal" style="display: none;">
+    <div class="settings-box">
+        <h3>НАЛАШТУВАННЯ</h3>
+        <button id="volumeBtn">Гучність</button>
+        <button id="backFromSettings" class="back-btn">Назад</button>
+    </div>
+</div>
+
+<!-- Volume Settings Modal -->
+<div class="settings-overlay" id="volumeModal" style="display: none;">
+    <div class="settings-box">
+        <h3>ГУЧНІСТЬ</h3>
+        <div class="volume-slider-container">
+            <label>Загальна гучність: <span class="volume-value" id="masterVolumeValue">100%</span></label>
+            <input type="range" id="masterVolume" min="0" max="100" value="100">
+        </div>
+        <div class="volume-slider-container">
+            <label>Музика: <span class="volume-value" id="musicVolumeValue">100%</span></label>
+            <input type="range" id="musicVolume" min="0" max="100" value="100">
+        </div>
+        <div class="volume-slider-container">
+            <label>Звуки: <span class="volume-value" id="sfxVolumeValue">100%</span></label>
+            <input type="range" id="sfxVolume" min="0" max="100" value="100">
+        </div>
+        <button id="backFromVolume" class="back-btn">Назад</button>
+    </div>
+</div>
+
+    <script>
+        // Create animated hex background
+        const bg = document.getElementById('bgAnimation');
+        for (let i = 0; i < 20; i++) {
+            const hex = document.createElement('div');
+            hex.className = 'hex';
+            const size = Math.random() * 100 + 50;
+            hex.style.width = size + 'px';
+            hex.style.height = size + 'px';
+            hex.style.left = Math.random() * 100 + '%';
+            hex.style.top = Math.random() * 100 + '%';
+            hex.style.animationDelay = Math.random() * 20 + 's';
+            bg.appendChild(hex);
+        }
+
+        // Audio Manager for splash screen
+        class AudioManager {
+            constructor() {
+                this.masterVolume = 1.0;
+                this.musicVolume = 1.0;
+                this.sfxVolume = 1.0;
+                this.audioContext = null;
+                this.initialized = false;
+            }
+
+            init() {
+                if (this.initialized) return;
+                try {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    this.initialized = true;
+                } catch (e) {
+                    console.log('Web Audio API not supported');
+                }
+            }
+
+            setMasterVolume(value) { this.masterVolume = value; }
+            setMusicVolume(value) { this.musicVolume = value; }
+            setSfxVolume(value) { this.sfxVolume = value; }
+
+            playTone(frequency, duration, type = 'sine', volume = 0.3) {
+                if (!this.initialized || !this.audioContext) return;
+                const oscillator = this.audioContext.createOscillator();
+                const gainNode = this.audioContext.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(this.audioContext.destination);
+                oscillator.frequency.value = frequency;
+                oscillator.type = type;
+                const actualVolume = volume * this.masterVolume * this.sfxVolume;
+                gainNode.gain.setValueAtTime(actualVolume, this.audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + duration);
+                oscillator.start(this.audioContext.currentTime);
+                oscillator.stop(this.audioContext.currentTime + duration);
+            }
+
+            playClickSound() {
+                this.playTone(600, 0.08, 'square', 0.15);
+                setTimeout(() => this.playTone(800, 0.06, 'square', 0.1), 50);
+            }
+
+            playHoverSound() { this.playTone(800, 0.05, 'sine', 0.1); }
+
+            startBackgroundMusic() {
+                if (!this.initialized || !this.audioContext || this.musicPlaying) return;
+                this.musicPlaying = true;
+
+                // Create master gain node for real-time volume control
+                this.musicGainNode = this.audioContext.createGain();
+                this.musicGainNode.connect(this.audioContext.destination);
+                this.updateMusicVolume();
+
+                const playNote = (freq, startTime, duration, type = 'sine', volume = 1.0) => {
+                    const osc = this.audioContext.createOscillator();
+                    const gain = this.audioContext.createGain();
+                    osc.connect(gain);
+                    gain.connect(this.musicGainNode);
+                    osc.frequency.value = freq;
+                    osc.type = type;
+                    const attack = 0.05;
+                    const release = 0.1;
+                    gain.gain.setValueAtTime(0.0, startTime);
+                    gain.gain.linearRampToValueAtTime(volume, startTime + attack);
+                    gain.gain.setValueAtTime(volume, startTime + duration - release);
+                    gain.gain.linearRampToValueAtTime(0.0, startTime + duration);
+                    osc.start(startTime);
+                    osc.stop(startTime + duration + 0.05);
+                };
+
+                const playChord = (freqs, startTime, duration, type = 'sine', volume = 0.25) => {
+                    freqs.forEach(f => playNote(f, startTime, duration, type, volume));
+                };
+
+// Dark Souls 3 Style - Dark, atmospheric medieval theme
+                // Deep, ominous melody in D minor with slow arpeggios
+                const melody = [
+                    // Dark atmospheric phrase 1
+                    { notes: [196.00, 185.00, 146.83, 130.81], dur: 1.5 },
+                    { notes: [146.83, 130.81, 110.00, 98.00], dur: 1.5 },
+                    { notes: [110.00, 130.81, 146.83, 185.00], dur: 1.5 },
+                    { notes: [146.83, 0.00, 0.00, 0.00], dur: 1.5 },
+                    // Dark atmospheric phrase 2
+                    { notes: [130.81, 146.83, 185.00, 196.00], dur: 1.5 },
+                    { notes: [146.83, 185.00, 196.00, 220.00], dur: 1.5 },
+                    { notes: [185.00, 146.83, 130.81, 110.00], dur: 1.5 },
+                    { notes: [110.00, 0.00, 0.00, 0.00], dur: 1.5 },
+                ];
+
+                const chords = [
+                    [146.83, 185.00, 220.00],  // D minor
+                    [146.83, 185.00, 220.00],  // D minor
+                    [110.00, 130.81, 146.83],  // A minor
+                    [110.00, 130.81, 146.83],  // A minor
+                    [130.81, 164.81, 196.00],  // C major
+                    [130.81, 164.81, 196.00],  // C major
+                    [196.00, 246.94, 293.66],  // G minor
+                    [196.00, 246.94, 293.66],  // G minor
+                ];
+
+                const playPhrase = (phraseIndex) => {
+                    if (!this.musicPlaying) return;
+                    const now = this.audioContext.currentTime;
+                    const phrase = melody[phraseIndex % melody.length];
+                    const chord = chords[phraseIndex % chords.length];
+
+                    // Dark atmospheric accompaniment - triangle for dark, hollow sound
+                    playChord(chord, now, phrase.dur * 4, 'triangle', 0.12);
+                    playChord(chord.map(f => f * 0.5), now, phrase.dur * 4, 'triangle', 0.08);
+
+                    // Melody - deep and ominous
+                    phrase.notes.forEach((freq, i) => {
+                        if (freq > 0) {
+                            const noteStart = now + i * phrase.dur * 0.25 + phrase.dur * 0.1;
+                            const noteDur = phrase.dur * 0.25;
+                            playNote(freq, noteStart, noteDur, 'triangle', 0.4);
+                        }
+                    });
+
+                    const nextPhraseDelay = phrase.dur * 4 * 1000;
+                    this.musicTimeout = setTimeout(() => playPhrase(phraseIndex + 1), nextPhraseDelay);
+                };
+
+                // Dark intro fade-in
+                const introStart = this.audioContext.currentTime;
+                this.musicGainNode.gain.setValueAtTime(0.0, introStart);
+                this.musicGainNode.gain.linearRampToValueAtTime(0.05 * this.masterVolume * this.musicVolume, introStart + 3.0);
+
+                playPhrase(0);
+            }
+
+            updateMusicVolume() {
+                if (!this.musicGainNode) return;
+                const volume = this.masterVolume * this.musicVolume;
+                // Використовуємо setValueAtTime для миттєвої зміни гучності.
+                // Це єдиний безпечний спосіб уникнути спотворень при частих змінах:
+                // - Не накопичує заплановані події (ramp events) в аудіографі
+                // - Не створює стрибків гучності (discontinuities)
+                // - Кожен новий виклик просто перезаписує попереднє значення
+                this.musicGainNode.gain.setValueAtTime(volume, this.audioContext.currentTime);
+            }
+
+            stopBackgroundMusic() {
+                this.musicPlaying = false;
+                if (this.musicTimeout) {
+                    clearTimeout(this.musicTimeout);
+                }
+            }
+        }
+
+        const audioManager = new AudioManager();
+        audioManager.init();
+
+        // Load saved volume settings
+        function loadVolumeSettings() {
+            const savedMaster = localStorage.getItem('masterVolume');
+            const savedMusic = localStorage.getItem('musicVolume');
+            const savedSfx = localStorage.getItem('sfxVolume');
+
+            if (savedMaster !== null) {
+                audioManager.setMasterVolume(savedMaster / 100);
+                document.getElementById('masterVolume').value = savedMaster;
+                document.getElementById('masterVolumeValue').textContent = savedMaster + '%';
+            }
+            if (savedMusic !== null) {
+                audioManager.setMusicVolume(savedMusic / 100);
+                document.getElementById('musicVolume').value = savedMusic;
+                document.getElementById('musicVolumeValue').textContent = savedMusic + '%';
+            }
+            if (savedSfx !== null) {
+                audioManager.setSfxVolume(savedSfx / 100);
+                document.getElementById('sfxVolume').value = savedSfx;
+                document.getElementById('sfxVolumeValue').textContent = savedSfx + '%';
+            }
+        }
+
+        // Save volume settings
+        function saveVolumeSettings() {
+            localStorage.setItem('masterVolume', document.getElementById('masterVolume').value);
+            localStorage.setItem('musicVolume', document.getElementById('musicVolume').value);
+            localStorage.setItem('sfxVolume', document.getElementById('sfxVolume').value);
+        }
+
+        // Helper function to close all modals
+        function closeAllModals() {
+            document.getElementById('gameModeModal').style.display = 'none';
+            document.getElementById('multiplayerLobbyModal').style.display = 'none';
+            document.getElementById('createRoomModal').style.display = 'none';
+            document.getElementById('roomCreatedModal').style.display = 'none';
+            document.getElementById('joinRoomModal').style.display = 'none';
+            document.getElementById('settingsModal').style.display = 'none';
+            document.getElementById('volumeModal').style.display = 'none';
+        }
+
+        // Multiplayer client
+        let mpClient = null;
+        let currentRoomCode = null;
+        let isHost = false;
+        let mySocketId = null;
+
+        function getSelectedServerUrl() {
+            const serverType = document.querySelector('input[name="serverType"]:checked').value;
+            if (serverType === 'cloud') {
+                // Cloud server URL - замінити на свій після деплою
+                return 'https://colonization-server.up.railway.app';
+            } else {
+                // Local server
+                return 'http://localhost:3000';
+            }
+        }
+
+        function initMultiplayer() {
+            mpClient = new MultiplayerClient();
+            
+            // Setup event handlers
+            const setupEventHandlers = () => {
+                mySocketId = mpClient.socket.id;
+                console.log('Socket ID:', mySocketId);
+                // Handle player joined event (for host to see new players)
+                mpClient.onPlayerJoined((data) => {
+                    console.log('Player joined:', data);
+                    if (isHost && currentRoomCode) {
+                        updatePlayersList(data.players, mySocketId);
+                    }
+                });
+                // Handle player left event
+                mpClient.onPlayerLeft((data) => {
+                    console.log('Player left:', data);
+                    if (isHost && currentRoomCode) {
+                        updatePlayersList(data.players, mySocketId);
+                    }
+                    if (!isHost && currentRoomCode) {
+                        updatePlayersListForGuest(data.players, mySocketId);
+                    }
+                });
+                // Handle room closed (host left)
+                mpClient.onRoomClosed((data) => {
+                    alert(data.message || 'Кімната закрита');
+                    document.getElementById('roomCreatedModal').style.display = 'none';
+                    document.getElementById('joinRoomModal').style.display = 'none';
+                    document.getElementById('multiplayerLobbyModal').style.display = 'flex';
+                    // Refresh rooms list when returning to lobby
+                    loadRoomsList();
+                });
+
+// Auto-refresh rooms list when it changes
+                mpClient.onRoomsList((rooms) => {
+                    console.log('Rooms list updated:', rooms);
+                    // Only update if lobby is currently visible
+                    if (document.getElementById('multiplayerLobbyModal').style.display === 'flex') {
+                        const roomsList = document.getElementById('roomsList');
+                        if (rooms.length === 0) {
+                            roomsList.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">Немає активних кімнат</div>';
+                        } else {
+                            roomsList.innerHTML = rooms.map(room => `
+                                <div class="room-item" data-code="${room.code}" style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 6px; margin-bottom: 8px; cursor: pointer; border: 1px solid rgba(243,156,18,0.2);">
+                                    <div style="font-weight: bold; color: #f39c12;">${room.name}</div>
+                                    <div style="font-size: 0.85em; color: #aaa;">Гравці: ${room.players}/${room.maxPlayers}</div>
+                                </div>
+                            `).join('');
+                            
+                            // Re-add click handlers to room items
+                            document.querySelectorAll('.room-item').forEach(item => {
+                                item.addEventListener('click', () => {
+                                    // Show join room modal without auto-filling the code
+                                    document.getElementById('multiplayerLobbyModal').style.display = 'none';
+                                    document.getElementById('joinRoomModal').style.display = 'flex';
+                                });
+                            });
+                        }
+                    }
+                });
+            };
+            
+            // Get server URL based on selection
+            const serverUrl = getSelectedServerUrl();
+            console.log('Connecting to server:', serverUrl);
+            
+            // Add a small delay to ensure server is fully ready
+            return new Promise((resolve, reject) => {
+                setTimeout(() => {
+                    mpClient.connect(serverUrl)
+                        .then(() => {
+                            console.log('Successfully connected to server');
+                            setupEventHandlers();
+                            resolve();
+                        })
+                        .catch(err => {
+                            console.error('Failed to connect to server:', err);
+                            reject(new Error('Не вдалося підключитися до сервера на ' + serverUrl + '.\nПеревірте консоль на наявність помилок.'));
+                        });
+                }, 2000); // Wait 2 seconds for server to be fully ready
+            });
+        }
+
+        function showGameModeModal() {
+            audioManager.playClickSound();
+            document.getElementById('gameModeModal').style.display = 'flex';
+        }
+
+        function showMultiplayerLobby() {
+            audioManager.playClickSound();
+            document.getElementById('multiplayerLobbyModal').style.display = 'flex';
+            loadRoomsList();
+        }
+
+        function loadRoomsList() {
+            const roomsList = document.getElementById('roomsList');
+            mpClient.getRoomsList().then(rooms => {
+                if (rooms.length === 0) {
+                    roomsList.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">Немає активних кімнат</div>';
+                } else {
+                    roomsList.innerHTML = rooms.map(room => `
+                        <div class="room-item" data-code="${room.code}" style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 6px; margin-bottom: 8px; cursor: pointer; border: 1px solid rgba(243,156,18,0.2);">
+                            <div style="font-weight: bold; color: #f39c12;">${room.name}</div>
+                            <div style="font-size: 0.85em; color: #aaa;">Гравці: ${room.players}/${room.maxPlayers}</div>
+                        </div>
+                    `).join('');
+                    
+        // Add click handlers to room items
+                    document.querySelectorAll('.room-item').forEach(item => {
+                        item.addEventListener('click', () => {
+                            // Show join room modal without auto-filling the code
+                            document.getElementById('multiplayerLobbyModal').style.display = 'none';
+                            document.getElementById('joinRoomModal').style.display = 'flex';
+                        });
+                    });
+                }
+            }).catch(err => {
+                roomsList.innerHTML = '<div style="color: #e74c3c; text-align: center; padding: 20px;">Помилка з\'єднання з сервером</div>';
+                console.error('Failed to load rooms:', err);
+            });
+        }
+
+// Button handlers
+        document.getElementById('newGameBtn').addEventListener('click', showGameModeModal);
+
+        document.getElementById('exitBtn').addEventListener('click', () => {
+            audioManager.playClickSound();
+            window.electronAPI.closeGame();
+        });
+
+        document.getElementById('settingsBtn').addEventListener('click', () => {
+            audioManager.playClickSound();
+            document.getElementById('settingsModal').style.display = 'flex';
+        });
+
+        // Game Mode Modal handlers
+        document.getElementById('singlePlayerBtn').addEventListener('click', () => {
+            audioManager.playClickSound();
+            document.getElementById('loading').classList.add('active');
+            setTimeout(() => {
+                window.location.href = 'index.html?mode=single';
+            }, 500);
+        });
+
+        document.getElementById('multiplayerBtn').addEventListener('click', () => {
+            initMultiplayer().then(() => {
+                showMultiplayerLobby();
+            }).catch(err => {
+                console.error('Failed to connect to server:', err);
+                // Show manual connection option
+                const serverUrlInput = document.getElementById('serverUrlInput');
+                if (serverUrlInput) {
+                    serverUrlInput.style.borderColor = '#e74c3c';
+                    serverUrlInput.placeholder = 'Помилка: ' + err.message + '. Введіть адресу сервера вручну';
+                }
+                alert('Не вдалося автоматично підключитися до сервера.\n\nВведіть адресу сервера вручну в полі нижче та натисніть "Підключитися".\n\nДля локальної гри використовуйте: http://localhost:3000');
+                showMultiplayerLobby();
+            });
+        });
+
+        document.getElementById('backFromMode').addEventListener('click', () => {
+            audioManager.playClickSound();
+            document.getElementById('gameModeModal').style.display = 'none';
+        });
+
+        // Multiplayer Lobby handlers
+        document.getElementById('createRoomBtn').addEventListener('click', () => {
+            audioManager.playClickSound();
+            document.getElementById('multiplayerLobbyModal').style.display = 'none';
+            document.getElementById('createRoomModal').style.display = 'flex';
+        });
+
+        document.getElementById('refreshRoomsBtn').addEventListener('click', () => {
+            audioManager.playClickSound();
+            loadRoomsList();
+        });
+
+        // Manual server connection button
+        document.getElementById('connectToServerBtn').addEventListener('click', () => {
+            audioManager.playClickSound();
+            const serverUrl = document.getElementById('serverUrlInput').value.trim();
+            if (!serverUrl) {
+                alert('Введіть адресу сервера');
+                return;
+            }
+            
+            // Disconnect existing connection if any
+            if (mpClient) {
+                mpClient.disconnect();
+            }
+            
+            // Create new client and connect to specified server
+            mpClient = new MultiplayerClient();
+            mpClient.connect(serverUrl)
+                .then(() => {
+                    console.log('Connected to custom server:', serverUrl);
+                    alert('Підключено до сервера: ' + serverUrl);
+                    loadRoomsList();
+                })
+                .catch(err => {
+                    console.error('Failed to connect to custom server:', err);
+                    alert('Не вдалося підключитися: ' + err);
+                });
+        });
+
+        document.getElementById('backFromLobby').addEventListener('click', () => {
+            audioManager.playClickSound();
+            // Disconnect from server when leaving lobby
+            if (mpClient) {
+                mpClient.disconnect();
+                mpClient = null;
+            }
+            document.getElementById('multiplayerLobbyModal').style.display = 'none';
+        });
+
+        // Max players slider handler
+        document.getElementById('maxPlayersSelect').addEventListener('input', (e) => {
+            document.getElementById('maxPlayersValue').textContent = e.target.value;
+        });
+        
+        // Create Room handlers
+        document.getElementById('confirmCreateRoom').addEventListener('click', () => {
+            audioManager.playClickSound();
+            const roomName = document.getElementById('roomNameInput').value || 'Моя кімната';
+            const maxPlayers = parseInt(document.getElementById('maxPlayersSelect').value) || 4;
+            
+            mpClient.createRoom(roomName, 'Гравець', maxPlayers).then(data => {
+                currentRoomCode = data.roomCode;
+                isHost = true;
+                document.getElementById('createRoomModal').style.display = 'none';
+                document.getElementById('roomCodeDisplay').textContent = data.roomCode;
+                // Show host as "Хозяїн (ви)"
+                document.getElementById('playersList').innerHTML = `
+                    <div style="padding: 8px; background: rgba(39,174,96,0.2); border-radius: 5px; color: #27ae60;">
+                        Хозяїн (ви)
+                    </div>
+                `;
+                document.getElementById('roomCreatedModal').style.display = 'flex';
+                
+                // Show server URL for sharing
+                if (window.electronAPI && window.electronAPI.getServerInfo) {
+                    const serverInfo = window.electronAPI.getServerInfo();
+                    const serverUrlDisplay = document.getElementById('serverUrlDisplay');
+                    const serverInfoDisplay = document.getElementById('serverInfoDisplay');
+                    
+                    serverInfo.then(info => {
+                        const url = info.publicUrl || info.localUrl;
+                        if (url && serverUrlDisplay && serverInfoDisplay) {
+                            serverUrlDisplay.textContent = url;
+                            serverInfoDisplay.style.display = 'block';
+                        }
+                    });
+                }
+            }).catch(err => {
+                alert('Помилка створення кімнати: ' + err);
+            });
+        });
+
+        document.getElementById('backFromCreateRoom').addEventListener('click', () => {
+            audioManager.playClickSound();
+            document.getElementById('createRoomModal').style.display = 'none';
+            document.getElementById('multiplayerLobbyModal').style.display = 'flex';
+        });
+
+        // Room Created handlers
+        document.getElementById('startGameBtn').addEventListener('click', () => {
+            audioManager.playClickSound();
+            // Generate and send map to server before starting game
+            const mapSeed = generateMap();
+            // Convert Map objects to plain objects for JSON serialization
+            const serializedMap = {
+                center: mapSeed.center,
+                ring1: mapSeed.ring1,
+                ring2: mapSeed.ring2,
+                ring3: mapSeed.ring3,
+                resources: Object.fromEntries(mapSeed.resources),
+                numbers: Object.fromEntries(mapSeed.numbers),
+                ocean: Object.fromEntries(mapSeed.ocean)
+            };
+            // Store map in sessionStorage for host to use in game
+            sessionStorage.setItem('multiplayerMap', JSON.stringify(serializedMap));
+            mpClient.storeMap(serializedMap);
+            mpClient.startGame();
+            document.getElementById('loading').classList.add('active');
+            setTimeout(() => {
+                window.location.href = 'index.html?mode=multiplayer&host=true&code=' + currentRoomCode;
+            }, 500);
+        });
+
+document.getElementById('exitRoomBtn').addEventListener('click', () => {
+            audioManager.playClickSound();
+            // Leave room and disconnect from server
+            if (mpClient && currentRoomCode) {
+                mpClient.leaveRoom();
+                mpClient.disconnect();
+                currentRoomCode = null;
+                isHost = false;
+            }
+            document.getElementById('roomCreatedModal').style.display = 'none';
+            // Return to main menu (not lobby)
+            // Note: we don't call loadRoomsList() here because we disconnected from server
+        });
+        
+        // Handle Escape key for roomCreatedModal - go to main menu, not lobby
+        // (This is handled in the main Escape handler below, so we don't need a separate one here)
+
+        // Function to update players list in room created modal (for host)
+        function updatePlayersList(players, mySocketId) {
+            const playersList = document.getElementById('playersList');
+            playersList.innerHTML = players.map((p, index) => {
+                if (p.isHost) {
+                    return `<div style="padding: 8px; background: rgba(39,174,96,0.2); border-radius: 5px; color: #27ae60;">
+                        Хозяїн (ви)
+                    </div>`;
+                } else {
+                    return `<div style="padding: 8px; background: rgba(243,156,18,0.1); border-radius: 5px; color: #f39c12;">
+                        Гравець
+                    </div>`;
+                }
+            }).join('');
+        }
+
+        // Function to update players list for guest (marks self as "ви")
+        function updatePlayersListForGuest(players, mySocketId) {
+            const playersList = document.getElementById('playersList');
+            playersList.innerHTML = players.map((p, index) => {
+                if (p.isHost) {
+                    return `<div style="padding: 8px; background: rgba(39,174,96,0.2); border-radius: 5px; color: #27ae60;">
+                        Гравець (хозяїн)
+                    </div>`;
+                } else if (p.id === mySocketId) {
+                    return `<div style="padding: 8px; background: rgba(243,156,18,0.1); border-radius: 5px; color: #f39c12;">
+                        Гравець (ви)
+                    </div>`;
+                } else {
+                    return `<div style="padding: 8px; background: rgba(243,156,18,0.1); border-radius: 5px; color: #f39c12;">
+                        Гравець
+                    </div>`;
+                }
+            }).join('');
+        }
+
+        // Copy room code button
+        document.getElementById('copyRoomCodeBtn').addEventListener('click', () => {
+            const code = document.getElementById('roomCodeDisplay').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = document.getElementById('copyRoomCodeBtn');
+                const originalText = btn.textContent;
+                btn.textContent = '✓';
+                btn.style.background = 'rgba(39,174,96,0.3)';
+                btn.style.borderColor = '#27ae60';
+                btn.style.color = '#27ae60';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = 'rgba(243,156,18,0.2)';
+                    btn.style.borderColor = '#f39c12';
+                    btn.style.color = '#f1c40f';
+                }, 1500);
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+            });
+        });
+
+        // Join Room handlers
+        document.getElementById('confirmJoinRoom').addEventListener('click', () => {
+            audioManager.playClickSound();
+            const code = document.getElementById('joinCodeInput').value.toUpperCase();
+            if (code.length === 6) {
+                mpClient.joinRoom(code, 'Гравець').then(data => {
+                    currentRoomCode = data.roomCode;
+                    isHost = false;
+                    // Show waiting room for guest with player list
+                    document.getElementById('joinRoomModal').style.display = 'none';
+                    document.getElementById('roomCreatedModal').style.display = 'flex';
+                    document.getElementById('roomCodeDisplay').textContent = code;
+                    // Show players list (including self as "Гравець (ви)")
+                    updatePlayersListForGuest(data.players, mySocketId);
+                    
+                    // Replace "Start Game" button with "Waiting for game..." text for guest
+                    document.getElementById('startGameContainer').innerHTML = `
+                        <div style="color: #f39c12; font-size: 1.1em; padding: 10px; text-align: center;">
+                            ⏳ Очікування гри...
+                        </div>
+                    `;
+                    
+                    // Wait for game to start
+                    mpClient.onGameStarted((data) => {
+                        // Store map in sessionStorage for guest to use in game
+                        if (data && data.mapSeed) {
+                            sessionStorage.setItem('multiplayerMap', JSON.stringify(data.mapSeed));
+                        }
+                        window.location.href = 'index.html?mode=multiplayer&code=' + code;
+                    });
+                }).catch(err => {
+                    alert('Помилка приєднання: ' + err);
+                });
+            } else {
+                alert('Введіть правильний код кімнати (6 символів)');
+            }
+        });
+        
+        // Enter key support for Join Room modal
+        document.getElementById('joinCodeInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('confirmJoinRoom').click();
+            }
+        });
+        
+        // Enter key support for Create Room modal
+        document.getElementById('roomNameInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('confirmCreateRoom').click();
+            }
+        });
+
+        document.getElementById('backFromJoinRoom').addEventListener('click', () => {
+            audioManager.playClickSound();
+            // Leave room before going back to lobby
+            if (mpClient && currentRoomCode) {
+                mpClient.leaveRoom();
+                currentRoomCode = null;
+                isHost = false;
+            }
+            document.getElementById('joinRoomModal').style.display = 'none';
+            document.getElementById('multiplayerLobbyModal').style.display = 'flex';
+            // Refresh rooms list to show updated state
+            loadRoomsList();
+        });
+
+        // Settings modal handlers
+        document.getElementById('backFromSettings').addEventListener('click', () => {
+            audioManager.playClickSound();
+            document.getElementById('settingsModal').style.display = 'none';
+        });
+
+        document.getElementById('volumeBtn').addEventListener('click', () => {
+            audioManager.playClickSound();
+            document.getElementById('settingsModal').style.display = 'none';
+            document.getElementById('volumeModal').style.display = 'flex';
+        });
+
+        document.getElementById('backFromVolume').addEventListener('click', () => {
+            audioManager.playClickSound();
+            document.getElementById('volumeModal').style.display = 'none';
+            document.getElementById('settingsModal').style.display = 'flex';
+        });
+
+        // Volume sliders
+        document.getElementById('masterVolume').addEventListener('input', (e) => {
+            const value = e.target.value / 100;
+            audioManager.setMasterVolume(value);
+            audioManager.updateMusicVolume();
+            document.getElementById('masterVolumeValue').textContent = e.target.value + '%';
+            saveVolumeSettings();
+        });
+
+        document.getElementById('musicVolume').addEventListener('input', (e) => {
+            const value = e.target.value / 100;
+            audioManager.setMusicVolume(value);
+            audioManager.updateMusicVolume();
+            document.getElementById('musicVolumeValue').textContent = e.target.value + '%';
+            saveVolumeSettings();
+        });
+
+        document.getElementById('sfxVolume').addEventListener('input', (e) => {
+            const value = e.target.value / 100;
+            audioManager.setSfxVolume(value);
+            audioManager.updateMusicVolume();
+            document.getElementById('sfxVolumeValue').textContent = e.target.value + '%';
+            saveVolumeSettings();
+        });
+
+        // Close modals with Escape key (but not createRoomModal - it should create room on Enter)
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                // Check roomCreatedModal first (special handling)
+                const roomModal = document.getElementById('roomCreatedModal');
+                if (roomModal && roomModal.style.display === 'flex') {
+                    audioManager.playClickSound();
+                    if (mpClient && currentRoomCode) {
+                        mpClient.leaveRoom();
+                        mpClient.disconnect();
+                        currentRoomCode = null;
+                        isHost = false;
+                    }
+                    roomModal.style.display = 'none';
+                    return;
+                }
+                
+                // Check other modals
+                const modals = ['gameModeModal', 'multiplayerLobbyModal', 'joinRoomModal', 'settingsModal', 'volumeModal'];
+                modals.forEach(modalId => {
+                    const modal = document.getElementById(modalId);
+                    if (modal && modal.style.display === 'flex') {
+                        audioManager.playClickSound();
+                        modal.style.display = 'none';
+                        return;
+                    }
+                });
+            }
+        });
+
+        // Close modals when clicking outside (except for room modals to prevent accidental closing)
+        document.addEventListener('click', (e) => {
+            const modals = ['gameModeModal', 'multiplayerLobbyModal', 'createRoomModal', 'settingsModal', 'volumeModal'];
+            modals.forEach(modalId => {
+                const modal = document.getElementById(modalId);
+                if (modal && e.target === modal) {
+                    audioManager.playClickSound();
+                    modal.style.display = 'none';
+                }
+            });
+            // For roomCreatedModal and joinRoomModal, don't close on backdrop click
+            // to prevent accidental leaving from room
+        });
+
+        // Add hover sounds to all buttons
+        function addHoverSounds() {
+            document.querySelectorAll('button').forEach(btn => {
+                btn.addEventListener('mouseenter', () => {
+                    audioManager.playHoverSound();
+                });
+            });
+        }
+
+        // Add hover sounds initially
+        addHoverSounds();
+
+        // Add hover sounds to dynamically created buttons
+        const observer = new MutationObserver(() => {
+            addHoverSounds();
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+
+        // Start background music
+        audioManager.startBackgroundMusic();
+
+        // Map generation functions (copied from index.html)
+        const RESOURCE_TYPES = ['wood', 'brick', 'geese', 'water', 'stone'];
+        const RESOURCE_DISTRIBUTION = [4, 3, 4, 4, 3];
+        
+        function hexAdd(a,b) { return { q:a.q+b.q, r:a.r+b.r, s:a.s+b.s }; }
+        function hexNeighbors(hex) { const d = [{q:1,r:0,s:-1},{q:1,r:-1,s:0},{q:0,r:-1,s:1},{q:-1,r:0,s:1},{q:-1,r:1,s:0},{q:0,r:1,s:-1}]; return d.map(x => hexAdd(hex, x)); }
+        function hexKey(h) { return h.q+','+h.r+','+h.s; }
+        function shuffleArray(arr) { for (let i=arr.length-1; i>0; i--) { const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
+        
+        function generateHexRing(r) { if (r===0) return [{q:0,r:0,s:0}]; const h=[], dirs=[{q:0,r:-1,s:1},{q:-1,r:0,s:1},{q:-1,r:1,s:0},{q:0,r:1,s:-1},{q:1,r:0,s:-1},{q:1,r:-1,s:0}]; let c={q:r,r:0,s:-r}; for (let d=0;d<6;d++) for (let s=0;s<r;s++) { h.push({q:c.q,r:c.r,s:c.s}); c=hexAdd(c,dirs[d]); } return h; }
+        function generateResources(hexPositions) {
+            let pool=[]; RESOURCE_TYPES.forEach((t,i)=>{for(let j=0;j<RESOURCE_DISTRIBUTION[i];j++) pool.push(t);});
+            const hl=[...hexPositions], ps=new Set(hl.map(hexKey));
+            hl.sort((a,b)=>hexNeighbors(b).filter(n=>ps.has(hexKey(n))).length-hexNeighbors(a).filter(n=>ps.has(hexKey(n))).length);
+            for(let at=0;at<2000;at++){const as=new Map(),rm=shuffleArray([...pool]);let ok=true;
+                for(let i=0;i<hl.length;i++){const h=hl[i],u=hexNeighbors(h).map(hexKey).map(k=>as.get(k)).filter(t=>t);let pl=false;for(let r=0;r<rm.length;r++){if(rm[r]===null)continue;if(!u.includes(rm[r])){as.set(hexKey(h),rm[r]);rm[r]=null;pl=true;break;}}if(!pl){ok=false;break;}}if(ok)return as;shuffleArray(pool);}
+            const fb=new Map(),fbp=shuffleArray([...pool]);hl.forEach((h,i)=>fb.set(hexKey(h),fbp[i]));return fb;
+        }
+        function generateNumbers(hexPositions, resourceMap) {
+            const np=[2,3,3,4,4,5,5,6,6,8,8,9,9,10,10,11,11,12],hl=[...hexPositions],ps=new Set(hl.map(hexKey));
+            hl.sort((a,b)=>hexNeighbors(b).filter(n=>ps.has(hexKey(n))).length-hexNeighbors(a).filter(n=>ps.has(hexKey(n))).length);
+            for(let at=0;at<4000;at++){const as=new Map(),uc={},rm=shuffleArray([...np]);let ok=true;
+                for(let i=0;i<hl.length;i++){const h=hl[i],k=hexKey(h),rt=resourceMap.get(k),un=hexNeighbors(h).map(hexKey).map(x=>as.get(x)).filter(n=>n!==undefined);let pl=false;for(let r=0;r<rm.length;r++){if(rm[r]===null)continue;const n=rm[r];if(un.includes(n))continue;const co=n+':'+rt;if(uc[co])continue;as.set(k,n);uc[co]=true;rm[r]=null;pl=true;break;}if(!pl){ok=false;break;}}if(ok)return as;}
+            const fb=new Map(),fbn=shuffleArray([...np]);hl.forEach((h,i)=>fb.set(hexKey(h),fbn[i]));return fb;
+        }
+        function generateOcean(radius, landHexes) {
+            const hexes=generateHexRing(radius),ls=new Set(landHexes.map(hexKey));
+            function getLE(h){const n=hexNeighbors(h),e=[];for(let i=0;i<6;i++)if(ls.has(hexKey(n[i])))e.push((6-i)%6);return e;}
+            function getPC(le){const t=[];for(let c=0;c<6;c++){const e1=(c-1+6)%6,e2=c;t[c]=le.includes(e1)||le.includes(e2);}for(let c=0;c<6;c++){const c2=(c+1)%6;if(t[c]&&t[c2])return[c,c2];}return null;}
+            const off=Math.floor(Math.random()*hexes.length),ord=hexes.map((_,i)=>hexes[(i+off)%hexes.length]);
+            const tp=Math.ceil(ord.length/2),sr=shuffleArray(['wood','brick','geese','water','stone']);let si=0,pc=0;const m=new Map();
+            for(let i=0;i<ord.length;i++){const h=ord[i],k=hexKey(h);if(i%2===0){const le=getLE(h),pcor=getPC(le);if(!pcor){m.set(k,{type:'ocean',resource:null,landEdges:[],portCorners:null});continue;}let t=(pc%2===0)?'port3':'port2';if(pc===tp-1)t='port2';const r=(t==='port2')?sr[si++%sr.length]:null;m.set(k,{type:t,resource:r,landEdges:le,portCorners:pcor});pc++;}else m.set(k,{type:'ocean',resource:null,landEdges:[],portCorners:null});}
+            return m;
+        }
+        function generateMap(){const c={q:0,r:0,s:0},r1=generateHexRing(1),r2=generateHexRing(2),r3=generateHexRing(3),lh=[...r1,...r2],r=generateResources(lh);r.set(hexKey(c),'desert');const n=generateNumbers(lh,r),o=generateOcean(3,lh);return{center:c,ring1:r1,ring2:r2,ring3:r3,resources:r,numbers:n,ocean:o};}
+
+        // Load volume settings on page load
+        loadVolumeSettings();
+    </script>
+</body>
+</html>

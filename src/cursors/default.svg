@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Mouse cursor arrow -->
+  <path d="M7 8 L7 24 L12 18 L16 24 L20 20 L14 14 L23 14 Z"
+        fill="#f39c12" stroke="#e67e22" stroke-width="0.8" stroke-linejoin="round" opacity="0.95"/>
+</svg>

@@ -1,0 +1,60 @@
+{
+  "name": "colonization",
+  "version": "1.0.0",
+  "description": "Colonization — стратегічна настільна гра",
+  "main": "src/main/main.js",
+  "author": "Colonization Team",
+  "scripts": {
+    "start": "electron .",
+    "start:server": "node src/main/server.js",
+    "start:host": "node src/main/server.js && electron .",
+    "build": "electron-builder build --win",
+    "build:dir": "electron-builder build --win --dir",
+    "pack": "electron-packager . Colonization --platform=win32 --arch=x64 --out=dist --overwrite --no-prune --ignore=dist"
+  },
+  "build": {
+    "appId": "com.colonization.game",
+    "productName": "Colonization",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icons/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Colonization",
+      "artifactName": "${productName} Setup.${ext}",
+      "differentialPackage": false
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*"
+    ],
+    "extraResources": [],
+    "publish": null
+  },
+  "keywords": [
+    "catan",
+    "colonizators",
+    "game",
+    "board-game"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.22.2",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "electron": "^31.3.1",
+    "electron-builder": "^24.13.3",
+    "electron-packager": "^17.1.2"
+  }
+}

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+  <!-- Glow effect -->
+  <path d="M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z"
+        fill="none" stroke="#f1c40f" stroke-width="4" stroke-linejoin="round" opacity="0.5"/>
+  <!-- White bright arrow -->
+  <path d="M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z"
+        fill="#ffffff" stroke="#f39c12" stroke-width="1.5" stroke-linejoin="round"/>
+  <!-- Inner highlight -->
+  <path d="M11 13 L11 27 L15 22 L19 27 L23 24 L17 19 L26 19 Z"
+        fill="rgba(243,156,18,0.15)" stroke="none"/>
+</svg>
