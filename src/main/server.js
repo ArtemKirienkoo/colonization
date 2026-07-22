@@ -297,31 +297,31 @@ io.on('connection', (socket) => {
             room.gamePhase = 'initial-build';
             room.currentInitialBuildIndex = 0;
             room.initialBuildRoundComplete = false;
+            room.playersWhoCompletedInitialBuild = new Set(); // Track who finished initial build
             
-            // Notify all players of the build order
+            // Notify all players of the build order - everyone builds simultaneously!
             io.to(roomCode).emit('initial-build-start', {
                 order: rolls,
-                currentPlayerId: rolls[0].playerId,
+                currentPlayerId: null, // No specific current player - everyone builds at the same time
                 round: 0
             });
         }
     });
     
-    // Handle initial build completion (1 settlement + 2 roads per player, 1 round only)
+    // Handle initial build completion (1 settlement + 2 roads per player, all build simultaneously)
     socket.on('initial-build-complete', ({ roomCode, playerId }) => {
         const room = rooms.get(roomCode);
         if (!room || room.gamePhase !== 'initial-build') return;
         
-        // Verify it's this player's turn
-        const currentPlayer = room.initialBuildOrder[room.currentInitialBuildIndex];
-        if (!currentPlayer || currentPlayer.playerId !== playerId) return;
+        // Mark this player as done with initial build
+        if (!room.playersWhoCompletedInitialBuild) {
+            room.playersWhoCompletedInitialBuild = new Set();
+        }
+        room.playersWhoCompletedInitialBuild.add(playerId);
         
-        // Move to next player
-        room.currentInitialBuildIndex++;
-        
-        // Check if all players have built
-        if (room.currentInitialBuildIndex >= room.players.length) {
-            // Initial build complete! Start regular turns
+        // Check if all players have completed their initial build
+        if (room.playersWhoCompletedInitialBuild.size === room.players.length) {
+            // All players finished! Start regular turns
             room.gamePhase = 'regular-turn';
             room.currentTurnIndex = 0;
             
@@ -352,12 +352,6 @@ io.on('connection', (socket) => {
                     yourPosition: i
                 });
             }
-        } else {
-            // Next player in current round
-            const nextPlayerId = room.initialBuildOrder[room.currentInitialBuildIndex].playerId;
-            io.to(roomCode).emit('initial-build-next-player', {
-                currentPlayerId: nextPlayerId
-            });
         }
     });
 

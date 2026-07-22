@@ -1188,7 +1188,7 @@ function computeLongestRoadLength() {
         }
     }
     const roadGraph = new Map();
-    for (const ek of gameState.roads) {
+    for (const [ek] of gameState.roads) {
         const edge = edgeGeom.edges.get(ek);
         if (!edge) continue;
         const keyA = getCoordKey(edge.va);
@@ -1291,7 +1291,7 @@ function updateAllUI() { updateResourceCardsDisplay(); updateBuildStats(); updat
 function buildSettlementGraph() {
     const graph = new Map(), p2v = new Map();
     for (const [vk, vert] of vertexGeom) { const pk = Math.round(vert.pos.x*1000)+','+Math.round(vert.pos.y*1000); p2v.set(pk, vk); }
-    for (const ek of gameState.roads) {
+    for (const [ek] of gameState.roads) {
         const edge = edgeGeom.edges.get(ek); if (!edge) continue;
         const va = Math.round(edge.va.x*1000)+','+Math.round(edge.va.y*1000);
         const vb = Math.round(edge.vb.x*1000)+','+Math.round(edge.vb.y*1000);
@@ -1452,7 +1452,7 @@ canvas.addEventListener('mousemove', (e) => {
     if(nhe!==hoverEdge||nhv!==hoverVertex){hoverEdge=nhe;hoverVertex=nhv;const ctx=canvas.getContext('2d');clearHoverAndRedraw(ctx,mapOffset.ox,mapOffset.oy,mapHexSize);}
 });
 function isEdgeValidForRoad(ek){const e=edgeGeom.edges.get(ek);if(!e)return false;const ls=new Set();if(mapData)[mapData.center,...mapData.ring1,...mapData.ring2].forEach(h=>ls.add(hexKey(h)));return ls.has(hexKey(e.hex1))||ls.has(hexKey(e.hex2));}
-function isEdgeConnected(ek){const e=edgeGeom.edges.get(ek);if(!e)return false;const p2v=new Map();for(const[vk,vert]of vertexGeom){const pk=Math.round(vert.pos.x*1000)+','+Math.round(vert.pos.y*1000);p2v.set(pk,vk);}const va=Math.round(e.va.x*1000)+','+Math.round(e.va.y*1000),vb=Math.round(e.vb.x*1000)+','+Math.round(e.vb.y*1000),a=p2v.get(va),b=p2v.get(vb);if((a&&gameState.settlements.has(a))||(b&&gameState.settlements.has(b)))return true;for(const ek2 of gameState.roads){if(ek2===ek)continue;const e2=edgeGeom.edges.get(ek2);if(!e2)continue;const e2va=Math.round(e2.va.x*1000)+','+Math.round(e2.va.y*1000),e2vb=Math.round(e2.vb.x*1000)+','+Math.round(e2.vb.y*1000);if(va===e2va||va===e2vb||vb===e2va||vb===e2vb)return true;}return false;}
+function isEdgeConnected(ek){const e=edgeGeom.edges.get(ek);if(!e)return false;const p2v=new Map();for(const[vk,vert]of vertexGeom){const pk=Math.round(vert.pos.x*1000)+','+Math.round(vert.pos.y*1000);p2v.set(pk,vk);}const va=Math.round(e.va.x*1000)+','+Math.round(e.va.y*1000),vb=Math.round(e.vb.x*1000)+','+Math.round(e.vb.y*1000),a=p2v.get(va),b=p2v.get(vb);if((a&&gameState.settlements.has(a))||(b&&gameState.settlements.has(b)))return true;for(const [ek2] of gameState.roads){if(ek2===ek)continue;const e2=edgeGeom.edges.get(ek2);if(!e2)continue;const e2va=Math.round(e2.va.x*1000)+','+Math.round(e2.va.y*1000),e2vb=Math.round(e2.vb.x*1000)+','+Math.round(e2.vb.y*1000);if(va===e2va||va===e2vb||vb===e2va||vb===e2vb)return true;}return false;}
 canvas.addEventListener('click', (e) => {
     if (isPaused) return;
     const m = buildMode!=='none'?buildMode:(gameState.roadBuildingMode>0?'road':'none'); 
@@ -2226,11 +2226,11 @@ function handleMultiplayerAction(action, data) {
         case 'build':
             // Sync building actions
             if (data.type === 'road') {
-                gameState.roads.add(data.edgeKey);
+                gameState.roads.set(data.edgeKey, { color: data.color, playerId: data.playerId });
             } else if (data.type === 'settlement') {
-                gameState.settlements.set(data.vertexKey, { type: 'settlement', vk: data.vertexKey });
+                gameState.settlements.set(data.vertexKey, { type: 'settlement', vk: data.vertexKey, color: data.color, playerId: data.playerId });
             } else if (data.type === 'city') {
-                gameState.settlements.set(data.vertexKey, { type: 'city', vk: data.vertexKey });
+                gameState.settlements.set(data.vertexKey, { type: 'city', vk: data.vertexKey, color: data.color, playerId: data.playerId });
             }
             // Clear hover state to prevent visual artifacts
             hoverEdge = null;
@@ -2402,7 +2402,7 @@ function onPlayerDiceRolled(data) {
     }
 }
 
-// Handle initial build start
+// Handle initial build start - ALL PLAYERS BUILD SIMULTANEOUSLY!
 function onInitialBuildStart(data) {
     initialPhase.phase = 'initial-build';
     initialPhase.buildOrder = data.order;
@@ -2416,24 +2416,22 @@ function onInitialBuildStart(data) {
     
     overlay.style.display = 'flex';
     
-    if (data.round === 0) {
-        info.textContent = 'Раунд 1: Від найбільшого до найменшого';
-    } else {
-        info.textContent = 'Раунд 2: Від найменшого до найбільшого';
-    }
+    // New message for simultaneous building
+    info.textContent = '🏗️ Всі гравці будують ОДНОЧАСНО! Побудуйте 1 село та 2 дороги';
     
-    // Show build order
+    // Show build order (for reference only - everyone builds at the same time)
     orderDiv.innerHTML = '';
     data.order.forEach((player, index) => {
         const isMe = player.playerId === myPlayerId;
-        const isCurrent = index === 0;
         const div = document.createElement('div');
-        div.style.cssText = `padding: 8px; background: ${isCurrent ? 'rgba(39,174,96,0.2)' : 'rgba(255,255,255,0.05)'}; border: 2px solid ${isCurrent ? '#27ae60' : 'rgba(255,255,255,0.1)'}; border-radius: 6px; font-size: 1em;`;
+        div.style.cssText = `padding: 8px; background: ${isMe ? 'rgba(241,196,15,0.15)' : 'rgba(255,255,255,0.05)'}; border: 2px solid ${isMe ? '#f39c12' : 'rgba(255,255,255,0.1)'}; border-radius: 6px; font-size: 1em;`;
         div.innerHTML = `<span style="color: ${isMe ? '#f1c40f' : '#fff'}; font-weight: ${isMe ? 'bold' : 'normal'};">${index + 1}. ${isMe ? 'Ви' : 'Гравець ' + player.playerId.slice(0, 4)}: ${player.total}</span>`;
         orderDiv.appendChild(div);
     });
     
-    updateBuildPhaseStatus(data.currentPlayerId);
+    // Show status for all players
+    status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
+    status.style.color = '#27ae60';
 }
 
 // Handle next player in build phase (1 round only)
@@ -2618,14 +2616,14 @@ function handleBuildingSynced(data) {
     updateBuildStats();
 }
 
-// Check if current player can build during initial phase
+// Check if current player can build during initial phase - ALL PLAYERS BUILD SIMULTANEOUSLY!
 function canBuildDuringInitialPhase() {
     if (!initialPhase.active || initialPhase.phase !== 'initial-build') {
         return false;
     }
     
-    const currentPlayerId = initialPhase.buildOrder[initialPhase.currentIndex]?.playerId;
-    return currentPlayerId === myPlayerId;
+    // Everyone can build during initial phase - no turn order!
+    return true;
 }
 
 // Override canBuildPiece to allow free building during initial phase
@@ -2648,14 +2646,10 @@ function canBuildPieceInitial(t) {
 // Override isInitialPhaseComplete to account for initial phase
 function isInitialPhaseComplete() {
     if (initialPhase.active && initialPhase.phase === 'initial-build') {
-        // During initial phase, check if current player has completed their builds
-        const currentPlayerId = initialPhase.buildOrder[initialPhase.currentIndex]?.playerId;
-        if (currentPlayerId === myPlayerId) {
-            // Check if I've built 1 settlement and 2 roads
-            return gameState.settlements.size >= INITIAL_SETTLEMENT_LIMIT && 
-                   gameState.roads.size >= INITIAL_ROAD_LIMIT;
-        }
-        return false;
+        // During initial phase, check if THIS player has completed their builds
+        // Each player needs 1 settlement and 2 roads
+        return gameState.settlements.size >= INITIAL_SETTLEMENT_LIMIT && 
+               gameState.roads.size >= INITIAL_ROAD_LIMIT;
     }
     
     // After initial phase, use normal check
