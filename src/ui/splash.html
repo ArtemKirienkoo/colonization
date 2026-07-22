@@ -709,12 +709,14 @@
                 });
                 // Handle room closed (host left)
                 mpClient.onRoomClosed((data) => {
-                    alert(data.message || 'Кімната закрита');
+                    // Immediately hide all room modals and return to lobby
                     document.getElementById('roomCreatedModal').style.display = 'none';
                     document.getElementById('joinRoomModal').style.display = 'none';
                     document.getElementById('multiplayerLobbyModal').style.display = 'flex';
-                    // Refresh rooms list when returning to lobby
+                    // Immediately refresh rooms list to remove closed room
                     loadRoomsList();
+                    // Log to console instead of blocking alert
+                    console.log('Кімната закрита:', data.message || 'Хозяїн вийшов');
                 });
 
 // Auto-refresh rooms list when it changes
