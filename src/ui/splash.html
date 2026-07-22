@@ -888,10 +888,35 @@
         const colorOptions = document.querySelectorAll('.color-option');
         const colorSelectionModal = document.getElementById('colorSelectionModal');
         
+        // Function to update color selection modal with occupied colors
+        function updateColorSelectionModal(players, mySocketId) {
+            const usedColors = new Set(players.map(p => p.color).filter(c => c));
+            
+            colorOptions.forEach(btn => {
+                const color = btn.getAttribute('data-color');
+                if (usedColors.has(color)) {
+                    // Mark as occupied with white border and disable
+                    btn.style.border = '4px solid #fff';
+                    btn.style.cursor = 'not-allowed';
+                    btn.style.opacity = '0.5';
+                    btn.disabled = true;
+                } else {
+                    // Mark as available
+                    btn.style.border = '3px solid #fff';
+                    btn.style.cursor = 'pointer';
+                    btn.style.opacity = '1';
+                    btn.disabled = false;
+                }
+            });
+        }
+        
         colorOptions.forEach(btn => {
             btn.addEventListener('click', () => {
                 audioManager.playClickSound();
                 if (!selectedPlayerIdForColor) return;
+                
+                // Don't allow clicking disabled (occupied) colors
+                if (btn.disabled) return;
                 
                 const color = btn.getAttribute('data-color');
                 // Send color change to server
@@ -908,6 +933,16 @@
             colorSelectionModal.style.display = 'none';
             selectedPlayerIdForColor = null;
         });
+        
+        // Override updatePlayersList to also update color selection modal
+        const originalUpdatePlayersList = updatePlayersList;
+        updatePlayersList = function(players, mySocketId) {
+            originalUpdatePlayersList(players, mySocketId);
+            // Update color selection modal if it's visible
+            if (colorSelectionModal.style.display === 'flex') {
+                updateColorSelectionModal(players, mySocketId);
+            }
+        };
         
         // Create Room handlers
         document.getElementById('confirmCreateRoom').addEventListener('click', () => {
@@ -1016,12 +1051,12 @@ document.getElementById('exitRoomBtn').addEventListener('click', () => {
                 if (p.isHost) {
                     return `<div style="padding: 8px; background: ${color}22; border-radius: 5px; color: ${color}; border-left: 4px solid ${color}; display: flex; align-items: center; justify-content: space-between;">
                         <span>Хозяїн (ви)</span>
-                        <button class="change-color-btn" data-player-id="${p.id}" ${isCurrentUser ? '' : 'disabled'} style="width: 32px; height: 32px; border-radius: 50%; background: ${color}; border: 3px solid ${color}; cursor: ${isCurrentUser ? 'pointer' : 'not-allowed'}; transition: all 0.2s; padding: 0;" title="${isCurrentUser ? 'Змінити колір' : 'Можна змінити тільки свій колір'}"></button>
+                        <button class="change-color-btn" data-player-id="${p.id}" ${isCurrentUser ? '' : 'disabled'} style="width: 32px; height: 32px; border-radius: 50%; background: ${color}; border: 3px solid ${color}; box-shadow: 0 0 0 2px #fff; cursor: ${isCurrentUser ? 'pointer' : 'not-allowed'}; transition: all 0.2s; padding: 0;" title="${isCurrentUser ? 'Змінити колір' : 'Можна змінити тільки свій колір'}"></button>
                     </div>`;
                 } else {
                     return `<div style="padding: 8px; background: ${color}22; border-radius: 5px; color: ${color}; border-left: 4px solid ${color}; display: flex; align-items: center; justify-content: space-between;">
                         <span>Гравець</span>
-                        <button class="change-color-btn" data-player-id="${p.id}" ${isCurrentUser ? '' : 'disabled'} style="width: 32px; height: 32px; border-radius: 50%; background: ${color}; border: 3px solid ${color}; cursor: ${isCurrentUser ? 'pointer' : 'not-allowed'}; transition: all 0.2s; padding: 0;" title="${isCurrentUser ? 'Змінити колір' : 'Можна змінити тільки свій колір'}"></button>
+                        <button class="change-color-btn" data-player-id="${p.id}" ${isCurrentUser ? '' : 'disabled'} style="width: 32px; height: 32px; border-radius: 50%; background: ${color}; border: 3px solid ${color}; box-shadow: 0 0 0 2px #fff; cursor: ${isCurrentUser ? 'pointer' : 'not-allowed'}; transition: all 0.2s; padding: 0;" title="${isCurrentUser ? 'Змінити колір' : 'Можна змінити тільки свій колір'}"></button>
                     </div>`;
                 }
             }).join('');
@@ -1067,12 +1102,12 @@ document.getElementById('exitRoomBtn').addEventListener('click', () => {
                     // Show host with disabled color button (same layout as host sees, but non-clickable)
                     return `<div style="padding: 8px; background: ${color}22; border-radius: 5px; color: ${color}; border-left: 4px solid ${color}; display: flex; align-items: center; justify-content: space-between;">
                         <span>Гравець (хозяїн)</span>
-                        <button disabled style="width: 32px; height: 32px; border-radius: 50%; background: ${color}; border: 3px solid #fff; cursor: not-allowed; transition: all 0.2s; padding: 0; opacity: 0.6;" title="Колір хозяїна"></button>
+                        <button disabled style="width: 32px; height: 32px; border-radius: 50%; background: ${color}; border: 3px solid #fff; box-shadow: 0 0 0 2px #fff; cursor: not-allowed; transition: all 0.2s; padding: 0; opacity: 0.6;" title="Колір хозяїна"></button>
                     </div>`;
                 } else if (p.id === mySocketId) {
                     return `<div style="padding: 8px; background: ${color}22; border-radius: 5px; color: ${color}; border-left: 4px solid ${color}; display: flex; align-items: center; justify-content: space-between;">
                         <span>Гравець (ви)</span>
-                        <button class="change-color-btn" data-player-id="${p.id}" style="width: 32px; height: 32px; border-radius: 50%; background: ${color}; border: 3px solid ${color}; cursor: pointer; transition: all 0.2s; padding: 0;" title="Змінити колір"></button>
+                        <button class="change-color-btn" data-player-id="${p.id}" style="width: 32px; height: 32px; border-radius: 50%; background: ${color}; border: 3px solid ${color}; box-shadow: 0 0 0 2px #fff; cursor: pointer; transition: all 0.2s; padding: 0;" title="Змінити колір"></button>
                     </div>`;
                 } else {
                     return `<div style="padding: 8px; background: ${color}22; border-radius: 5px; color: ${color}; border-left: 4px solid ${color};">
