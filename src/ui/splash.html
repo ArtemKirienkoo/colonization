@@ -649,6 +649,7 @@
             'yellow': 'Жовтий',
             'green': 'Зелений'
         };
+        let myPlayerColor = null; // Track current player's color
 
         function getSelectedServerUrl() {
             // Cloud server URL - замінити на свій після деплою
@@ -928,6 +929,10 @@
                 const color = btn.getAttribute('data-color');
                 // Send color change to server
                 mpClient.changeColor(selectedPlayerIdForColor, color);
+                
+                // Save my color to sessionStorage so index.html can use it
+                myPlayerColor = color;
+                sessionStorage.setItem('myPlayerColor', color);
                 
                 // Close modal
                 colorSelectionModal.style.display = 'none';

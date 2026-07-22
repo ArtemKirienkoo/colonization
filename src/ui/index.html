@@ -1142,7 +1142,8 @@ audioManager.init();
 const canvas = document.getElementById('mapCanvas');
 
 let gameState = { roads: new Map(), settlements: new Map(), resourceCards: { wood:0, brick:0, geese:0, water:0, stone:0 }, devDeck: createDevDeck(), devHand: [], roadBuildingMode: 0, cardInProgress: false };
-let myPlayerColor = null; // 'red', 'blue', 'yellow', 'green'
+// Restore player color from sessionStorage (set in splash.html multiplayer lobby)
+let myPlayerColor = sessionStorage.getItem('myPlayerColor') || null; // 'red', 'blue', 'yellow', 'green'
 let buildMode = 'none', hoverEdge = null, hoverVertex = null, isRolling = false, isPaused = false;
 let settingsPreviousState = null; // 'pause' або 'menu'
 const INITIAL_SETTLEMENT_LIMIT = 1, INITIAL_ROAD_LIMIT = 2;
