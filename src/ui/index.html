@@ -2633,11 +2633,10 @@ function canBuildPieceInitial(t) {
     }
     
     // During initial phase, allow building without resources
-    // but still check limits
-    const c = countBuildings();
+    // but still check PER-PLAYER limits using initialPhaseBuildings
     switch(t) {
-        case 'road': return c.roads < MAX_ROADS;
-        case 'settlement': return c.settlements < INITIAL_SETTLEMENT_LIMIT;
+        case 'road': return initialPhaseBuildings.roads < INITIAL_ROAD_LIMIT;
+        case 'settlement': return initialPhaseBuildings.settlements < INITIAL_SETTLEMENT_LIMIT;
         case 'city': return false; // Can't build city during initial phase
         default: return false;
     }
@@ -2648,11 +2647,12 @@ function isInitialPhaseComplete() {
     if (initialPhase.active && initialPhase.phase === 'initial-build') {
         // During initial phase, check if THIS player has completed their builds
         // Each player needs 1 settlement and 2 roads
-        return gameState.settlements.size >= INITIAL_SETTLEMENT_LIMIT && 
-               gameState.roads.size >= INITIAL_ROAD_LIMIT;
+        // Use PER-PLAYER counts from initialPhaseBuildings, not global gameState counts
+        return initialPhaseBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && 
+               initialPhaseBuildings.roads >= INITIAL_ROAD_LIMIT;
     }
     
-    // After initial phase, use normal check
+    // After initial phase, use normal check (global counts are fine for regular gameplay)
     return gameState.settlements.size >= INITIAL_SETTLEMENT_LIMIT && 
            gameState.roads.size >= INITIAL_ROAD_LIMIT;
 }
