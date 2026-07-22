@@ -669,6 +669,27 @@ body.is-paused canvas {
     </div>
 </div>
 
+<!-- Initial Dice Phase Overlay -->
+<div id="dicePhaseOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2500; justify-content: center; align-items: center;">
+    <div style="background: rgba(26,26,46,0.98); border: 3px solid #f39c12; border-radius: 20px; padding: 40px; text-align: center; max-width: 600px; box-shadow: 0 0 50px rgba(243,156,18,0.6);">
+        <h2 style="color: #f39c12; margin-bottom: 20px; font-size: 1.8em;">🎲 Початкова фаза: Кидання кубика</h2>
+        <p style="color: #ccc; margin-bottom: 15px; font-size: 1.1em;">Киньте кубик, щоб визначити порядок ходів</p>
+        <div id="dicePhaseStatus" style="color: #f1c40f; margin-bottom: 20px; font-size: 1.2em; font-weight: bold;"></div>
+        <div id="dicePhaseResults" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;"></div>
+        <button id="rollDiceInitialBtn" style="padding: 15px 40px; font-size: 1.2em; background: linear-gradient(135deg, #9b59b6, #8e44ad); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold;">🎲 Кинути кубик</button>
+    </div>
+</div>
+
+<!-- Initial Build Phase Overlay -->
+<div id="buildPhaseOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2500; justify-content: center; align-items: center;">
+    <div style="background: rgba(26,26,46,0.98); border: 3px solid #f39c12; border-radius: 20px; padding: 40px; text-align: center; max-width: 600px; box-shadow: 0 0 50px rgba(243,156,18,0.6);">
+        <h2 style="color: #f39c12; margin-bottom: 20px; font-size: 1.8em;">🏗️ Початкова фаза: Будівництво</h2>
+        <div id="buildPhaseInfo" style="color: #ccc; margin-bottom: 15px; font-size: 1.1em;"></div>
+        <div id="buildPhaseOrder" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;"></div>
+        <div id="buildPhaseStatus" style="color: #f1c40f; font-size: 1.2em; font-weight: bold;"></div>
+    </div>
+</div>
+
 <!-- Settings Modal -->
     <div class="settings-overlay" id="settingsModal" style="display: none;">
         <div class="settings-box">
@@ -1098,7 +1119,8 @@ audioManager.init();
 // Get canvas reference early for use in functions
 const canvas = document.getElementById('mapCanvas');
 
-let gameState = { roads: new Set(), settlements: new Map(), resourceCards: { wood:0, brick:0, geese:0, water:0, stone:0 }, devDeck: createDevDeck(), devHand: [], roadBuildingMode: 0, cardInProgress: false };
+let gameState = { roads: new Map(), settlements: new Map(), resourceCards: { wood:0, brick:0, geese:0, water:0, stone:0 }, devDeck: createDevDeck(), devHand: [], roadBuildingMode: 0, cardInProgress: false };
+let myPlayerColor = null; // 'red', 'blue', 'yellow', 'green'
 let buildMode = 'none', hoverEdge = null, hoverVertex = null, isRolling = false, isPaused = false;
 let settingsPreviousState = null; // 'pause' або 'menu'
 const INITIAL_SETTLEMENT_LIMIT = 1, INITIAL_ROAD_LIMIT = 2;
@@ -1106,6 +1128,18 @@ const MAX_SETTLEMENTS = 5, MAX_CITIES = 4, MAX_ROADS = 15;
 const VP_SETTLEMENT = 1, VP_CITY = 2;
 const LONGEST_ROAD_THRESHOLD = 5, LARGEST_ARMY_THRESHOLD = 3;
 let mapData = null, mapHexSize = 0, mapOffset = { ox:0, oy:0 }, edgeGeom = null, vertexGeom = null, allHexes = [];
+
+// Initial phase state
+let initialPhase = {
+    active: false,
+    phase: 'none', // 'none', 'dice-roll', 'initial-build', 'complete'
+    currentPlayerId: null,
+    buildOrder: [],
+    currentIndex: 0,
+    round: 0, // 0 = high to low, 1 = low to high
+    diceRolls: new Map(), // playerId -> total
+    myRoll: null
+};
 
 function countBuildings() { 
     let s = 0, c = 0; 
@@ -1295,6 +1329,18 @@ function generateOcean(radius, landHexes) {
 }
 function generateMap() { const c={q:0,r:0,s:0}, r1=generateHexRing(1), r2=generateHexRing(2), r3=generateHexRing(3), lh=[...r1,...r2], r=generateResources(lh); r.set(hexKey(c),'desert'); const n=generateNumbers(lh,r), o=generateOcean(3,lh); return {center:c,ring1:r1,ring2:r2,ring3:r3,resources:r,numbers:n,ocean:o}; }
 
+// Color mapping for players
+const PLAYER_COLORS = {
+    'red': { primary: '#e74c3c', secondary: '#c0392b', light: '#ff6b6b', dark: '#a93226' },
+    'blue': { primary: '#3498db', secondary: '#2980b9', light: '#5dade2', dark: '#21618c' },
+    'yellow': { primary: '#f1c40f', secondary: '#d4ac0f', light: '#f7dc6f', dark: '#b7950b' },
+    'green': { primary: '#27ae60', secondary: '#1e8449', light: '#58d68d', dark: '#1d6a38' }
+};
+
+function getPlayerColor(colorName) {
+    return PLAYER_COLORS[colorName] || PLAYER_COLORS['red'];
+}
+
 // Rendering
 function drawHexPath(ctx,cx,cy,s) { const c=hexCorners(cx,cy,s); ctx.beginPath(); ctx.moveTo(c[0].x,c[0].y); for(let i=1;i<6;i++) ctx.lineTo(c[i].x,c[i].y); ctx.closePath(); }
 function drawTexture(ctx,cx,cy,s,t) {
@@ -1326,8 +1372,8 @@ function renderMap(data, canvas, hexSize) {
     for(const h of data.ring3){const p=hexToPixel(h,hexSize),cx=p.x+ox,cy=p.y+oy,info=data.ocean.get(hexKey(h));if(info.type!=='port3'&&info.type!=='port2')continue;drawHexPath(ctx,cx,cy,hexSize);if(info.type==='port3'){ctx.strokeStyle='#f1c40f';ctx.lineWidth=3;ctx.stroke();markPortCorners(ctx,cx,cy,hexSize,info.portCorners,'#f1c40f');ctx.fillStyle='#f1c40f';ctx.font='bold '+(hexSize*0.3)+'px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('3:1',cx,cy-5);ctx.font=(hexSize*0.32)+'px sans-serif';ctx.fillText('?',cx,cy+hexSize*0.25);}else{ctx.strokeStyle='#e67e22';ctx.lineWidth=3;ctx.stroke();markPortCorners(ctx,cx,cy,hexSize,info.portCorners,'#e67e22');ctx.fillStyle='#e67e22';ctx.font='bold '+(hexSize*0.3)+'px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('2:1',cx,cy-5);ctx.font=(hexSize*0.32)+'px sans-serif';ctx.fillText(RESOURCES[info.resource].icon,cx,cy+hexSize*0.25);}}
     const ls = new Set(); [data.center,...data.ring1,...data.ring2].forEach(h => ls.add(hexKey(h)));
     for(const h of all){const k=hexKey(h);if(!ls.has(k))continue;const p=hexToPixel(h,hexSize),cx=p.x+ox,cy=p.y+oy;const rt=data.resources.get(k),num=data.numbers.get(k),res=RESOURCES[rt];drawHexPath(ctx,cx,cy,hexSize);ctx.fillStyle=res.border;ctx.fill();ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=2;ctx.stroke();drawHexPath(ctx,cx,cy,hexSize*0.88);ctx.fillStyle=res.fill;ctx.fill();if(rt!=='desert')drawTexture(ctx,cx,cy,hexSize,rt);drawHexPath(ctx,cx,cy,hexSize*0.82);ctx.strokeStyle='rgba(255,255,255,0.15)';ctx.lineWidth=1;ctx.stroke();ctx.font=(hexSize*0.42)+'px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';if(num){ctx.fillText(res.icon,cx,cy-hexSize*0.24);const tr=hexSize*0.24,tcx=cx,tcy=cy+hexSize*0.35;ctx.beginPath();ctx.arc(tcx+1.5,tcy+1.5,tr,0,Math.PI*2);ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fill();ctx.beginPath();ctx.arc(tcx,tcy,tr,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle='#333';ctx.lineWidth=2.5;ctx.stroke();ctx.fillStyle='#333';ctx.font='bold '+(hexSize*0.34)+'px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(num.toString(),tcx,tcy);const dots=Math.floor((6-Math.abs(7-num))/2)+1;if(dots>0){const dr=2,dsp=5,dy=tcy+tr*0.7,sx=tcx-(dots-1)*dsp/2;ctx.fillStyle='rgba(0,0,0,0.3)';for(let d=0;d<dots;d++){ctx.beginPath();ctx.arc(sx+d*dsp,dy,dr,0,Math.PI*2);ctx.fill();}}}else{const rs=hexSize*0.3,hw=rs*1.35,hh=rs*0.95,rr=hexSize*0.07;ctx.beginPath();ctx.moveTo(cx-hw+rr,cy-hh);ctx.lineTo(cx+hw-rr,cy-hh);ctx.quadraticCurveTo(cx+hw,cy-hh,cx+hw,cy-hh+rr);ctx.lineTo(cx+hw,cy+hh-rr);ctx.quadraticCurveTo(cx+hw,cy+hh,cx+hw-rr,cy+hh);ctx.lineTo(cx-hw+rr,cy+hh);ctx.quadraticCurveTo(cx-hw,cy+hh,cx-hw,cy+hh-rr);ctx.lineTo(cx-hw,cy-hh+rr);ctx.quadraticCurveTo(cx-hw,cy-hh,cx-hw+rr,cy-hh);ctx.closePath();ctx.fillStyle='#8b5cf6';ctx.fill();ctx.strokeStyle='#6d28d9';ctx.lineWidth=2;ctx.stroke();const s=hexSize*0.38,scx=cx,scy=cy+2;ctx.fillStyle='#1a1a1a';ctx.beginPath();ctx.ellipse(scx-s*0.05,scy+s*0.08,s*0.25,s*0.14,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.moveTo(scx+s*0.1,scy-s*0.05);ctx.lineTo(scx+s*0.35,scy-s*0.1);ctx.lineTo(scx+s*0.4,scy-s*0.32);ctx.lineTo(scx+s*0.22,scy-s*0.38);ctx.closePath();ctx.fill();ctx.fillStyle='#0a0a0a';ctx.beginPath();ctx.arc(scx-s*0.02,scy-s*0.2,s*0.18,0,Math.PI*2);ctx.fill();ctx.fillStyle='#444';ctx.beginPath();ctx.arc(scx,scy-s*0.4,s*0.1,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#777';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(scx+s*0.3,scy-s*0.2);ctx.lineTo(scx+s*0.6,scy-s*0.7);ctx.stroke();ctx.fillStyle='#aaa';ctx.beginPath();ctx.moveTo(scx+s*0.6,scy-s*0.75);ctx.lineTo(scx+s*0.54,scy-s*0.62);ctx.lineTo(scx+s*0.66,scy-s*0.62);ctx.closePath();ctx.fill();ctx.fillStyle='#fff';ctx.font='bold '+(hexSize*0.2)+'px sans-serif';ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('ROBBER',cx,cy+hh+3);}}
-    ctx.lineCap='butt';for(const ek of gameState.roads){const edge=edgeGeom.edges.get(ek);if(!edge)continue;const ax=edge.va.x+ox,ay=edge.va.y+oy,bx=edge.vb.x+ox,by=edge.vb.y+oy;ctx.lineWidth=hexSize*0.35;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.strokeStyle='#6B4226';ctx.stroke();ctx.lineWidth=hexSize*0.26;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.strokeStyle='#C4904A';ctx.stroke();const hw=hexSize*0.16,dx=bx-ax,dy=by-ay,len=Math.sqrt(dx*dx+dy*dy),nx=-dy/len,ny=dx/len;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(ax+nx*hw,ay+ny*hw);ctx.lineTo(bx+nx*hw,by+ny*hw);ctx.strokeStyle='rgba(60,30,10,0.25)';ctx.stroke();ctx.beginPath();ctx.moveTo(ax-nx*hw,ay-ny*hw);ctx.lineTo(bx-nx*hw,by-ny*hw);ctx.strokeStyle='rgba(60,30,10,0.25)';ctx.stroke();ctx.setLineDash([3,6]);ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.strokeStyle='rgba(232,200,128,0.5)';ctx.stroke();ctx.setLineDash([]);const ro=hw*0.35;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(ax+nx*ro,ay+ny*ro);ctx.lineTo(bx+nx*ro,by+ny*ro);ctx.strokeStyle='rgba(40,20,5,0.2)';ctx.stroke();ctx.beginPath();ctx.moveTo(ax-nx*ro,ay-ny*ro);ctx.lineTo(bx-nx*ro,by-ny*ro);ctx.strokeStyle='rgba(40,20,5,0.2)';ctx.stroke();}
-    for(const [vk,bld] of gameState.settlements){const vert=vertexGeom.get(vk);if(!vert)continue;const vx=vert.pos.x+ox,vy=vert.pos.y+oy;if(bld.type==='settlement'){const s=hexSize*0.32;ctx.fillStyle='rgba(0,0,0,0.25)';ctx.beginPath();ctx.ellipse(vx+2,vy+s*0.55,s*0.85,s*0.15,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#D4A574';ctx.beginPath();ctx.roundRect(vx-s*0.55,vy-s*0.2,s*1.1,s*0.6,2);ctx.fill();ctx.strokeStyle='#8B6914';ctx.lineWidth=1.5;ctx.beginPath();ctx.roundRect(vx-s*0.55,vy-s*0.2,s*1.1,s*0.6,2);ctx.stroke();ctx.fillStyle='#A0522D';ctx.beginPath();ctx.moveTo(vx-s*0.72,vy-s*0.2);ctx.lineTo(vx,vy-s*0.72);ctx.lineTo(vx+s*0.72,vy-s*0.2);ctx.closePath();ctx.fill();ctx.strokeStyle='#6B3410';ctx.lineWidth=1.5;ctx.stroke();ctx.strokeStyle='rgba(80,40,10,0.2)';ctx.lineWidth=0.5;for(let i=1;i<4;i++){const t=i/4,lx=vx-s*0.72+t*s*0.72,rx=vx+s*0.72-t*s*0.72,ly=vy-s*0.2+t*(vy-s*0.72-(vy-s*0.2));ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(rx,ly);ctx.stroke();}ctx.fillStyle='#6B3410';const dw=s*0.22,dh=s*0.32;ctx.beginPath();ctx.roundRect(vx-dw/2,vy+s*0.05,dw,dh,1);ctx.fill();ctx.fillStyle='#FFD700';ctx.beginPath();ctx.roundRect(vx-s*0.35,vy-s*0.05,s*0.2,s*0.15,1);ctx.fill();}else{const s=hexSize*0.4;ctx.fillStyle='rgba(0,0,0,0.25)';ctx.beginPath();ctx.ellipse(vx+2,vy+s*0.65,s*0.9,s*0.15,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#8B9DC3';ctx.beginPath();ctx.roundRect(vx-s*0.6,vy-s*0.25,s*1.2,s*0.7,2);ctx.fill();ctx.strokeStyle='#5A6E8E';ctx.lineWidth=1.5;ctx.beginPath();ctx.roundRect(vx-s*0.6,vy-s*0.25,s*1.2,s*0.7,2);ctx.stroke();ctx.strokeStyle='rgba(70,90,120,0.2)';ctx.lineWidth=0.5;for(let r=1;r<=3;r++){const ry=vy-s*0.25+r*(s*0.7/4);ctx.beginPath();ctx.moveTo(vx-s*0.58,ry);ctx.lineTo(vx+s*0.58,ry);ctx.stroke();}ctx.fillStyle='#7B8DB3';ctx.beginPath();ctx.moveTo(vx-s*0.32,vy-s*0.25);ctx.lineTo(vx-s*0.38,vy-s*0.8);ctx.lineTo(vx+s*0.38,vy-s*0.8);ctx.lineTo(vx+s*0.32,vy-s*0.25);ctx.closePath();ctx.fill();ctx.strokeStyle='#5A6E8E';ctx.lineWidth=1.5;ctx.stroke();for(let i=-1;i<=1;i+=1){const cx=vx+i*s*0.16;ctx.fillStyle='#6B7DA3';ctx.fillRect(cx-s*0.06,vy-s*0.85,s*0.12,s*0.1);ctx.strokeStyle='#5A6E8E';ctx.lineWidth=1;ctx.strokeRect(cx-s*0.06,vy-s*0.85,s*0.12,s*0.1);}ctx.fillStyle='#FFD700';const ww=s*0.12,wh=s*0.14;for(let i=-1;i<=1;i++){ctx.fillRect(vx+i*s*0.24-ww/2,vy-s*0.55,ww,wh);ctx.strokeStyle='#8B6914';ctx.lineWidth=0.5;ctx.strokeRect(vx+i*s*0.24-ww/2,vy-s*0.55,ww,wh);}ctx.fillStyle='#4A3A1A';ctx.beginPath();ctx.roundRect(vx-s*0.14,vy+s*0.05,s*0.28,s*0.4,2);ctx.fill();ctx.strokeStyle='#2A1A0A';ctx.lineWidth=1;ctx.beginPath();ctx.roundRect(vx-s*0.14,vy+s*0.05,s*0.28,s*0.4,2);ctx.stroke();}}
+    ctx.lineCap='butt';for(const [ek,roadData] of gameState.roads){const edge=edgeGeom.edges.get(ek);if(!edge)continue;const ax=edge.va.x+ox,ay=edge.va.y+oy,bx=edge.vb.x+ox,by=edge.vb.y+oy;const playerColor = roadData.color ? getPlayerColor(roadData.color) : null;const baseColor = playerColor || {primary:'#6B4226',secondary:'#C4904A',dark:'#3c1e0a',light:'#8B6914'};ctx.lineWidth=hexSize*0.35;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.strokeStyle=baseColor.primary;ctx.stroke();ctx.lineWidth=hexSize*0.26;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.strokeStyle=baseColor.secondary;ctx.stroke();const hw=hexSize*0.16,dx=bx-ax,dy=by-ay,len=Math.sqrt(dx*dx+dy*dy),nx=-dy/len,ny=dx/len;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(ax+nx*hw,ay+ny*hw);ctx.lineTo(bx+nx*hw,by+ny*hw);ctx.strokeStyle=playerColor ? baseColor.dark : 'rgba(60,30,10,0.25)';ctx.stroke();ctx.beginPath();ctx.moveTo(ax-nx*hw,ay-ny*hw);ctx.lineTo(bx-nx*hw,by-ny*hw);ctx.strokeStyle=playerColor ? baseColor.dark : 'rgba(60,30,10,0.25)';ctx.stroke();ctx.setLineDash([3,6]);ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.strokeStyle=playerColor ? baseColor.light : 'rgba(232,200,128,0.5)';ctx.stroke();ctx.setLineDash([]);const ro=hw*0.35;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(ax+nx*ro,ay+ny*ro);ctx.lineTo(bx+nx*ro,by+ny*ro);ctx.strokeStyle=playerColor ? baseColor.dark : 'rgba(40,20,5,0.2)';ctx.stroke();ctx.beginPath();ctx.moveTo(ax-nx*ro,ay-ny*ro);ctx.lineTo(bx-nx*ro,by-ny*ro);ctx.strokeStyle=playerColor ? baseColor.dark : 'rgba(40,20,5,0.2)';ctx.stroke();}
+    for(const [vk,bld] of gameState.settlements){const vert=vertexGeom.get(vk);if(!vert)continue;const vx=vert.pos.x+ox,vy=vert.pos.y+oy;const playerColor = bld.color ? getPlayerColor(bld.color) : null;if(bld.type==='settlement'){const s=hexSize*0.32;ctx.fillStyle='rgba(0,0,0,0.25)';ctx.beginPath();ctx.ellipse(vx+2,vy+s*0.55,s*0.85,s*0.15,0,0,Math.PI*2);ctx.fill();const wallColor = playerColor ? playerColor.secondary : '#D4A574';const roofColor = playerColor ? playerColor.primary : '#A0522D';const strokeColor = playerColor ? playerColor.dark : '#8B6914';ctx.fillStyle=wallColor;ctx.beginPath();ctx.roundRect(vx-s*0.55,vy-s*0.2,s*1.1,s*0.6,2);ctx.fill();ctx.strokeStyle=strokeColor;ctx.lineWidth=1.5;ctx.beginPath();ctx.roundRect(vx-s*0.55,vy-s*0.2,s*1.1,s*0.6,2);ctx.stroke();ctx.fillStyle=roofColor;ctx.beginPath();ctx.moveTo(vx-s*0.72,vy-s*0.2);ctx.lineTo(vx,vy-s*0.72);ctx.lineTo(vx+s*0.72,vy-s*0.2);ctx.closePath();ctx.fill();ctx.strokeStyle=strokeColor;ctx.lineWidth=1.5;ctx.stroke();ctx.strokeStyle='rgba(80,40,10,0.2)';ctx.lineWidth=0.5;for(let i=1;i<4;i++){const t=i/4,lx=vx-s*0.72+t*s*0.72,rx=vx+s*0.72-t*s*0.72,ly=vy-s*0.2+t*(vy-s*0.72-(vy-s*0.2));ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(rx,ly);ctx.stroke();}ctx.fillStyle=strokeColor;const dw=s*0.22,dh=s*0.32;ctx.beginPath();ctx.roundRect(vx-dw/2,vy+s*0.05,dw,dh,1);ctx.fill();ctx.fillStyle='#FFD700';ctx.beginPath();ctx.roundRect(vx-s*0.35,vy-s*0.05,s*0.2,s*0.15,1);ctx.fill();}else{const s=hexSize*0.4;ctx.fillStyle='rgba(0,0,0,0.25)';ctx.beginPath();ctx.ellipse(vx+2,vy+s*0.65,s*0.9,s*0.15,0,0,Math.PI*2);ctx.fill();const wallColor = playerColor ? playerColor.secondary : '#8B9DC3';const roofColor = playerColor ? playerColor.primary : '#7B8DB3';const strokeColor = playerColor ? playerColor.dark : '#5A6E8E';ctx.fillStyle=wallColor;ctx.beginPath();ctx.roundRect(vx-s*0.6,vy-s*0.25,s*1.2,s*0.7,2);ctx.fill();ctx.strokeStyle=strokeColor;ctx.lineWidth=1.5;ctx.beginPath();ctx.roundRect(vx-s*0.6,vy-s*0.25,s*1.2,s*0.7,2);ctx.stroke();ctx.strokeStyle='rgba(70,90,120,0.2)';ctx.lineWidth=0.5;for(let r=1;r<=3;r++){const ry=vy-s*0.25+r*(s*0.7/4);ctx.beginPath();ctx.moveTo(vx-s*0.58,ry);ctx.lineTo(vx+s*0.58,ry);ctx.stroke();}ctx.fillStyle=roofColor;ctx.beginPath();ctx.moveTo(vx-s*0.32,vy-s*0.25);ctx.lineTo(vx-s*0.38,vy-s*0.8);ctx.lineTo(vx+s*0.38,vy-s*0.8);ctx.lineTo(vx+s*0.32,vy-s*0.25);ctx.closePath();ctx.fill();ctx.strokeStyle=strokeColor;ctx.lineWidth=1.5;ctx.stroke();for(let i=-1;i<=1;i+=1){const cx=vx+i*s*0.16;ctx.fillStyle=playerColor ? playerColor.dark : '#6B7DA3';ctx.fillRect(cx-s*0.06,vy-s*0.85,s*0.12,s*0.1);ctx.strokeStyle=strokeColor;ctx.lineWidth=1;ctx.strokeRect(cx-s*0.06,vy-s*0.85,s*0.12,s*0.1);}ctx.fillStyle='#FFD700';const ww=s*0.12,wh=s*0.14;for(let i=-1;i<=1;i++){ctx.fillRect(vx+i*s*0.24-ww/2,vy-s*0.55,ww,wh);ctx.strokeStyle='#8B6914';ctx.lineWidth=0.5;ctx.strokeRect(vx+i*s*0.24-ww/2,vy-s*0.55,ww,wh);}ctx.fillStyle=playerColor ? playerColor.dark : '#4A3A1A';ctx.beginPath();ctx.roundRect(vx-s*0.14,vy+s*0.05,s*0.28,s*0.4,2);ctx.fill();ctx.strokeStyle=strokeColor;ctx.lineWidth=1;ctx.beginPath();ctx.roundRect(vx-s*0.14,vy+s*0.05,s*0.28,s*0.4,2);ctx.stroke();}}
     for(const h of all){const p=hexToPixel(h,hexSize);drawHexPath(ctx,p.x+ox,p.y+oy,hexSize);ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=1;ctx.stroke();}
     cacheCanvas(ctx);
 }
@@ -1404,7 +1450,10 @@ if(m==='road' && hoverEdge) {
         }
         audioManager.playBuildSound();
         if(gameState.roadBuildingMode > 0) {
-            gameState.roads.add(hoverEdge);
+            gameState.roads.set(hoverEdge, { 
+                color: myPlayerColor,
+                playerId: myPlayerId 
+            });
             gameState.roadBuildingMode--;
             if(gameState.roadBuildingMode === 0) {
                 gameState.cardInProgress = false;
@@ -1419,12 +1468,16 @@ if(m==='road' && hoverEdge) {
             }
         } else {
             if(isInitialPhaseComplete()) deductResources('road');
-            gameState.roads.add(hoverEdge);
+            // Store road with player color
+            gameState.roads.set(hoverEdge, { 
+                color: myPlayerColor,
+                playerId: myPlayerId 
+            });
             renderMap(mapData, canvas, mapHexSize);
             updateBuildStats();
             // Sync road building to other players (persists on server)
             if (multiplayerClient && isMultiplayer) {
-                multiplayerClient.syncBuild('road', { edgeKey: hoverEdge });
+                multiplayerClient.syncBuild('road', { edgeKey: hoverEdge, color: myPlayerColor });
             }
         }
         hoverEdge = null;
@@ -1444,21 +1497,23 @@ else if(m==='settlement' && hoverVertex) {
             deductResources('settlement');
         }
         audioManager.playBuildSound();
-        // ВАЖЛИВО: зберігаємо vk
+        // ВАЖЛИВО: зберігаємо vk та колір
         gameState.settlements.set(hoverVertex, { 
             type: 'settlement', 
-            vk: hoverVertex 
+            vk: hoverVertex,
+            color: myPlayerColor,
+            playerId: myPlayerId
         });
         renderMap(mapData, canvas, mapHexSize);
         updateBuildStats();
         // Sync settlement building to other players (persists on server)
         if (multiplayerClient && isMultiplayer) {
-            multiplayerClient.syncBuild('settlement', { vertexKey: hoverVertex });
+            multiplayerClient.syncBuild('settlement', { vertexKey: hoverVertex, color: myPlayerColor });
         }
         hoverVertex = null;
     }
     // ========== ОСЬ ТУТ ВСТАВИТИ ВИПРАВЛЕНИЙ КОД ДЛЯ МІСТА ==========
-else if(m==='city' && hoverVertex) {
+    else if(m==='city' && hoverVertex) {
         const ex = gameState.settlements.get(hoverVertex);
         if (!ex || ex.type !== 'settlement') return;
         if (!canBuildPiece('city')) {
@@ -1475,16 +1530,18 @@ else if(m==='city' && hoverVertex) {
         }
         audioManager.playBuildSound();
         deductResources('city');
-        // ВАЖЛИВО: зберігаємо vk
+        // ВАЖЛИВО: зберігаємо vk та колір
         gameState.settlements.set(hoverVertex, { 
             type: 'city', 
-            vk: hoverVertex 
+            vk: hoverVertex,
+            color: myPlayerColor,
+            playerId: myPlayerId
         });
         renderMap(mapData, canvas, mapHexSize);
         updateBuildStats();
         // Sync city building to other players (persists on server)
         if (multiplayerClient && isMultiplayer) {
-            multiplayerClient.syncBuild('city', { vertexKey: hoverVertex });
+            multiplayerClient.syncBuild('city', { vertexKey: hoverVertex, color: myPlayerColor });
         }
         hoverVertex = null;
     }
@@ -2212,6 +2269,370 @@ function sendGameAction(action, data) {
 
 // Call init on load
 initMultiplayer();
+
+// ===== INITIAL PHASE MANAGEMENT =====
+let myPlayerId = null;
+
+// Get my player ID from socket
+function getMyPlayerId() {
+    if (multiplayerClient && multiplayerClient.socket) {
+        return multiplayerClient.socket.id;
+    }
+    return null;
+}
+
+// Start dice phase
+function startDicePhase(players) {
+    initialPhase.active = true;
+    initialPhase.phase = 'dice-roll';
+    initialPhase.diceRolls = new Map();
+    initialPhase.myRoll = null;
+    myPlayerId = getMyPlayerId();
+    
+    // Show dice phase overlay
+    const overlay = document.getElementById('dicePhaseOverlay');
+    const status = document.getElementById('dicePhaseStatus');
+    const results = document.getElementById('dicePhaseResults');
+    const rollBtn = document.getElementById('rollDiceInitialBtn');
+    
+    overlay.style.display = 'flex';
+    status.textContent = 'Очікування гравців...';
+    results.innerHTML = '';
+    
+    // Enable roll button
+    rollBtn.disabled = false;
+    rollBtn.style.opacity = '1';
+    rollBtn.style.cursor = 'pointer';
+    
+    // Add click handler for roll button
+    rollBtn.onclick = () => {
+        if (initialPhase.myRoll !== null) {
+            showMessage('Ви вже кинули кубик!');
+            return;
+        }
+        
+        // Roll dice (1-6)
+        const total = Math.floor(Math.random() * 6) + 1;
+        initialPhase.myRoll = total;
+        
+        // Send to server
+        if (multiplayerClient && isMultiplayer) {
+            multiplayerClient.rollDiceInitial(total);
+        } else {
+            // Single player mode - simulate the roll
+            handleMyDiceRoll(total);
+        }
+    };
+}
+
+// Handle my dice roll (for single player or after server confirmation)
+function handleMyDiceRoll(total) {
+    initialPhase.diceRolls.set(myPlayerId, total);
+    updateDicePhaseUI();
+}
+
+// Update dice phase UI
+function updateDicePhaseUI() {
+    const status = document.getElementById('dicePhaseStatus');
+    const results = document.getElementById('dicePhaseResults');
+    const rollBtn = document.getElementById('rollDiceInitialBtn');
+    
+    // Count how many players have rolled
+    const rolledCount = initialPhase.diceRolls.size;
+    status.textContent = `Кинуто: ${rolledCount} / ${initialPhase.diceRolls.size + (initialPhase.myRoll ? 0 : 1)}`;
+    
+    // Show results
+    results.innerHTML = '';
+    for (const [playerId, total] of initialPhase.diceRolls) {
+        const isMe = playerId === myPlayerId;
+        const div = document.createElement('div');
+        div.style.cssText = 'padding: 10px; background: rgba(243,156,18,0.15); border: 2px solid #f39c12; border-radius: 8px; font-size: 1.1em;';
+        div.innerHTML = `<span style="color: ${isMe ? '#f1c40f' : '#fff'}; font-weight: ${isMe ? 'bold' : 'normal'};">${isMe ? 'Ви' : 'Гравець ' + playerId.slice(0, 4)}: ${total}</span>`;
+        results.appendChild(div);
+    }
+    
+    // Disable roll button after rolling
+    if (initialPhase.myRoll !== null) {
+        rollBtn.disabled = true;
+        rollBtn.style.opacity = '0.5';
+        rollBtn.style.cursor = 'not-allowed';
+    }
+}
+
+// Handle player dice rolled event
+function onPlayerDiceRolled(data) {
+    initialPhase.diceRolls.set(data.playerId, data.total);
+    updateDicePhaseUI();
+    
+    // Check if all players have rolled
+    if (data.rollsCount === data.totalPlayers) {
+        // Wait for server to send build order
+        setTimeout(() => {
+            document.getElementById('dicePhaseOverlay').style.display = 'none';
+        }, 2000);
+    }
+}
+
+// Handle initial build start
+function onInitialBuildStart(data) {
+    initialPhase.phase = 'initial-build';
+    initialPhase.buildOrder = data.order;
+    initialPhase.currentIndex = 0;
+    initialPhase.round = data.round;
+    
+    const overlay = document.getElementById('buildPhaseOverlay');
+    const info = document.getElementById('buildPhaseInfo');
+    const orderDiv = document.getElementById('buildPhaseOrder');
+    const status = document.getElementById('buildPhaseStatus');
+    
+    overlay.style.display = 'flex';
+    
+    if (data.round === 0) {
+        info.textContent = 'Раунд 1: Від найбільшого до найменшого';
+    } else {
+        info.textContent = 'Раунд 2: Від найменшого до найбільшого';
+    }
+    
+    // Show build order
+    orderDiv.innerHTML = '';
+    data.order.forEach((player, index) => {
+        const isMe = player.playerId === myPlayerId;
+        const isCurrent = index === 0;
+        const div = document.createElement('div');
+        div.style.cssText = `padding: 8px; background: ${isCurrent ? 'rgba(39,174,96,0.2)' : 'rgba(255,255,255,0.05)'}; border: 2px solid ${isCurrent ? '#27ae60' : 'rgba(255,255,255,0.1)'}; border-radius: 6px; font-size: 1em;`;
+        div.innerHTML = `<span style="color: ${isMe ? '#f1c40f' : '#fff'}; font-weight: ${isMe ? 'bold' : 'normal'};">${index + 1}. ${isMe ? 'Ви' : 'Гравець ' + player.playerId.slice(0, 4)}: ${player.total}</span>`;
+        orderDiv.appendChild(div);
+    });
+    
+    updateBuildPhaseStatus(data.currentPlayerId);
+}
+
+// Handle next player in build phase
+function onInitialBuildNextPlayer(data) {
+    initialPhase.currentIndex++;
+    updateBuildPhaseStatus(data.currentPlayerId);
+}
+
+// Handle round 2 start
+function onInitialBuildRound2Start(data) {
+    initialPhase.round = 1;
+    initialPhase.currentIndex = 0;
+    onInitialBuildStart(data);
+}
+
+// Update build phase status
+function updateBuildPhaseStatus(currentPlayerId) {
+    const status = document.getElementById('buildPhaseStatus');
+    const isMe = currentPlayerId === myPlayerId;
+    
+    if (isMe) {
+        status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
+        status.style.color = '#27ae60';
+    } else {
+        status.textContent = 'Очікування ходу гравця...';
+        status.style.color = '#f1c40f';
+    }
+}
+
+// Check if current player can build during initial phase
+function canBuildDuringInitialPhase() {
+    if (!initialPhase.active || initialPhase.phase !== 'initial-build') {
+        return false;
+    }
+    
+    const currentPlayerId = initialPhase.buildOrder[initialPhase.currentIndex]?.playerId;
+    return currentPlayerId === myPlayerId;
+}
+
+// Override canBuildPiece to allow free building during initial phase
+function canBuildPieceInitial(t) {
+    if (!canBuildDuringInitialPhase()) {
+        return false;
+    }
+    
+    // During initial phase, allow building without resources
+    // but still check limits
+    const c = countBuildings();
+    switch(t) {
+        case 'road': return c.roads < MAX_ROADS;
+        case 'settlement': return c.settlements < INITIAL_SETTLEMENT_LIMIT;
+        case 'city': return false; // Can't build city during initial phase
+        default: return false;
+    }
+}
+
+// Override isInitialPhaseComplete to account for initial phase
+function isInitialPhaseComplete() {
+    if (initialPhase.active && initialPhase.phase === 'initial-build') {
+        // During initial phase, check if current player has completed their builds
+        const currentPlayerId = initialPhase.buildOrder[initialPhase.currentIndex]?.playerId;
+        if (currentPlayerId === myPlayerId) {
+            // Check if I've built 1 settlement and 2 roads
+            return gameState.settlements.size >= INITIAL_SETTLEMENT_LIMIT && 
+                   gameState.roads.size >= INITIAL_ROAD_LIMIT;
+        }
+        return false;
+    }
+    
+    // After initial phase, use normal check
+    return gameState.settlements.size >= INITIAL_SETTLEMENT_LIMIT && 
+           gameState.roads.size >= INITIAL_ROAD_LIMIT;
+}
+
+// Override canRollDice to prevent rolling during initial phase
+function canRollDice() {
+    if (initialPhase.active && initialPhase.phase === 'initial-build') {
+        return false; // Can't roll during initial build phase
+    }
+    if (initialPhase.active && initialPhase.phase === 'dice-roll') {
+        return false; // Can't roll during dice phase
+    }
+    return !isRolling && isInitialPhaseComplete() && gameState.roadBuildingMode === 0 && !gameState.cardInProgress;
+}
+
+// Track initial phase buildings
+let initialPhaseBuildings = { settlements: 0, roads: 0 };
+
+// Override building functions to track initial phase
+const originalSetBuildMode = setBuildMode;
+setBuildMode = function(mode) {
+    if (initialPhase.active && initialPhase.phase === 'initial-build' && canBuildDuringInitialPhase()) {
+        // Allow building during initial phase
+        if (mode !== 'none') {
+            buildMode = mode;
+            document.querySelectorAll('.build-btn').forEach(b => b.classList.remove('active'));
+            const btn = document.querySelector(`.build-btn[data-mode="${mode}"]`);
+            if (btn) btn.classList.add('active');
+            canvas.classList.add('crosshair');
+            hoverEdge = null;
+            hoverVertex = null;
+            if (mapData) renderMap(mapData, canvas, mapHexSize);
+        } else {
+            originalSetBuildMode(mode);
+        }
+    } else if (initialPhase.active && initialPhase.phase === 'initial-build') {
+        showMessage('Зараз не ваш хід!');
+    } else {
+        originalSetBuildMode(mode);
+    }
+};
+
+// Override click handler to track initial phase buildings
+canvas.removeEventListener('click', canvas.onclick);
+canvas.addEventListener('click', (e) => {
+    if (isPaused) return;
+    const m = buildMode !== 'none' ? buildMode : (gameState.roadBuildingMode > 0 ? 'road' : 'none');
+    if (m === 'none') return;
+    
+    // Check if in initial phase
+    if (initialPhase.active && initialPhase.phase === 'initial-build') {
+        if (!canBuildDuringInitialPhase()) {
+            showMessage('Зараз не ваш хід!');
+            return;
+        }
+        
+        // Allow building without resources during initial phase
+        if (m === 'road' && hoverEdge) {
+            if (gameState.roads.has(hoverEdge) || !isEdgeValidForRoad(hoverEdge)) return;
+            if (!isEdgeConnected(hoverEdge)) return;
+            if (!canBuildPieceInitial('road')) {
+                showMessage('Ліміт доріг!');
+                return;
+            }
+            audioManager.playBuildSound();
+            // Store road with player color
+            gameState.roads.set(hoverEdge, { 
+                color: myPlayerColor,
+                playerId: myPlayerId 
+            });
+            initialPhaseBuildings.roads++;
+            renderMap(mapData, canvas, mapHexSize);
+            updateBuildStats();
+            
+            // Sync to other players
+            if (multiplayerClient && isMultiplayer) {
+                multiplayerClient.syncBuild('road', { edgeKey: hoverEdge, color: myPlayerColor });
+            }
+            
+            hoverEdge = null;
+            checkInitialPhaseComplete();
+        }
+        else if (m === 'settlement' && hoverVertex) {
+            if (!canPlaceSettlement(hoverVertex)) return;
+            if (!canBuildPieceInitial('settlement')) {
+                showMessage('Ліміт поселень!');
+                return;
+            }
+            audioManager.playBuildSound();
+            // Store settlement with player color
+            gameState.settlements.set(hoverVertex, { 
+                type: 'settlement', 
+                vk: hoverVertex,
+                color: myPlayerColor,
+                playerId: myPlayerId
+            });
+            initialPhaseBuildings.settlements++;
+            renderMap(mapData, canvas, mapHexSize);
+            updateBuildStats();
+            
+            // Sync to other players
+            if (multiplayerClient && isMultiplayer) {
+                multiplayerClient.syncBuild('settlement', { vertexKey: hoverVertex, color: myPlayerColor });
+            }
+            
+            hoverVertex = null;
+            checkInitialPhaseComplete();
+        }
+    } else {
+        // Normal building (use original logic)
+        // ... (keep existing click handler logic)
+    }
+});
+
+// Check if initial phase is complete for current player
+function checkInitialPhaseComplete() {
+    if (initialPhase.active && initialPhase.phase === 'initial-build') {
+        if (initialPhaseBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && 
+            initialPhaseBuildings.roads >= INITIAL_ROAD_LIMIT) {
+            // Current player finished building
+            if (multiplayerClient && isMultiplayer) {
+                multiplayerClient.completeInitialBuild();
+            }
+            
+            // Reset for next player
+            initialPhaseBuildings = { settlements: 0, roads: 0 };
+            setBuildMode('none');
+        }
+    }
+}
+
+// Register multiplayer event handlers
+if (multiplayerClient) {
+    multiplayerClient.onStartDicePhase((data) => {
+        console.log('Dice phase started:', data);
+        startDicePhase(data.players);
+    });
+    
+    multiplayerClient.onPlayerDiceRolled((data) => {
+        console.log('Player rolled:', data);
+        onPlayerDiceRolled(data);
+    });
+    
+    multiplayerClient.onInitialBuildStart((data) => {
+        console.log('Initial build started:', data);
+        onInitialBuildStart(data);
+    });
+    
+    multiplayerClient.onInitialBuildNextPlayer((data) => {
+        console.log('Next player:', data);
+        onInitialBuildNextPlayer(data);
+    });
+    
+    multiplayerClient.onInitialBuildRound2Start((data) => {
+        console.log('Round 2 started:', data);
+        onInitialBuildRound2Start(data);
+    });
+}
 
 window.addEventListener('resize', () => {
     if (mapData) {
