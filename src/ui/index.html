@@ -669,18 +669,22 @@ body.is-paused canvas {
     </div>
 </div>
 
-<!-- Initial Dice Phase Overlay -->
+        <!-- Initial Dice Phase Overlay (2 dice) -->
 <div id="dicePhaseOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2500; justify-content: center; align-items: center;">
     <div style="background: rgba(26,26,46,0.98); border: 3px solid #f39c12; border-radius: 20px; padding: 40px; text-align: center; max-width: 600px; box-shadow: 0 0 50px rgba(243,156,18,0.6);">
-        <h2 style="color: #f39c12; margin-bottom: 20px; font-size: 1.8em;">🎲 Початкова фаза: Кидання кубика</h2>
-        <p style="color: #ccc; margin-bottom: 15px; font-size: 1.1em;">Киньте кубик, щоб визначити порядок ходів</p>
+        <h2 style="color: #f39c12; margin-bottom: 20px; font-size: 1.8em;">🎲 Початкова фаза: Кидання кубиків</h2>
+        <p style="color: #ccc; margin-bottom: 15px; font-size: 1.1em;">Киньте кубики, щоб визначити порядок ходів</p>
+        <div style="display: flex; gap: 15px; justify-content: center; margin-bottom: 15px;">
+            <div class="initial-die" id="initialDie1" style="width: 70px; height: 70px; background: linear-gradient(135deg, #fff, #ddd); border-radius: 10px; display: flex; justify-content: center; align-items: center; font-size: 2.5em; font-weight: bold; color: #333; box-shadow: 0 3px 10px rgba(0,0,0,0.3);">⚀</div>
+            <div class="initial-die" id="initialDie2" style="width: 70px; height: 70px; background: linear-gradient(135deg, #fff, #ddd); border-radius: 10px; display: flex; justify-content: center; align-items: center; font-size: 2.5em; font-weight: bold; color: #333; box-shadow: 0 3px 10px rgba(0,0,0,0.3);">⚀</div>
+        </div>
         <div id="dicePhaseStatus" style="color: #f1c40f; margin-bottom: 20px; font-size: 1.2em; font-weight: bold;"></div>
         <div id="dicePhaseResults" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;"></div>
-        <button id="rollDiceInitialBtn" style="padding: 15px 40px; font-size: 1.2em; background: linear-gradient(135deg, #9b59b6, #8e44ad); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold;">🎲 Кинути кубик</button>
+        <button id="rollDiceInitialBtn" style="padding: 15px 40px; font-size: 1.2em; background: linear-gradient(135deg, #9b59b6, #8e44ad); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold;">🎲 Кинути кубики</button>
     </div>
 </div>
 
-<!-- Initial Build Phase Overlay -->
+<!-- Initial Build Phase Overlay (1 round only) -->
 <div id="buildPhaseOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2500; justify-content: center; align-items: center;">
     <div style="background: rgba(26,26,46,0.98); border: 3px solid #f39c12; border-radius: 20px; padding: 40px; text-align: center; max-width: 600px; box-shadow: 0 0 50px rgba(243,156,18,0.6);">
         <h2 style="color: #f39c12; margin-bottom: 20px; font-size: 1.8em;">🏗️ Початкова фаза: Будівництво</h2>
@@ -690,7 +694,24 @@ body.is-paused canvas {
     </div>
 </div>
 
-<!-- Settings Modal -->
+<!-- Your Turn Overlay (for regular gameplay) -->
+<div id="yourTurnOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); z-index: 2400; justify-content: center; align-items: center;">
+    <div style="background: rgba(26,26,46,0.98); border: 3px solid #27ae60; border-radius: 20px; padding: 30px 40px; text-align: center; max-width: 450px; box-shadow: 0 0 50px rgba(39,174,96,0.4);">
+        <h2 style="color: #27ae60; margin-bottom: 10px; font-size: 2em;">🎯 Ваш хід!</h2>
+        <p style="color: #ccc; margin-bottom: 20px; font-size: 1.1em;">Будь ласка, спочатку киньте кубики</p>
+        <button id="closeYourTurnBtn" style="padding: 12px 30px; font-size: 1.1em; background: linear-gradient(135deg, #27ae60, #229954); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 15px rgba(39,174,96,0.3);">🎲 Кинути кубики</button>
+    </div>
+</div>
+
+<!-- Waiting for Turn Overlay -->
+<div id="waitingTurnOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2400; justify-content: center; align-items: center;">
+    <div style="background: rgba(26,26,46,0.95); border: 3px solid #f39c12; border-radius: 20px; padding: 30px 40px; text-align: center; max-width: 450px; box-shadow: 0 0 40px rgba(243,156,18,0.3);">
+        <h2 style="color: #f39c12; margin-bottom: 10px; font-size: 1.6em;">⏳ Очікування ходу</h2>
+        <p id="waitingTurnInfo" style="color: #ccc; font-size: 1.1em;">Зараз хід іншого гравця...</p>
+    <div style="margin-top: 15px; font-size: 1em; color: #f1c40f;" id="waitingDotsAnim">.</div>
+    </div>
+</div>
+
     <div class="settings-overlay" id="settingsModal" style="display: none;">
         <div class="settings-box">
             <h3>НАЛАШТУВАННЯ</h3>
@@ -733,6 +754,7 @@ body.is-paused canvas {
                     <div class="dice-btns">
                         <button class="roll-btn" id="rollBtn">🎲 Кинути</button>
                         <button class="trade-btn" id="tradeBtn">🔄 Обмін</button>
+                        <button class="roll-btn" id="endTurnBtn" style="display: none; background: linear-gradient(135deg, #27ae60, #229954) !important;">✅ Завершити хід</button>
                     </div>
                 </div>
                 <div class="medals">
@@ -1483,7 +1505,7 @@ if(m==='road' && hoverEdge) {
         hoverEdge = null;
     }
     // ========== ОСЬ ТУТ ВСТАВИТИ ВИПРАВЛЕНИЙ КОД ДЛЯ ПОСЕЛЕННЯ ==========
-else if(m==='settlement' && hoverVertex) {
+    else if(m==='settlement' && hoverVertex) {
         if (!canPlaceSettlement(hoverVertex)) return;
         if (!canBuildPiece('settlement')) {
             showMessage('Ліміт поселень!');
@@ -2304,16 +2326,22 @@ function startDicePhase(players) {
     rollBtn.style.opacity = '1';
     rollBtn.style.cursor = 'pointer';
     
-    // Add click handler for roll button
+    // Add click handler for roll button (2 dice)
     rollBtn.onclick = () => {
         if (initialPhase.myRoll !== null) {
-            showMessage('Ви вже кинули кубик!');
+            showMessage('Ви вже кинули кубики!');
             return;
         }
         
-        // Roll dice (1-6)
-        const total = Math.floor(Math.random() * 6) + 1;
+        // Roll 2 dice (1-6 each)
+        const die1 = Math.floor(Math.random() * 6) + 1;
+        const die2 = Math.floor(Math.random() * 6) + 1;
+        const total = die1 + die2;
         initialPhase.myRoll = total;
+        
+        // Show dice animation
+        document.getElementById('initialDie1').textContent = '⚀⚁⚂⚃⚄⚅'[die1-1];
+        document.getElementById('initialDie2').textContent = '⚀⚁⚂⚃⚄⚅'[die2-1];
         
         // Send to server
         if (multiplayerClient && isMultiplayer) {
@@ -2407,14 +2435,15 @@ function onInitialBuildStart(data) {
     updateBuildPhaseStatus(data.currentPlayerId);
 }
 
-// Handle next player in build phase
+// Handle next player in build phase (1 round only)
 function onInitialBuildNextPlayer(data) {
     initialPhase.currentIndex++;
     updateBuildPhaseStatus(data.currentPlayerId);
 }
 
-// Handle round 2 start
+// Handle round 2 start (UNUSED - only 1 round now)
 function onInitialBuildRound2Start(data) {
+    // Not used anymore - only 1 round of initial build
     initialPhase.round = 1;
     initialPhase.currentIndex = 0;
     onInitialBuildStart(data);
@@ -2432,6 +2461,160 @@ function updateBuildPhaseStatus(currentPlayerId) {
         status.textContent = 'Очікування ходу гравця...';
         status.style.color = '#f1c40f';
     }
+}
+
+// ===== REGULAR TURN MANAGEMENT =====
+let isMyTurn = false;
+let hasRolledThisTurn = false;
+let canPerformActions = false;
+let turnOrder = [];
+let currentTurnPlayerId = null;
+let waitingDotsTimer = null;
+
+// Show "Your Turn" overlay
+function showYourTurn(data) {
+    isMyTurn = true;
+    hasRolledThisTurn = false;
+    canPerformActions = false;
+    
+    // Hide waiting overlay if visible
+    document.getElementById('waitingTurnOverlay').style.display = 'none';
+    if (waitingDotsTimer) {
+        clearInterval(waitingDotsTimer);
+        waitingDotsTimer = null;
+    }
+    
+    // Show the "Your Turn" overlay
+    const overlay = document.getElementById('yourTurnOverlay');
+    overlay.style.display = 'flex';
+    
+    // Show end turn button
+    document.getElementById('endTurnBtn').style.display = 'none';
+}
+
+// Show "Waiting for Turn" overlay
+function showWaitingForTurn(data) {
+    isMyTurn = false;
+    hasRolledThisTurn = false;
+    canPerformActions = false;
+    
+    // Hide your turn overlay
+    document.getElementById('yourTurnOverlay').style.display = 'none';
+    
+    // Enable actions lock
+    document.getElementById('endTurnBtn').style.display = 'none';
+    
+    // Show waiting overlay with dots
+    const overlay = document.getElementById('waitingTurnOverlay');
+    const info = document.getElementById('waitingTurnInfo');
+    info.textContent = 'Зараз хід іншого гравця...';
+    overlay.style.display = 'flex';
+    
+    // Animated dots
+    let dots = 0;
+    waitingDotsTimer = setInterval(() => {
+        dots = (dots % 3) + 1;
+        document.getElementById('waitingDotsAnim').textContent = '.'.repeat(dots);
+    }, 500);
+}
+
+// Handle regular dice roll (when it's my turn)
+function handleRegularDiceRoll() {
+    if (!isMyTurn) return;
+    if (hasRolledThisTurn) {
+        showMessage('Ви вже кинули кубики!');
+        return;
+    }
+    
+    // Roll 2 dice
+    const die1 = Math.floor(Math.random() * 6) + 1;
+    const die2 = Math.floor(Math.random() * 6) + 1;
+    const total = die1 + die2;
+    
+    hasRolledThisTurn = true;
+    canPerformActions = true;
+    
+    // Show dice animation
+    audioManager.playDiceSound();
+    const d1 = document.getElementById('die1');
+    const d2 = document.getElementById('die2');
+    d1.classList.add('rolling');
+    d2.classList.add('rolling');
+    
+    setTimeout(() => {
+        d1.classList.remove('rolling');
+        d2.classList.remove('rolling');
+        d1.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[die1-1] + '</span>';
+        d2.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[die2-1] + '</span>';
+        document.getElementById('total').textContent = 'Сума: ' + total;
+        
+        // Collect resources for ALL players' settlements near this number
+        showResourceNotification(collectResources(total));
+        
+        // Show end turn button
+        document.getElementById('endTurnBtn').style.display = 'inline-block';
+        
+        // Close the "Your Turn" overlay since we've rolled
+        document.getElementById('yourTurnOverlay').style.display = 'none';
+    }, 800);
+    
+    // Send to server in multiplayer mode
+    if (multiplayerClient && isMultiplayer) {
+        multiplayerClient.rollRegularDice(die1, die2);
+    }
+}
+
+// Handle "collect resources" event from server (multiplayer)
+function handleCollectResources(data) {
+    const diceTotal = data.diceTotal;
+    showResourceNotification(collectResources(diceTotal));
+}
+
+// End current turn
+function handleEndTurn() {
+    if (!isMyTurn) return;
+    if (!hasRolledThisTurn) {
+        showMessage('Спочатку киньте кубики!');
+        return;
+    }
+    
+    isMyTurn = false;
+    hasRolledThisTurn = false;
+    canPerformActions = false;
+    document.getElementById('endTurnBtn').style.display = 'none';
+    setBuildMode('none');
+    
+    if (multiplayerClient && isMultiplayer) {
+        multiplayerClient.endTurn();
+    }
+}
+
+// Handle "building synced" from server (for multiplayer validation)
+function handleBuildingSynced(data) {
+    // Add building to our local state from server confirmation
+    const bldData = data.data;
+    if (data.type === 'road' && bldData.edgeKey) {
+        gameState.roads.set(bldData.edgeKey, {
+            color: bldData.color,
+            playerId: bldData.playerId
+        });
+    } else if (data.type === 'settlement' && bldData.vertexKey) {
+        gameState.settlements.set(bldData.vertexKey, {
+            type: 'settlement',
+            vk: bldData.vertexKey,
+            color: bldData.color,
+            playerId: bldData.playerId
+        });
+    } else if (data.type === 'city' && bldData.vertexKey) {
+        gameState.settlements.set(bldData.vertexKey, {
+            type: 'city',
+            vk: bldData.vertexKey,
+            color: bldData.color,
+            playerId: bldData.playerId
+        });
+    }
+    renderMap(mapData, canvas, mapHexSize);
+    updateBuildStats();
 }
 
 // Check if current player can build during initial phase
@@ -2606,33 +2789,131 @@ function checkInitialPhaseComplete() {
     }
 }
 
-// Register multiplayer event handlers
-if (multiplayerClient) {
-    multiplayerClient.onStartDicePhase((data) => {
-        console.log('Dice phase started:', data);
-        startDicePhase(data.players);
-    });
-    
-    multiplayerClient.onPlayerDiceRolled((data) => {
-        console.log('Player rolled:', data);
-        onPlayerDiceRolled(data);
-    });
-    
-    multiplayerClient.onInitialBuildStart((data) => {
-        console.log('Initial build started:', data);
-        onInitialBuildStart(data);
-    });
-    
-    multiplayerClient.onInitialBuildNextPlayer((data) => {
-        console.log('Next player:', data);
-        onInitialBuildNextPlayer(data);
-    });
-    
-    multiplayerClient.onInitialBuildRound2Start((data) => {
-        console.log('Round 2 started:', data);
-        onInitialBuildRound2Start(data);
-    });
-}
+// ===== BUTTON EVENT HANDLERS =====
+
+// End Turn button
+document.getElementById('endTurnBtn').addEventListener('click', () => {
+    audioManager.playClickSound();
+    handleEndTurn();
+});
+
+// Close "Your Turn" overlay and roll dice
+document.getElementById('closeYourTurnBtn').addEventListener('click', () => {
+    audioManager.playClickSound();
+    handleRegularDiceRoll();
+});
+
+// ===== REGISTER MULTIPLAYER EVENT HANDLERS =====
+// These need to be registered AFTER initMultiplayer() creates the client
+// We use a small delay to ensure multiplayerClient is initialized
+setTimeout(() => {
+    if (multiplayerClient) {
+        // Initial phase handlers
+        multiplayerClient.onStartDicePhase((data) => {
+            console.log('Dice phase started:', data);
+            startDicePhase(data.players);
+        });
+        
+        multiplayerClient.onPlayerDiceRolled((data) => {
+            console.log('Player rolled:', data);
+            onPlayerDiceRolled(data);
+        });
+        
+        multiplayerClient.onInitialBuildStart((data) => {
+            console.log('Initial build started:', data);
+            onInitialBuildStart(data);
+        });
+        
+        multiplayerClient.onInitialBuildNextPlayer((data) => {
+            console.log('Next player:', data);
+            onInitialBuildNextPlayer(data);
+        });
+        
+        multiplayerClient.onInitialBuildRound2Start((data) => {
+            console.log('Round 2 started:', data);
+            onInitialBuildRound2Start(data);
+        });
+        
+        // Regular turn handlers
+        multiplayerClient.onYourTurn((data) => {
+            console.log('Your turn:', data);
+            showYourTurn(data);
+        });
+        
+        multiplayerClient.onWaitingForTurn((data) => {
+            console.log('Waiting for turn:', data);
+            showWaitingForTurn(data);
+        });
+        
+        multiplayerClient.onRegularDiceRolled((data) => {
+            console.log('Regular dice rolled:', data);
+            // Update dice display for all players
+            const d1 = document.getElementById('die1');
+            const d2 = document.getElementById('die2');
+            d1.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[data.die1-1] + '</span>';
+            d2.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[data.die2-1] + '</span>';
+            document.getElementById('total').textContent = 'Сума: ' + data.total;
+        });
+        
+        multiplayerClient.onCollectResources((data) => {
+            console.log('Collect resources:', data);
+            handleCollectResources(data);
+        });
+        
+        multiplayerClient.onRegularGameStart((data) => {
+            console.log('Regular game start:', data);
+            // Close build phase overlay
+            document.getElementById('buildPhaseOverlay').style.display = 'none';
+            initialPhase.active = false;
+            initialPhase.phase = 'complete';
+        });
+        
+        multiplayerClient.onTurnEnded((data) => {
+            console.log('Turn ended:', data);
+            // Hide waiting overlay
+            document.getElementById('waitingTurnOverlay').style.display = 'none';
+            if (waitingDotsTimer) {
+                clearInterval(waitingDotsTimer);
+                waitingDotsTimer = null;
+            }
+        });
+        
+        multiplayerClient.onActionError((data) => {
+            console.log('Action error:', data);
+            showMessage(data.message || 'Помилка дії');
+        });
+        
+        multiplayerClient.onDiceTie((data) => {
+            console.log('Dice tie:', data);
+            showMessage(data.message || 'Нічия! Перекиньте кубики');
+            // Reset my roll for re-roll
+            initialPhase.myRoll = null;
+            const rollBtn = document.getElementById('rollDiceInitialBtn');
+            rollBtn.disabled = false;
+            rollBtn.style.opacity = '1';
+            rollBtn.style.cursor = 'pointer';
+        });
+        
+        multiplayerClient.onBuildingSynced((data) => {
+            console.log('Building synced:', data);
+            handleBuildingSynced(data);
+        });
+        
+        multiplayerClient.onGameStateSync((data) => {
+            console.log('Game state sync:', data);
+            // Handle reconnection state
+            if (data.gamePhase === 'regular-turn') {
+                initialPhase.active = false;
+                initialPhase.phase = 'complete';
+                if (data.currentTurnPlayerId === myPlayerId) {
+                    showYourTurn({ playerId: data.currentTurnPlayerId });
+                } else {
+                    showWaitingForTurn({ currentPlayerId: data.currentTurnPlayerId });
+                }
+            }
+        });
+    }
+}, 1000); // Wait 1 second for multiplayer client to initialize
 
 window.addEventListener('resize', () => {
     if (mapData) {

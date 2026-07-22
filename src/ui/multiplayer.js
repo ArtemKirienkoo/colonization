@@ -189,6 +189,23 @@ class MultiplayerClient {
         });
     }
 
+    // Roll dice during initial phase
+    rollDiceInitial(total) {
+        this.socket.emit('dice-roll', {
+            roomCode: this.roomCode,
+            playerId: this.socket.id,
+            total
+        });
+    }
+
+    // Notify server that initial build is complete
+    completeInitialBuild() {
+        this.socket.emit('initial-build-complete', {
+            roomCode: this.roomCode,
+            playerId: this.socket.id
+        });
+    }
+
     // Change player color
     changeColor(playerId, color) {
         this.socket.emit('change-color', {
@@ -232,6 +249,103 @@ class MultiplayerClient {
     // Handle game started
     onGameStarted(callback) {
         this.socket.on('game-started', callback);
+    }
+
+    // Handle start dice phase
+    onStartDicePhase(callback) {
+        this.socket.on('start-dice-phase', callback);
+    }
+
+    // Handle player dice rolled (initial)
+    onPlayerDiceRolled(callback) {
+        this.socket.on('player-dice-rolled', callback);
+    }
+
+    // Handle initial build start
+    onInitialBuildStart(callback) {
+        this.socket.on('initial-build-start', callback);
+    }
+
+    // Handle initial build next player
+    onInitialBuildNextPlayer(callback) {
+        this.socket.on('initial-build-next-player', callback);
+    }
+
+    // Handle initial build round 2 start
+    onInitialBuildRound2Start(callback) {
+        this.socket.on('initial-build-round2-start', callback);
+    }
+
+    // ===== REGULAR TURN EVENTS =====
+
+    // Handle "your-turn" event (it's this player's turn)
+    onYourTurn(callback) {
+        this.socket.on('your-turn', callback);
+    }
+
+    // Handle "waiting-for-turn" event (waiting for another player)
+    onWaitingForTurn(callback) {
+        this.socket.on('waiting-for-turn', callback);
+    }
+
+    // Handle regular dice rolled (during regular gameplay)
+    onRegularDiceRolled(callback) {
+        this.socket.on('regular-dice-rolled', callback);
+    }
+
+    // Handle resource collection (after dice roll)
+    onCollectResources(callback) {
+        this.socket.on('collect-resources', callback);
+    }
+
+    // Handle regular game start
+    onRegularGameStart(callback) {
+        this.socket.on('regular-game-start', callback);
+    }
+
+    // Handle turn ended
+    onTurnEnded(callback) {
+        this.socket.on('turn-ended', callback);
+    }
+
+    // Handle action error
+    onActionError(callback) {
+        this.socket.on('action-error', callback);
+    }
+
+    // Handle dice tie (re-roll needed)
+    onDiceTie(callback) {
+        this.socket.on('dice-tie', callback);
+    }
+
+    // Handle building synced (confirmation from server)
+    onBuildingSynced(callback) {
+        this.socket.on('building-synced', callback);
+    }
+
+    // Handle game state sync (for reconnection)
+    onGameStateSync(callback) {
+        this.socket.on('game-state-sync', callback);
+    }
+
+    // ===== REGULAR TURN EMITTERS =====
+
+    // Roll dice during regular turn (2 dice)
+    rollRegularDice(die1, die2) {
+        this.socket.emit('regular-dice-roll', {
+            roomCode: this.roomCode,
+            playerId: this.socket.id,
+            die1,
+            die2
+        });
+    }
+
+    // End current turn
+    endTurn() {
+        this.socket.emit('end-turn', {
+            roomCode: this.roomCode,
+            playerId: this.socket.id
+        });
     }
 
     // Handle room closed (host left)
