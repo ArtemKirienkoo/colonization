@@ -88,12 +88,12 @@ class MultiplayerClient {
     }
 
     // Create a new room
-    createRoom(roomName, playerName, maxPlayers) {
+    createRoom(roomName, playerName, maxPlayers, color) {
         this.playerName = playerName || 'Гравець';
         this.isHost = true;
 
         return new Promise((resolve, reject) => {
-            this.socket.emit('create-room', { roomName, playerName: this.playerName, maxPlayers });
+            this.socket.emit('create-room', { roomName, playerName: this.playerName, maxPlayers, color });
 
             const onRoomCreated = (data) => {
                 this.roomCode = data.roomCode;
@@ -115,12 +115,12 @@ class MultiplayerClient {
     }
 
     // Join an existing room
-    joinRoom(roomCode, playerName) {
+    joinRoom(roomCode, playerName, color) {
         this.playerName = playerName || 'Гравець';
         this.roomCode = roomCode.toUpperCase();
 
         return new Promise((resolve, reject) => {
-            this.socket.emit('join-room', { roomCode: this.roomCode, playerName: this.playerName });
+            this.socket.emit('join-room', { roomCode: this.roomCode, playerName: this.playerName, color });
 
             const onRoomJoined = (data) => {
                 this.players = data.players;
@@ -189,8 +189,28 @@ class MultiplayerClient {
         });
     }
 
+    // Change player color
+    changeColor(playerId, color) {
+        this.socket.emit('change-color', {
+            roomCode: this.roomCode,
+            playerId,
+            color
+        });
+    }
+
+    // Handle color changed event
+    onColorChanged(callback) {
+        this.socket.on('color-changed', callback);
+    }
+
+    // Handle color change failed event
+    onColorChangeFailed(callback) {
+        this.socket.on('color-change-failed', callback);
+    }
+
     // Handle sync-buildings (receiving all buildings after reconnect)
     onSyncBuildings(callback) {
+
         this.socket.on('sync-buildings', callback);
     }
 

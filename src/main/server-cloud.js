@@ -31,8 +31,9 @@ io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
 
     // Create room
-    socket.on('create-room', ({ roomName, playerName, maxPlayers }) => {
+    socket.on('create-room', ({ roomName, playerName, maxPlayers, color }) => {
         const roomCode = generateRoomCode();
+        const defaultColors = ['red', 'blue', 'yellow', 'green'];
         const room = {
             code: roomCode,
             name: roomName || 'Кімната',
@@ -41,7 +42,8 @@ io.on('connection', (socket) => {
             players: [{
                 id: socket.id,
                 name: playerName || 'Гравець',
-                isHost: true
+                isHost: true,
+                color: color || defaultColors[0]
             }],
             gameState: null,
             createdAt: Date.now()
@@ -62,7 +64,7 @@ io.on('connection', (socket) => {
     });
 
     // Join room
-    socket.on('join-room', ({ roomCode, playerName }) => {
+    socket.on('join-room', ({ roomCode, playerName, color }) => {
         const room = rooms.get(roomCode);
         
         if (!room) {
@@ -75,17 +77,26 @@ io.on('connection', (socket) => {
             return;
         }
         
+        const defaultColors = ['red', 'blue', 'yellow', 'green'];
+        const usedColors = new Set(room.players.map(p => p.color).filter(c => c));
+        
+        let assignedColor = color;
+        if (!assignedColor || usedColors.has(assignedColor)) {
+            assignedColor = defaultColors.find(c => !usedColors.has(c)) || defaultColors[room.players.length];
+        }
+        
         room.players.push({
             id: socket.id,
             name: playerName || 'Гравець',
-            isHost: false
+            isHost: false,
+            color: assignedColor
         });
         
         socket.join(roomCode);
         
         // Notify all players in room about new player (including full player list with socket IDs)
         io.to(roomCode).emit('player-joined', {
-            player: { id: socket.id, name: playerName || 'Гравець' },
+            player: { id: socket.id, name: playerName || 'Гравець', color: assignedColor },
             players: room.players
         });
         
@@ -99,8 +110,36 @@ io.on('connection', (socket) => {
         io.emit('rooms-list', getRoomsList());
     });
 
+    // Change player color
+    socket.on('change-color', ({ roomCode, playerId, color }) => {
+        const room = rooms.get(roomCode);
+        if (!room) return;
+
+        const player = room.players.find(p => p.id === playerId);
+        if (!player) return;
+
+        // Check if the requested color is already taken by another player
+        const usedColors = new Set(room.players.filter(p => p.id !== playerId).map(p => p.color).filter(c => c));
+        if (usedColors.has(color)) {
+            socket.emit('color-change-failed', { playerId, color, message: 'Цей колір вже зайнятий' });
+            return;
+        }
+
+        // Update the player's color
+        player.color = color;
+
+        // Broadcast the updated player list to all players in the room
+        io.to(roomCode).emit('color-changed', {
+            playerId,
+            color,
+            players: room.players
+        });
+    });
+
     // Get rooms list
     socket.on('get-rooms', () => {
+
+
         socket.emit('rooms-list', getRoomsList());
     });
 

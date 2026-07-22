@@ -364,6 +364,20 @@
     </div>
 </div>
 
+<!-- Color Selection Modal -->
+<div class="settings-overlay" id="colorSelectionModal" style="display: none;">
+    <div class="settings-box" style="max-width: 400px;">
+        <h3>ВИБЕРІТЬ КОЛІР</h3>
+        <div id="colorOptions" style="display: flex; gap: 10px; justify-content: center; margin: 20px 0;">
+            <button class="color-option" data-color="red" style="width: 60px; height: 60px; border-radius: 50%; background: #e74c3c; border: 3px solid #fff; cursor: pointer; transition: all 0.2s;" title="Червоний"></button>
+            <button class="color-option" data-color="blue" style="width: 60px; height: 60px; border-radius: 50%; background: #3498db; border: 3px solid #fff; cursor: pointer; transition: all 0.2s;" title="Синій"></button>
+            <button class="color-option" data-color="yellow" style="width: 60px; height: 60px; border-radius: 50%; background: #f1c40f; border: 3px solid #fff; cursor: pointer; transition: all 0.2s;" title="Жовтий"></button>
+            <button class="color-option" data-color="green" style="width: 60px; height: 60px; border-radius: 50%; background: #27ae60; border: 3px solid #fff; cursor: pointer; transition: all 0.2s;" title="Зелений"></button>
+        </div>
+        <button id="cancelColorSelection" class="back-btn">Скасувати</button>
+    </div>
+</div>
+
 <!-- Join Room Modal -->
 <div class="settings-overlay" id="joinRoomModal" style="display: none;">
     <div class="settings-box">
@@ -622,6 +636,14 @@
         let currentRoomCode = null;
         let isHost = false;
         let mySocketId = null;
+        
+        // Color names mapping (moved to global scope for use in update functions)
+        const colorNames = {
+            'red': 'Червоний',
+            'blue': 'Синій',
+            'yellow': 'Жовтий',
+            'green': 'Зелений'
+        };
 
         function getSelectedServerUrl() {
             // Cloud server URL - замінити на свій після деплою
@@ -640,6 +662,29 @@
                     console.log('Player joined:', data);
                     if (isHost && currentRoomCode) {
                         updatePlayersList(data.players, mySocketId);
+                        // Ensure start game button is visible for host
+                        const startGameBtn = document.getElementById('startGameBtn');
+                        if (startGameBtn && startGameBtn.style.display === 'none') {
+                            startGameBtn.style.display = 'inline-block';
+                        }
+                    }
+                });
+                // Handle color changed event
+                mpClient.onColorChanged((data) => {
+                    console.log('Color changed:', data);
+                    if (isHost && currentRoomCode) {
+                        updatePlayersList(data.players, mySocketId);
+                    } else if (!isHost && currentRoomCode) {
+                        updatePlayersListForGuest(data.players, mySocketId);
+                    }
+                });
+                // Handle color change failed event
+                mpClient.onColorChangeFailed((data) => {
+                    console.log('Color change failed:', data);
+                    alert(data.message || 'Не вдалося змінити колір');
+                    // Re-open color selection modal so user can try again
+                    if (selectedPlayerIdForColor) {
+                        colorSelectionModal.style.display = 'flex';
                     }
                 });
                 // Handle player left event
@@ -647,6 +692,11 @@
                     console.log('Player left:', data);
                     if (isHost && currentRoomCode) {
                         updatePlayersList(data.players, mySocketId);
+                        // Ensure start game button is visible for host
+                        const startGameBtn = document.getElementById('startGameBtn');
+                        if (startGameBtn && startGameBtn.style.display === 'none') {
+                            startGameBtn.style.display = 'inline-block';
+                        }
                     }
                     if (!isHost && currentRoomCode) {
                         updatePlayersListForGuest(data.players, mySocketId);
@@ -833,6 +883,32 @@
             document.getElementById('maxPlayersValue').textContent = e.target.value;
         });
         
+        // Color selection in room
+        let selectedPlayerIdForColor = null;
+        const colorOptions = document.querySelectorAll('.color-option');
+        const colorSelectionModal = document.getElementById('colorSelectionModal');
+        
+        colorOptions.forEach(btn => {
+            btn.addEventListener('click', () => {
+                audioManager.playClickSound();
+                if (!selectedPlayerIdForColor) return;
+                
+                const color = btn.getAttribute('data-color');
+                // Send color change to server
+                mpClient.changeColor(selectedPlayerIdForColor, color);
+                
+                // Close modal
+                colorSelectionModal.style.display = 'none';
+                selectedPlayerIdForColor = null;
+            });
+        });
+        
+        document.getElementById('cancelColorSelection').addEventListener('click', () => {
+            audioManager.playClickSound();
+            colorSelectionModal.style.display = 'none';
+            selectedPlayerIdForColor = null;
+        });
+        
         // Create Room handlers
         document.getElementById('confirmCreateRoom').addEventListener('click', () => {
             audioManager.playClickSound();
@@ -844,12 +920,8 @@
                 isHost = true;
                 document.getElementById('createRoomModal').style.display = 'none';
                 document.getElementById('roomCodeDisplay').textContent = data.roomCode;
-                // Show host as "Хозяїн (ви)"
-                document.getElementById('playersList').innerHTML = `
-                    <div style="padding: 8px; background: rgba(39,174,96,0.2); border-radius: 5px; color: #27ae60;">
-                        Хозяїн (ви)
-                    </div>
-                `;
+                // Show host with color button immediately
+                updatePlayersList(data.players, mySocketId);
                 document.getElementById('roomCreatedModal').style.display = 'flex';
                 
                 // Show server URL for sharing
@@ -922,37 +994,104 @@ document.getElementById('exitRoomBtn').addEventListener('click', () => {
         // Function to update players list in room created modal (for host)
         function updatePlayersList(players, mySocketId) {
             const playersList = document.getElementById('playersList');
+            const colorMap = {
+                'red': '#e74c3c',
+                'blue': '#3498db',
+                'yellow': '#f1c40f',
+                'green': '#27ae60'
+            };
+            const defaultColors = ['red', 'blue', 'yellow', 'green'];
+            
+            // Ensure all players have colors
+            players.forEach((p, index) => {
+                if (!p.color) {
+                    p.color = defaultColors[index] || 'red';
+                }
+            });
+            
             playersList.innerHTML = players.map((p, index) => {
+                const color = colorMap[p.color] || '#f39c12';
+                const isCurrentUser = p.id === mySocketId;
+                
                 if (p.isHost) {
-                    return `<div style="padding: 8px; background: rgba(39,174,96,0.2); border-radius: 5px; color: #27ae60;">
-                        Хозяїн (ви)
+                    return `<div style="padding: 8px; background: ${color}22; border-radius: 5px; color: ${color}; border-left: 4px solid ${color}; display: flex; align-items: center; justify-content: space-between;">
+                        <span>Хозяїн (ви)</span>
+                        <button class="change-color-btn" data-player-id="${p.id}" ${isCurrentUser ? '' : 'disabled'} style="width: 32px; height: 32px; border-radius: 50%; background: ${color}; border: 3px solid ${color}; cursor: ${isCurrentUser ? 'pointer' : 'not-allowed'}; transition: all 0.2s; padding: 0;" title="${isCurrentUser ? 'Змінити колір' : 'Можна змінити тільки свій колір'}"></button>
                     </div>`;
                 } else {
-                    return `<div style="padding: 8px; background: rgba(243,156,18,0.1); border-radius: 5px; color: #f39c12;">
-                        Гравець
+                    return `<div style="padding: 8px; background: ${color}22; border-radius: 5px; color: ${color}; border-left: 4px solid ${color}; display: flex; align-items: center; justify-content: space-between;">
+                        <span>Гравець</span>
+                        <button class="change-color-btn" data-player-id="${p.id}" ${isCurrentUser ? '' : 'disabled'} style="width: 32px; height: 32px; border-radius: 50%; background: ${color}; border: 3px solid ${color}; cursor: ${isCurrentUser ? 'pointer' : 'not-allowed'}; transition: all 0.2s; padding: 0;" title="${isCurrentUser ? 'Змінити колір' : 'Можна змінити тільки свій колір'}"></button>
                     </div>`;
                 }
             }).join('');
+            
+            // Add click handlers to color change buttons (only for current user)
+            document.querySelectorAll('.change-color-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    audioManager.playClickSound();
+                    const playerId = btn.getAttribute('data-player-id');
+                    // Only allow changing own color
+                    if (playerId === mySocketId) {
+                        selectedPlayerIdForColor = playerId;
+                        colorSelectionModal.style.display = 'flex';
+                    }
+                });
+            });
         }
 
         // Function to update players list for guest (marks self as "ви")
         function updatePlayersListForGuest(players, mySocketId) {
             const playersList = document.getElementById('playersList');
+            const colorMap = {
+                'red': '#e74c3c',
+                'blue': '#3498db',
+                'yellow': '#f1c40f',
+                'green': '#27ae60'
+            };
+            const defaultColors = ['red', 'blue', 'yellow', 'green'];
+            
+            // Ensure all players have colors
+            players.forEach((p, index) => {
+                if (!p.color) {
+                    p.color = defaultColors[index] || 'red';
+                }
+            });
+            
             playersList.innerHTML = players.map((p, index) => {
+                const color = colorMap[p.color] || '#f39c12';
+                const isCurrentUser = p.id === mySocketId;
+                const disabledStyle = isCurrentUser ? '' : 'opacity: 0.4; cursor: not-allowed;';
+                
                 if (p.isHost) {
-                    return `<div style="padding: 8px; background: rgba(39,174,96,0.2); border-radius: 5px; color: #27ae60;">
-                        Гравець (хозяїн)
+                    // Show host with disabled color button (same layout as host sees, but non-clickable)
+                    return `<div style="padding: 8px; background: ${color}22; border-radius: 5px; color: ${color}; border-left: 4px solid ${color}; display: flex; align-items: center; justify-content: space-between;">
+                        <span>Гравець (хозяїн)</span>
+                        <button disabled style="width: 32px; height: 32px; border-radius: 50%; background: ${color}; border: 3px solid #fff; cursor: not-allowed; transition: all 0.2s; padding: 0; opacity: 0.6;" title="Колір хозяїна"></button>
                     </div>`;
                 } else if (p.id === mySocketId) {
-                    return `<div style="padding: 8px; background: rgba(243,156,18,0.1); border-radius: 5px; color: #f39c12;">
-                        Гравець (ви)
+                    return `<div style="padding: 8px; background: ${color}22; border-radius: 5px; color: ${color}; border-left: 4px solid ${color}; display: flex; align-items: center; justify-content: space-between;">
+                        <span>Гравець (ви)</span>
+                        <button class="change-color-btn" data-player-id="${p.id}" style="width: 32px; height: 32px; border-radius: 50%; background: ${color}; border: 3px solid ${color}; cursor: pointer; transition: all 0.2s; padding: 0;" title="Змінити колір"></button>
                     </div>`;
                 } else {
-                    return `<div style="padding: 8px; background: rgba(243,156,18,0.1); border-radius: 5px; color: #f39c12;">
+                    return `<div style="padding: 8px; background: ${color}22; border-radius: 5px; color: ${color}; border-left: 4px solid ${color};">
                         Гравець
                     </div>`;
                 }
             }).join('');
+            
+            // Add click handlers to color change buttons (only for self)
+            document.querySelectorAll('.change-color-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    audioManager.playClickSound();
+                    const playerId = btn.getAttribute('data-player-id');
+                    if (playerId === mySocketId) {
+                        selectedPlayerIdForColor = playerId;
+                        colorSelectionModal.style.display = 'flex';
+                    }
+                });
+            });
         }
 
         // Copy room code button
@@ -991,7 +1130,11 @@ document.getElementById('exitRoomBtn').addEventListener('click', () => {
                     // Show players list (including self as "Гравець (ви)")
                     updatePlayersListForGuest(data.players, mySocketId);
                     
-                    // Replace "Start Game" button with animated "Waiting for game..." text for guest
+                    // Hide start game button for guest (don't destroy it)
+                    const startGameBtn = document.getElementById('startGameBtn');
+                    if (startGameBtn) {
+                        startGameBtn.style.display = 'none';
+                    }
                     document.getElementById('startGameContainer').innerHTML = `
                         <div style="color: #f39c12; font-size: 1.1em; padding: 10px; text-align: center;">
                             Очікування гри<span id="waitingDots">...</span>

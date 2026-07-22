@@ -34,8 +34,11 @@ io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
 
     // Create room
-    socket.on('create-room', ({ roomName, playerName, maxPlayers }) => {
+    socket.on('create-room', ({ roomName, playerName, maxPlayers, color }) => {
         const roomCode = generateRoomCode();
+        const defaultColors = ['red', 'blue', 'yellow', 'green'];
+        const usedColors = new Set();
+        
         const room = {
             code: roomCode,
             name: roomName || 'Кімната',
@@ -44,11 +47,16 @@ io.on('connection', (socket) => {
             players: [{
                 id: socket.id,
                 name: playerName || 'Гравець',
-                isHost: true
+                isHost: true,
+                color: color || defaultColors[0]
             }],
             gameState: null,
             createdAt: Date.now()
         };
+        
+        if (room.players[0].color) {
+            usedColors.add(room.players[0].color);
+        }
         
         rooms.set(roomCode, room);
         socket.join(roomCode);
@@ -65,7 +73,7 @@ io.on('connection', (socket) => {
     });
 
     // Join room
-    socket.on('join-room', ({ roomCode, playerName }) => {
+    socket.on('join-room', ({ roomCode, playerName, color }) => {
         const room = rooms.get(roomCode);
         
         if (!room) {
@@ -78,17 +86,27 @@ io.on('connection', (socket) => {
             return;
         }
         
+        const defaultColors = ['red', 'blue', 'yellow', 'green'];
+        const usedColors = new Set(room.players.map(p => p.color).filter(c => c));
+        
+        let assignedColor = color;
+        if (!assignedColor || usedColors.has(assignedColor)) {
+            // Assign first available default color
+            assignedColor = defaultColors.find(c => !usedColors.has(c)) || defaultColors[room.players.length];
+        }
+        
         room.players.push({
             id: socket.id,
             name: playerName || 'Гравець',
-            isHost: false
+            isHost: false,
+            color: assignedColor
         });
         
         socket.join(roomCode);
         
         // Notify all players in room about new player (including full player list with socket IDs)
         io.to(roomCode).emit('player-joined', {
-            player: { id: socket.id, name: playerName || 'Гравець' },
+            player: { id: socket.id, name: playerName || 'Гравець', color: assignedColor },
             players: room.players
         });
         
@@ -132,6 +150,33 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Change player color
+    socket.on('change-color', ({ roomCode, playerId, color }) => {
+        const room = rooms.get(roomCode);
+        if (!room) return;
+
+        const player = room.players.find(p => p.id === playerId);
+        if (!player) return;
+
+        // Check if the requested color is already taken by another player
+        const usedColors = new Set(room.players.filter(p => p.id !== playerId).map(p => p.color).filter(c => c));
+        if (usedColors.has(color)) {
+            // Color is taken, notify the requester
+            socket.emit('color-change-failed', { playerId, color, message: 'Цей колір вже зайнятий' });
+            return;
+        }
+
+        // Update the player's color
+        player.color = color;
+
+        // Broadcast the updated player list to all players in the room
+        io.to(roomCode).emit('color-changed', {
+            playerId,
+            color,
+            players: room.players
+        });
+    });
+
     // Game actions
     socket.on('game-action', ({ roomCode, action, data }) => {
         socket.to(roomCode).emit('game-action', { action, data });
@@ -140,6 +185,8 @@ io.on('connection', (socket) => {
     // Disconnect
     socket.on('disconnect', () => {
         console.log('Player disconnected:', socket.id);
+
+
         
         // Remove player from rooms
         rooms.forEach((room, code) => {
@@ -150,17 +197,20 @@ io.on('connection', (socket) => {
                 
                 // If host left, delete room and notify all players
                 if (wasHost) {
-                    // Notify all players in room that host left and room is closed
                     io.to(code).emit('room-closed', {
                         message: 'Хозяїн вийшов з кімнати'
                     });
                     rooms.delete(code);
                 } else {
-                    // Notify remaining players (use io.to instead of socket.to since socket is disconnected)
                     io.to(code).emit('player-left', {
                         playerId: socket.id,
                         players: room.players
                     });
+                    
+                    // If room is empty, delete it
+                    if (room.players.length === 0) {
+                        rooms.delete(code);
+                    }
                 }
             }
         });
@@ -189,6 +239,11 @@ io.on('connection', (socket) => {
                         playerId: socket.id,
                         players: room.players
                     });
+                    
+                    // If room is empty, delete it
+                    if (room.players.length === 0) {
+                        rooms.delete(roomCode);
+                    }
                 }
                 
                 // Update room list
