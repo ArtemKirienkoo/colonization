@@ -1313,7 +1313,32 @@ function isVertexOnLand(vk) {
     return vert.hexes.some(h => ls.has(hexKey(h)));
 }
 function canPlaceSettlement(vk) {
-    if (gameState.settlements.has(vk)) return false; if (!isVertexOnLand(vk)) return false; if (gameState.settlements.size === 0) return true;
+    if (gameState.settlements.has(vk)) return false; if (!isVertexOnLand(vk)) return false;
+    
+    // During initial phase, only check distance from MY settlements
+    if (initialPhase.active && initialPhase.phase === 'initial-build') {
+        const mySettlements = new Set();
+        for (const [svk, bld] of gameState.settlements) {
+            if (bld.playerId === myPlayerId) {
+                mySettlements.add(svk);
+            }
+        }
+        
+        // If I have no settlements yet, I can build anywhere (first settlement)
+        if (mySettlements.size === 0) return true;
+        
+        // Check distance from my existing settlements only
+        const graph = buildSettlementGraph();
+        for (const existingVk of mySettlements) {
+            const len = roadPathLength(existingVk, vk, graph);
+            if (len >= 0 && len < 2) return false;
+            if (len === -1) return false;
+        }
+        return true;
+    }
+    
+    // Regular gameplay: check distance from ALL settlements
+    if (gameState.settlements.size === 0) return true;
     const graph = buildSettlementGraph();
     for (const [evk] of gameState.settlements) { const len = roadPathLength(evk, vk, graph); if (len>=0 && len<2) return false; if (len===-1) return false; }
     return true;
@@ -2634,9 +2659,10 @@ function canBuildPieceInitial(t) {
     
     // During initial phase, allow building without resources
     // but still check PER-PLAYER limits using initialPhaseBuildings
+    const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
     switch(t) {
-        case 'road': return initialPhaseBuildings.roads < INITIAL_ROAD_LIMIT;
-        case 'settlement': return initialPhaseBuildings.settlements < INITIAL_SETTLEMENT_LIMIT;
+        case 'road': return myBuildings.roads < INITIAL_ROAD_LIMIT;
+        case 'settlement': return myBuildings.settlements < INITIAL_SETTLEMENT_LIMIT;
         case 'city': return false; // Can't build city during initial phase
         default: return false;
     }
@@ -2648,8 +2674,9 @@ function isInitialPhaseComplete() {
         // During initial phase, check if THIS player has completed their builds
         // Each player needs 1 settlement and 2 roads
         // Use PER-PLAYER counts from initialPhaseBuildings, not global gameState counts
-        return initialPhaseBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && 
-               initialPhaseBuildings.roads >= INITIAL_ROAD_LIMIT;
+        const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
+        return myBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && 
+               myBuildings.roads >= INITIAL_ROAD_LIMIT;
     }
     
     // After initial phase, use normal check (global counts are fine for regular gameplay)
@@ -2668,8 +2695,8 @@ function canRollDice() {
     return !isRolling && isInitialPhaseComplete() && gameState.roadBuildingMode === 0 && !gameState.cardInProgress;
 }
 
-// Track initial phase buildings
-let initialPhaseBuildings = { settlements: 0, roads: 0 };
+// Track initial phase buildings PER PLAYER (playerId -> {settlements, roads})
+let initialPhaseBuildings = new Map();
 
 // Override building functions to track initial phase
 const originalSetBuildMode = setBuildMode;
@@ -2723,7 +2750,12 @@ canvas.addEventListener('click', (e) => {
                 color: myPlayerColor,
                 playerId: myPlayerId 
             });
-            initialPhaseBuildings.roads++;
+            
+            // Track per-player buildings
+            const myRoads = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
+            myRoads.roads++;
+            initialPhaseBuildings.set(myPlayerId, myRoads);
+            
             renderMap(mapData, canvas, mapHexSize);
             updateBuildStats();
             
@@ -2749,7 +2781,12 @@ canvas.addEventListener('click', (e) => {
                 color: myPlayerColor,
                 playerId: myPlayerId
             });
-            initialPhaseBuildings.settlements++;
+            
+            // Track per-player buildings
+            const mySettlements = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
+            mySettlements.settlements++;
+            initialPhaseBuildings.set(myPlayerId, mySettlements);
+            
             renderMap(mapData, canvas, mapHexSize);
             updateBuildStats();
             
@@ -2770,15 +2807,16 @@ canvas.addEventListener('click', (e) => {
 // Check if initial phase is complete for current player
 function checkInitialPhaseComplete() {
     if (initialPhase.active && initialPhase.phase === 'initial-build') {
-        if (initialPhaseBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && 
-            initialPhaseBuildings.roads >= INITIAL_ROAD_LIMIT) {
+        const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
+        if (myBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && 
+            myBuildings.roads >= INITIAL_ROAD_LIMIT) {
             // Current player finished building
             if (multiplayerClient && isMultiplayer) {
                 multiplayerClient.completeInitialBuild();
             }
             
-            // Reset for next player
-            initialPhaseBuildings = { settlements: 0, roads: 0 };
+            // Reset for current player only
+            initialPhaseBuildings.set(myPlayerId, { settlements: 0, roads: 0 });
             setBuildMode('none');
         }
     }
