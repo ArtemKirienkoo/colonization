@@ -2509,7 +2509,7 @@ function startDicePhase(players) {
         
         // Send to server
         if (multiplayerClient && isMultiplayer) {
-            multiplayerClient.rollDiceInitial(total);
+            multiplayerClient.rollDiceInitial(die1, die2);
         } else {
             // Single player mode - simulate the roll
             handleMyDiceRoll(total);
@@ -2554,6 +2554,7 @@ function updateDicePhaseUI() {
 // Handle player dice rolled event
 function onPlayerDiceRolled(data) {
     initialPhase.diceRolls.set(data.playerId, data.total);
+    initialPhase.totalPlayers = data.totalPlayers;
     updateDicePhaseUI();
     
     // Check if all players have rolled

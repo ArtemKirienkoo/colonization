@@ -190,11 +190,12 @@ class MultiplayerClient {
     }
 
     // Roll dice during initial phase
-    rollDiceInitial(total) {
+    rollDiceInitial(die1, die2) {
         this.socket.emit('dice-roll', {
             roomCode: this.roomCode,
             playerId: this.socket.id,
-            total
+            die1,
+            die2
         });
     }
 
