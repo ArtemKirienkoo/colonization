@@ -297,30 +297,65 @@ io.on('connection', (socket) => {
             room.gamePhase = 'initial-build';
             room.currentInitialBuildIndex = 0;
             room.initialBuildRoundComplete = false;
-            room.playersWhoCompletedInitialBuild = new Set(); // Track who finished initial build
             
-            // Notify all players of the build order - everyone builds simultaneously!
+            // Track each player's built items during initial phase
+            room.initialBuildProgress = new Map(); // playerId -> {settlements: number, roads: number}
+            for (const p of room.players) {
+                room.initialBuildProgress.set(p.id, { settlements: 0, roads: 0 });
+            }
+            
+            // Notify the first player to build
+            const firstPlayerId = rolls[0].playerId;
             io.to(roomCode).emit('initial-build-start', {
                 order: rolls,
-                currentPlayerId: null, // No specific current player - everyone builds at the same time
+                currentPlayerId: firstPlayerId,
                 round: 0
             });
+            
+            // Tell the first player it's their turn
+            io.to(firstPlayerId).emit('initial-build-your-turn', {
+                playerId: firstPlayerId,
+                order: rolls
+            });
+            
+            // Tell others they're waiting
+            for (let i = 1; i < rolls.length; i++) {
+                const pid = rolls[i].playerId;
+                io.to(pid).emit('initial-build-waiting', {
+                    currentPlayerId: firstPlayerId,
+                    yourPosition: i,
+                    order: rolls
+                });
+            }
         }
     });
     
-    // Handle initial build completion (1 settlement + 2 roads per player, all build simultaneously)
-    socket.on('initial-build-complete', ({ roomCode, playerId }) => {
+    // Handle initial build - player ends their turn (1 settlement + 2 roads per player, one by one)
+    socket.on('initial-build-end-turn', ({ roomCode, playerId, settlements, roads }) => {
         const room = rooms.get(roomCode);
         if (!room || room.gamePhase !== 'initial-build') return;
         
-        // Mark this player as done with initial build
-        if (!room.playersWhoCompletedInitialBuild) {
-            room.playersWhoCompletedInitialBuild = new Set();
+        // Verify it's this player's turn
+        const currentPlayerId = room.initialBuildOrder[room.currentInitialBuildIndex].playerId;
+        if (currentPlayerId !== playerId) {
+            socket.emit('action-error', { message: 'Зараз не ваш хід!' });
+            return;
         }
-        room.playersWhoCompletedInitialBuild.add(playerId);
         
-        // Check if all players have completed their initial build
-        if (room.playersWhoCompletedInitialBuild.size === room.players.length) {
+        // Validate that the player has built the required items
+        if (settlements < 1 || roads < 2) {
+            socket.emit('action-error', { message: 'Ви повинні побудувати 1 село та 2 дороги!' });
+            return;
+        }
+        
+        // Store this player's progress
+        room.initialBuildProgress.set(playerId, { settlements, roads });
+        
+        // Move to next player
+        room.currentInitialBuildIndex++;
+        
+        // Check if all players have built
+        if (room.currentInitialBuildIndex >= room.initialBuildOrder.length) {
             // All players finished! Start regular turns
             room.gamePhase = 'regular-turn';
             room.currentTurnIndex = 0;
@@ -350,6 +385,36 @@ io.on('connection', (socket) => {
                 io.to(pid).emit('waiting-for-turn', {
                     currentPlayerId: firstPlayerId,
                     yourPosition: i
+                });
+            }
+        } else {
+            // Notify next player to build
+            const nextPlayerId = room.initialBuildOrder[room.currentInitialBuildIndex].playerId;
+            
+            // Tell the ended player they're done
+            io.to(playerId).emit('initial-build-your-done', {
+                nextPlayerId: nextPlayerId
+            });
+            
+            // Tell next player it's their turn
+            io.to(nextPlayerId).emit('initial-build-your-turn', {
+                playerId: nextPlayerId,
+                order: room.initialBuildOrder
+            });
+            
+            // Update build phase overlay for remaining players
+            io.to(roomCode).emit('initial-build-next-player', {
+                currentPlayerId: nextPlayerId,
+                currentIndex: room.currentInitialBuildIndex
+            });
+            
+            // Tell all waiting players about update
+            for (let i = room.currentInitialBuildIndex + 1; i < room.initialBuildOrder.length; i++) {
+                const pid = room.initialBuildOrder[i].playerId;
+                io.to(pid).emit('initial-build-waiting', {
+                    currentPlayerId: nextPlayerId,
+                    yourPosition: i - room.currentInitialBuildIndex,
+                    order: room.initialBuildOrder
                 });
             }
         }

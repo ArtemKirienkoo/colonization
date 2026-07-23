@@ -277,6 +277,31 @@ class MultiplayerClient {
         this.socket.on('initial-build-round2-start', callback);
     }
 
+    // Handle initial build - your turn!
+    onInitialBuildYourTurn(callback) {
+        this.socket.on('initial-build-your-turn', callback);
+    }
+
+    // Handle initial build - waiting for other player
+    onInitialBuildWaiting(callback) {
+        this.socket.on('initial-build-waiting', callback);
+    }
+
+    // Handle initial build - your done (turn ended, waiting)
+    onInitialBuildYourDone(callback) {
+        this.socket.on('initial-build-your-done', callback);
+    }
+
+    // Notify server that initial build turn is complete (with counts)
+    endInitialBuildTurn(settlements, roads) {
+        this.socket.emit('initial-build-end-turn', {
+            roomCode: this.roomCode,
+            playerId: this.socket.id,
+            settlements,
+            roads
+        });
+    }
+
     // ===== REGULAR TURN EVENTS =====
 
     // Handle "your-turn" event (it's this player's turn)

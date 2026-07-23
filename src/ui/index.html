@@ -684,13 +684,14 @@ body.is-paused canvas {
     </div>
 </div>
 
-<!-- Initial Build Phase Overlay (1 round only) -->
+        <!-- Initial Build Phase Overlay (1 round only) -->
 <div id="buildPhaseOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2500; justify-content: center; align-items: center;">
     <div style="background: rgba(26,26,46,0.98); border: 3px solid #f39c12; border-radius: 20px; padding: 40px; text-align: center; max-width: 600px; box-shadow: 0 0 50px rgba(243,156,18,0.6);">
         <h2 style="color: #f39c12; margin-bottom: 20px; font-size: 1.8em;">🏗️ Початкова фаза: Будівництво</h2>
         <div id="buildPhaseInfo" style="color: #ccc; margin-bottom: 15px; font-size: 1.1em;"></div>
         <div id="buildPhaseOrder" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;"></div>
         <div id="buildPhaseStatus" style="color: #f1c40f; font-size: 1.2em; font-weight: bold;"></div>
+        <button id="initialBuildEndTurnBtn" style="display: none; padding: 15px 40px; font-size: 1.2em; background: linear-gradient(135deg, #27ae60, #229954); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; margin-top: 15px;">✅ Завершити хід (побудовано 1 село + 2 дороги)</button>
     </div>
 </div>
 
@@ -2566,36 +2567,59 @@ function onPlayerDiceRolled(data) {
     }
 }
 
-// Handle initial build start - ALL PLAYERS BUILD SIMULTANEOUSLY!
+// Handle initial build start - show the overlay with build order info
 function onInitialBuildStart(data) {
+    initialPhase.active = true;
     initialPhase.phase = 'initial-build';
-    initialPhase.buildOrder = data.order;
+    initialPhase.buildOrder = data.order || [];
     initialPhase.currentIndex = 0;
-    initialPhase.round = data.round;
+    initialPhase.round = data.round || 0;
+    initialPhaseBuildings = new Map();
+    for (const p of data.order) {
+        initialPhaseBuildings.set(p.playerId, { settlements: 0, roads: 0 });
+    }
     
+    // Show build phase overlay
     const overlay = document.getElementById('buildPhaseOverlay');
     const info = document.getElementById('buildPhaseInfo');
     const orderDiv = document.getElementById('buildPhaseOrder');
     const status = document.getElementById('buildPhaseStatus');
+    const endBtn = document.getElementById('initialBuildEndTurnBtn');
     
     overlay.style.display = 'flex';
     
-    // New message for simultaneous building
-    info.textContent = '🏗️ Всі гравці будують ОДНОЧАСНО! Побудуйте 1 село та 2 дороги';
+    info.textContent = '🏗️ Початкове будівництво: потрібно 1 село + 2 дороги';
     
-    // Show build order (for reference only - everyone builds at the same time)
+    // Show build order
     orderDiv.innerHTML = '';
-    data.order.forEach((player, index) => {
-        const isMe = player.playerId === myPlayerId;
-        const div = document.createElement('div');
-        div.style.cssText = `padding: 8px; background: ${isMe ? 'rgba(241,196,15,0.15)' : 'rgba(255,255,255,0.05)'}; border: 2px solid ${isMe ? '#f39c12' : 'rgba(255,255,255,0.1)'}; border-radius: 6px; font-size: 1em;`;
-        div.innerHTML = `<span style="color: ${isMe ? '#f1c40f' : '#fff'}; font-weight: ${isMe ? 'bold' : 'normal'};">${index + 1}. ${isMe ? 'Ви' : 'Гравець ' + player.playerId.slice(0, 4)}: ${player.total}</span>`;
-        orderDiv.appendChild(div);
-    });
+    if (data.order) {
+        data.order.forEach((player, index) => {
+            const isMe = player.playerId === myPlayerId;
+            const div = document.createElement('div');
+            div.style.cssText = `padding: 8px; background: ${isMe ? 'rgba(241,196,15,0.15)' : 'rgba(255,255,255,0.05)'}; border: 2px solid ${isMe ? '#f39c12' : 'rgba(255,255,255,0.1)'}; border-radius: 6px; font-size: 1em;`;
+            div.innerHTML = `<span style="color: ${isMe ? '#f1c40f' : '#fff'}; font-weight: ${isMe ? 'bold' : 'normal'};">${index + 1}. ${isMe ? 'Ви' : 'Гравець ' + player.playerId.slice(0, 4)}: ${player.total}</span>`;
+            orderDiv.appendChild(div);
+        });
+    }
     
-    // Show status for all players
-    status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
-    status.style.color = '#27ae60';
+    // Hide the end turn button initially
+    if (endBtn) endBtn.style.display = 'none';
+    
+    // Check if it's my turn or waiting
+    const currentId = data.currentPlayerId;
+    if (currentId === myPlayerId) {
+        status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
+        status.style.color = '#27ae60';
+        // Enable building by setting the phase
+        initialPhase.canBuild = true;
+    } else {
+        const playerInfo = data.order ? data.order.find(p => p.playerId === currentId) : null;
+        const name = playerInfo ? 'Гравець ' + currentId.slice(0, 4) : 'Інший гравець';
+        status.textContent = `⏳ Чекаємо, поки ${name} побудує...`;
+        status.style.color = '#f1c40f';
+        initialPhase.canBuild = false;
+        setBuildMode('none');
+    }
 }
 
 // Handle next player in build phase (1 round only)
@@ -2807,13 +2831,17 @@ function handleBuildingSynced(data) {
     updateBuildStats();
 }
 
-// Check if current player can build during initial phase - ALL PLAYERS BUILD SIMULTANEOUSLY!
+// Check if current player can build during initial phase - TURN BASED!
 function canBuildDuringInitialPhase() {
     if (!initialPhase.active || initialPhase.phase !== 'initial-build') {
         return false;
     }
     
-    // Everyone can build during initial phase - no turn order!
+    // Check if it's my turn (currentPlayerId matches myPlayerId or canBuild flag is set)
+    if (initialPhase.canBuild !== true) {
+        return false;
+    }
+    
     return true;
 }
 
@@ -2894,13 +2922,16 @@ function checkInitialPhaseComplete() {
         const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
         if (myBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && 
             myBuildings.roads >= INITIAL_ROAD_LIMIT) {
-            // Current player finished building
-            if (multiplayerClient && isMultiplayer) {
-                multiplayerClient.completeInitialBuild();
+            
+            // Show the end turn button
+            const endBtn = document.getElementById('initialBuildEndTurnBtn');
+            if (endBtn) {
+                endBtn.style.display = 'inline-block';
+                const status = document.getElementById('buildPhaseStatus');
+                status.textContent = '✅ Побудовано! Натисніть "Завершити хід"';
+                status.style.color = '#27ae60';
             }
             
-            // Reset for current player only
-            initialPhaseBuildings.set(myPlayerId, { settlements: 0, roads: 0 });
             setBuildMode('none');
         }
     }
@@ -2908,7 +2939,28 @@ function checkInitialPhaseComplete() {
 
 // ===== BUTTON EVENT HANDLERS =====
 
-// End Turn button
+// Initial Build End Turn button - when player finishes 1 settlement + 2 roads
+document.getElementById('initialBuildEndTurnBtn').addEventListener('click', () => {
+    audioManager.playClickSound();
+    const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
+    if (myBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && myBuildings.roads >= INITIAL_ROAD_LIMIT) {
+        // Send to server that we're done
+        if (multiplayerClient && isMultiplayer) {
+            multiplayerClient.endInitialBuildTurn(myBuildings.settlements, myBuildings.roads);
+        }
+        // Reset buildings for this player
+        initialPhaseBuildings.set(myPlayerId, { settlements: 0, roads: 0 });
+        const endBtn = document.getElementById('initialBuildEndTurnBtn');
+        endBtn.style.display = 'none';
+        const status = document.getElementById('buildPhaseStatus');
+        status.textContent = '⏳ Очікування наступного гравця...';
+        status.style.color = '#f1c40f';
+        setBuildMode('none');
+        initialPhase.canBuild = false;
+    }
+});
+
+// End Turn button (regular gameplay)
 document.getElementById('endTurnBtn').addEventListener('click', () => {
     audioManager.playClickSound();
     handleEndTurn();
@@ -2949,6 +3001,36 @@ setTimeout(() => {
         multiplayerClient.onInitialBuildRound2Start((data) => {
             console.log('Round 2 started:', data);
             onInitialBuildRound2Start(data);
+        });
+        
+        // NEW TURN-BASED INITIAL BUILD HANDLERS
+        multiplayerClient.onInitialBuildYourTurn((data) => {
+            console.log('Initial build - your turn:', data);
+            // Enable building
+            initialPhase.canBuild = true;
+            const status = document.getElementById('buildPhaseStatus');
+            status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
+            status.style.color = '#27ae60';
+        });
+        
+        multiplayerClient.onInitialBuildWaiting((data) => {
+            console.log('Initial build - waiting:', data);
+            initialPhase.canBuild = false;
+            const currentId = data.currentPlayerId;
+            const playerInfo = data.order ? data.order.find(p => p.playerId === currentId) : null;
+            const name = playerInfo ? 'Гравець ' + currentId.slice(0, 4) : 'Інший гравець';
+            const status = document.getElementById('buildPhaseStatus');
+            status.textContent = `⏳ Чекаємо, поки ${name} побудує...`;
+            status.style.color = '#f1c40f';
+            setBuildMode('none');
+        });
+        
+        multiplayerClient.onInitialBuildYourDone((data) => {
+            console.log('Initial build - your done:', data);
+            const status = document.getElementById('buildPhaseStatus');
+            status.textContent = '✅ Ви завершили будівництво! Чекайте інших гравців.';
+            status.style.color = '#f1c40f';
+            setBuildMode('none');
         });
         
         // Regular turn handlers
