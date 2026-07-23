@@ -1165,12 +1165,19 @@ let initialPhase = {
 };
 
 function countBuildings() { 
-    let s = 0, c = 0; 
+    let s = 0, c = 0, r = 0; 
     for (const [, bld] of gameState.settlements) { 
-        if (bld.type === 'city') c++; 
-        else s++; 
-    } 
-    return { settlements: s, cities: c, roads: gameState.roads.size }; 
+        if (bld.playerId === myPlayerId) {
+            if (bld.type === 'city') c++; 
+            else s++; 
+        }
+    }
+    for (const [, roadData] of gameState.roads) {
+        if (roadData.playerId === myPlayerId) {
+            r++;
+        }
+    }
+    return { settlements: s, cities: c, roads: r }; 
 }
 function canBuildPiece(t) { const c = countBuildings(); switch(t) { case 'road': return c.roads < MAX_ROADS; case 'settlement': return c.settlements < MAX_SETTLEMENTS; case 'city': return c.cities < MAX_CITIES; default: return false; } }
 function computeBaseVP() { const c = countBuildings(); return c.settlements*VP_SETTLEMENT + c.cities*VP_CITY; }
@@ -1477,19 +1484,109 @@ canvas.addEventListener('mousemove', (e) => {
     if(nhe!==hoverEdge||nhv!==hoverVertex){hoverEdge=nhe;hoverVertex=nhv;const ctx=canvas.getContext('2d');clearHoverAndRedraw(ctx,mapOffset.ox,mapOffset.oy,mapHexSize);}
 });
 function isEdgeValidForRoad(ek){const e=edgeGeom.edges.get(ek);if(!e)return false;const ls=new Set();if(mapData)[mapData.center,...mapData.ring1,...mapData.ring2].forEach(h=>ls.add(hexKey(h)));return ls.has(hexKey(e.hex1))||ls.has(hexKey(e.hex2));}
-function isEdgeConnected(ek){const e=edgeGeom.edges.get(ek);if(!e)return false;const p2v=new Map();for(const[vk,vert]of vertexGeom){const pk=Math.round(vert.pos.x*1000)+','+Math.round(vert.pos.y*1000);p2v.set(pk,vk);}const va=Math.round(e.va.x*1000)+','+Math.round(e.va.y*1000),vb=Math.round(e.vb.x*1000)+','+Math.round(e.vb.y*1000),a=p2v.get(va),b=p2v.get(vb);if((a&&gameState.settlements.has(a))||(b&&gameState.settlements.has(b)))return true;for(const [ek2] of gameState.roads){if(ek2===ek)continue;const e2=edgeGeom.edges.get(ek2);if(!e2)continue;const e2va=Math.round(e2.va.x*1000)+','+Math.round(e2.va.y*1000),e2vb=Math.round(e2.vb.x*1000)+','+Math.round(e2.vb.y*1000);if(va===e2va||va===e2vb||vb===e2va||vb===e2vb)return true;}return false;}
+function isEdgeConnected(ek){const e=edgeGeom.edges.get(ek);if(!e)return false;const p2v=new Map();for(const[vk,vert]of vertexGeom){const pk=Math.round(vert.pos.x*1000)+','+Math.round(vert.pos.y*1000);p2v.set(pk,vk);}const va=Math.round(e.va.x*1000)+','+Math.round(e.va.y*1000),vb=Math.round(e.vb.x*1000)+','+Math.round(e.vb.y*1000),a=p2v.get(va),b=p2v.get(vb);
+    
+    // During initial phase, only check connection to MY settlements
+    if (initialPhase.active && initialPhase.phase === 'initial-build') {
+        if ((a && gameState.settlements.has(a) && gameState.settlements.get(a).playerId === myPlayerId) || 
+            (b && gameState.settlements.has(b) && gameState.settlements.get(b).playerId === myPlayerId)) return true;
+        // Check connection to MY roads only
+        for (const [ek2, roadData] of gameState.roads) {
+            if (ek2 === ek) continue;
+            const e2 = edgeGeom.edges.get(ek2);
+            if (!e2) continue;
+            const e2va = Math.round(e2.va.x*1000)+','+Math.round(e2.va.y*1000);
+            const e2vb = Math.round(e2.vb.x*1000)+','+Math.round(e2.vb.y*1000);
+            if (va === e2va || va === e2vb || vb === e2va || vb === e2vb) {
+                // Only count if it's my road
+                if (roadData.playerId === myPlayerId) return true;
+            }
+        }
+        return false;
+    }
+    
+    // Regular gameplay: check all roads/settlements
+    if((a&&gameState.settlements.has(a))||(b&&gameState.settlements.has(b)))return true;
+    for(const [ek2] of gameState.roads){if(ek2===ek)continue;const e2=edgeGeom.edges.get(ek2);if(!e2)continue;const e2va=Math.round(e2.va.x*1000)+','+Math.round(e2.va.y*1000),e2vb=Math.round(e2.vb.x*1000)+','+Math.round(e2.vb.y*1000);if(va===e2va||va===e2vb||vb===e2va||vb===e2vb)return true;}return false;}
 canvas.addEventListener('click', (e) => {
     if (isPaused) return;
     const m = buildMode!=='none'?buildMode:(gameState.roadBuildingMode>0?'road':'none'); 
     if(m==='none') return;
     
-    // Обробка дороги
+    // During initial phase - use per-player limits and free building
+    if (initialPhase.active && initialPhase.phase === 'initial-build') {
+        if (!canBuildDuringInitialPhase()) {
+            showMessage('Зараз не ваш хід!');
+            return;
+        }
+        
+        if(m==='road' && hoverEdge) {
+            if(gameState.roads.has(hoverEdge) || !isEdgeValidForRoad(hoverEdge)) return;
+            if(!isEdgeConnected(hoverEdge)) return;
+            if(!canBuildPieceInitial('road')) {
+                showMessage('Ліміт доріг!');
+                return;
+            }
+            audioManager.playBuildSound();
+            gameState.roads.set(hoverEdge, { 
+                color: myPlayerColor,
+                playerId: myPlayerId 
+            });
+            
+            // Track per-player buildings
+            const myRoads = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
+            myRoads.roads++;
+            initialPhaseBuildings.set(myPlayerId, myRoads);
+            
+            renderMap(mapData, canvas, mapHexSize);
+            updateBuildStats();
+            
+            if (multiplayerClient && isMultiplayer) {
+                multiplayerClient.syncBuild('road', { edgeKey: hoverEdge, color: myPlayerColor });
+            }
+            
+            hoverEdge = null;
+            checkInitialPhaseComplete();
+        }
+        else if(m==='settlement' && hoverVertex) {
+            if (!canPlaceSettlement(hoverVertex)) return;
+            if (!canBuildPieceInitial('settlement')) {
+                showMessage('Ліміт поселень!');
+                return;
+            }
+            audioManager.playBuildSound();
+            gameState.settlements.set(hoverVertex, { 
+                type: 'settlement', 
+                vk: hoverVertex,
+                color: myPlayerColor,
+                playerId: myPlayerId
+            });
+            
+            // Track per-player buildings
+            const mySettlements = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
+            mySettlements.settlements++;
+            initialPhaseBuildings.set(myPlayerId, mySettlements);
+            
+            renderMap(mapData, canvas, mapHexSize);
+            updateBuildStats();
+            
+            if (multiplayerClient && isMultiplayer) {
+                multiplayerClient.syncBuild('settlement', { vertexKey: hoverVertex, color: myPlayerColor });
+            }
+            
+            hoverVertex = null;
+            checkInitialPhaseComplete();
+        }
+        return;
+    }
+    
+    // Normal building (after initial phase)
     if(m==='road' && !gameState.roadBuildingMode && isInitialPhaseComplete() && !hasResourcesForBuilding('road')) {
         showMessage('Недостатньо ресурсів!');
         return;
     }
     
-if(m==='road' && hoverEdge) {
+    if(m==='road' && hoverEdge) {
         if(gameState.roads.has(hoverEdge) || !isEdgeValidForRoad(hoverEdge)) return;
         if(!isEdgeConnected(hoverEdge)) return;
         if(!canBuildPiece('road')) {
@@ -1510,27 +1607,23 @@ if(m==='road' && hoverEdge) {
             }
             renderMap(mapData, canvas, mapHexSize);
             updateBuildStats();
-            // Sync road building to other players (persists on server)
             if (multiplayerClient && isMultiplayer) {
                 multiplayerClient.syncBuild('road', { edgeKey: hoverEdge });
             }
         } else {
             if(isInitialPhaseComplete()) deductResources('road');
-            // Store road with player color
             gameState.roads.set(hoverEdge, { 
                 color: myPlayerColor,
                 playerId: myPlayerId 
             });
             renderMap(mapData, canvas, mapHexSize);
             updateBuildStats();
-            // Sync road building to other players (persists on server)
             if (multiplayerClient && isMultiplayer) {
                 multiplayerClient.syncBuild('road', { edgeKey: hoverEdge, color: myPlayerColor });
             }
         }
         hoverEdge = null;
     }
-    // ========== ОСЬ ТУТ ВСТАВИТИ ВИПРАВЛЕНИЙ КОД ДЛЯ ПОСЕЛЕННЯ ==========
     else if(m==='settlement' && hoverVertex) {
         if (!canPlaceSettlement(hoverVertex)) return;
         if (!canBuildPiece('settlement')) {
@@ -1545,7 +1638,6 @@ if(m==='road' && hoverEdge) {
             deductResources('settlement');
         }
         audioManager.playBuildSound();
-        // ВАЖЛИВО: зберігаємо vk та колір
         gameState.settlements.set(hoverVertex, { 
             type: 'settlement', 
             vk: hoverVertex,
@@ -1554,13 +1646,11 @@ if(m==='road' && hoverEdge) {
         });
         renderMap(mapData, canvas, mapHexSize);
         updateBuildStats();
-        // Sync settlement building to other players (persists on server)
         if (multiplayerClient && isMultiplayer) {
             multiplayerClient.syncBuild('settlement', { vertexKey: hoverVertex, color: myPlayerColor });
         }
         hoverVertex = null;
     }
-    // ========== ОСЬ ТУТ ВСТАВИТИ ВИПРАВЛЕНИЙ КОД ДЛЯ МІСТА ==========
     else if(m==='city' && hoverVertex) {
         const ex = gameState.settlements.get(hoverVertex);
         if (!ex || ex.type !== 'settlement') return;
@@ -1578,7 +1668,6 @@ if(m==='road' && hoverEdge) {
         }
         audioManager.playBuildSound();
         deductResources('city');
-        // ВАЖЛИВО: зберігаємо vk та колір
         gameState.settlements.set(hoverVertex, { 
             type: 'city', 
             vk: hoverVertex,
@@ -1587,7 +1676,6 @@ if(m==='road' && hoverEdge) {
         });
         renderMap(mapData, canvas, mapHexSize);
         updateBuildStats();
-        // Sync city building to other players (persists on server)
         if (multiplayerClient && isMultiplayer) {
             multiplayerClient.syncBuild('city', { vertexKey: hoverVertex, color: myPlayerColor });
         }
@@ -2617,6 +2705,33 @@ function handleEndTurn() {
 function handleBuildingSynced(data) {
     // Add building to our local state from server confirmation
     const bldData = data.data;
+    
+    // Validate: don't accept buildings from other players on our buildings or invalid locations
+    if (bldData.playerId !== myPlayerId) {
+        // Check if trying to build on our existing building
+        if (data.type === 'road' && bldData.edgeKey && gameState.roads.has(bldData.edgeKey)) {
+            const existingRoad = gameState.roads.get(bldData.edgeKey);
+            if (existingRoad.playerId === myPlayerId) {
+                console.log('Rejecting: other player tried to build on my road');
+                return;
+            }
+        }
+        if (data.type === 'settlement' && bldData.vertexKey && gameState.settlements.has(bldData.vertexKey)) {
+            const existingSettlement = gameState.settlements.get(bldData.vertexKey);
+            if (existingSettlement.playerId === myPlayerId) {
+                console.log('Rejecting: other player tried to build on my settlement');
+                return;
+            }
+        }
+        if (data.type === 'city' && bldData.vertexKey && gameState.settlements.has(bldData.vertexKey)) {
+            const existingBuilding = gameState.settlements.get(bldData.vertexKey);
+            if (existingBuilding.playerId === myPlayerId) {
+                console.log('Rejecting: other player tried to build on my city');
+                return;
+            }
+        }
+    }
+    
     if (data.type === 'road' && bldData.edgeKey) {
         gameState.roads.set(bldData.edgeKey, {
             color: bldData.color,
