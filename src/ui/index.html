@@ -2380,6 +2380,189 @@ function initMultiplayer() {
                     console.error('Failed to connect to server:', err);
                     isMultiplayer = false;
                 });
+                
+                // ===== REGISTER MULTIPLAYER EVENT HANDLERS IMMEDIATELY =====
+                // These must be registered RIGHT AFTER connection, not after a delay!
+                // Otherwise we miss critical server events like initial-build-start
+                
+                // Initial phase handlers
+                multiplayerClient.onStartDicePhase((data) => {
+                    console.log('Dice phase started:', data);
+                    startDicePhase(data.players);
+                });
+                
+                multiplayerClient.onPlayerDiceRolled((data) => {
+                    console.log('Player rolled:', data);
+                    onPlayerDiceRolled(data);
+                });
+                
+                multiplayerClient.onInitialBuildStart((data) => {
+                    console.log('Initial build started:', data);
+                    onInitialBuildStart(data);
+                });
+                
+                multiplayerClient.onInitialBuildNextPlayer((data) => {
+                    console.log('Next player:', data);
+                    onInitialBuildNextPlayer(data);
+                });
+                
+                multiplayerClient.onInitialBuildRound2Start((data) => {
+                    console.log('Round 2 started:', data);
+                    onInitialBuildRound2Start(data);
+                });
+                
+                // NEW TURN-BASED INITIAL BUILD HANDLERS
+                multiplayerClient.onInitialBuildYourTurn((data) => {
+                    console.log('Initial build - your turn:', data);
+                    // Enable building
+                    initialPhase.canBuild = true;
+                    const status = document.getElementById('buildPhaseStatus');
+                    if (status) {
+                        status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
+                        status.style.color = '#27ae60';
+                    }
+                });
+                
+                multiplayerClient.onInitialBuildWaiting((data) => {
+                    console.log('Initial build - waiting:', data);
+                    initialPhase.canBuild = false;
+                    const currentId = data.currentPlayerId;
+                    const playerInfo = data.order ? data.order.find(p => p.playerId === currentId) : null;
+                    const name = playerInfo ? 'Гравець ' + currentId.slice(0, 4) : 'Інший гравець';
+                    const status = document.getElementById('buildPhaseStatus');
+                    if (status) {
+                        status.textContent = `⏳ Чекаємо, поки ${name} побудує...`;
+                        status.style.color = '#f1c40f';
+                    }
+                    setBuildMode('none');
+                });
+                
+                multiplayerClient.onInitialBuildYourDone((data) => {
+                    console.log('Initial build - your done:', data);
+                    const status = document.getElementById('buildPhaseStatus');
+                    if (status) {
+                        status.textContent = '✅ Ви завершили будівництво! Чекайте інших гравців.';
+                        status.style.color = '#f1c40f';
+                    }
+                    setBuildMode('none');
+                });
+                
+                // Regular turn handlers
+                multiplayerClient.onYourTurn((data) => {
+                    console.log('Your turn:', data);
+                    showYourTurn(data);
+                });
+                
+                multiplayerClient.onWaitingForTurn((data) => {
+                    console.log('Waiting for turn:', data);
+                    showWaitingForTurn(data);
+                });
+                
+                multiplayerClient.onRegularDiceRolled((data) => {
+                    console.log('Regular dice rolled:', data);
+                    // Update dice display for all players
+                    const d1 = document.getElementById('die1');
+                    const d2 = document.getElementById('die2');
+                    if (d1 && d2) {
+                        d1.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[data.die1-1] + '</span>';
+                        d2.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[data.die2-1] + '</span>';
+                        document.getElementById('total').textContent = 'Сума: ' + data.total;
+                    }
+                });
+                
+                multiplayerClient.onCollectResources((data) => {
+                    console.log('Collect resources:', data);
+                    handleCollectResources(data);
+                });
+                
+                multiplayerClient.onRegularGameStart((data) => {
+                    console.log('Regular game start:', data);
+                    // Close build phase overlay
+                    const overlay = document.getElementById('buildPhaseOverlay');
+                    if (overlay) overlay.style.display = 'none';
+                    initialPhase.active = false;
+                    initialPhase.phase = 'complete';
+                });
+                
+                multiplayerClient.onTurnEnded((data) => {
+                    console.log('Turn ended:', data);
+                    // Hide waiting overlay
+                    const waitingOverlay = document.getElementById('waitingTurnOverlay');
+                    if (waitingOverlay) waitingOverlay.style.display = 'none';
+                    if (waitingDotsTimer) {
+                        clearInterval(waitingDotsTimer);
+                        waitingDotsTimer = null;
+                    }
+                });
+                
+                multiplayerClient.onActionError((data) => {
+                    console.log('Action error:', data);
+                    showMessage(data.message || 'Помилка дії');
+                });
+                
+                multiplayerClient.onDiceTie((data) => {
+                    console.log('Dice tie:', data);
+                    showMessage(data.message || 'Нічия! Перекиньте кубики');
+                    // Reset my roll for re-roll
+                    initialPhase.myRoll = null;
+                    const rollBtn = document.getElementById('rollDiceInitialBtn');
+                    if (rollBtn) {
+                        rollBtn.disabled = false;
+                        rollBtn.style.opacity = '1';
+                        rollBtn.style.cursor = 'pointer';
+                    }
+                });
+                
+                multiplayerClient.onBuildingSynced((data) => {
+                    console.log('Building synced:', data);
+                    handleBuildingSynced(data);
+                });
+                
+                multiplayerClient.onGameStateSync((data) => {
+                    console.log('Game state sync:', data);
+                    // Handle reconnection state
+                    if (data.gamePhase === 'regular-turn') {
+                        initialPhase.active = false;
+                        initialPhase.phase = 'complete';
+                        if (data.currentTurnPlayerId === myPlayerId) {
+                            showYourTurn({ playerId: data.currentTurnPlayerId });
+                        } else {
+                            showWaitingForTurn({ currentPlayerId: data.currentTurnPlayerId });
+                        }
+                    } else if (data.gamePhase === 'initial-build') {
+                        // Rejoin during initial build phase
+                        initialPhase.active = true;
+                        initialPhase.phase = 'initial-build';
+                        initialPhase.buildOrder = data.initialBuildOrder || [];
+                        initialPhase.currentIndex = data.currentIndex || 0;
+                        
+                        // Show build phase overlay
+                        const overlay = document.getElementById('buildPhaseOverlay');
+                        const info = document.getElementById('buildPhaseInfo');
+                        const orderDiv = document.getElementById('buildPhaseOrder');
+                        const status = document.getElementById('buildPhaseStatus');
+                        
+                        if (overlay) overlay.style.display = 'flex';
+                        if (info) info.textContent = '🏗️ Всі гравці будують ОДНОЧАСНО! Побудуйте 1 село та 2 дороги';
+                        
+                        // Show build order
+                        if (orderDiv && data.initialBuildOrder) {
+                            orderDiv.innerHTML = '';
+                            data.initialBuildOrder.forEach((player, index) => {
+                                const isMe = player.playerId === myPlayerId;
+                                const div = document.createElement('div');
+                                div.style.cssText = `padding: 8px; background: ${isMe ? 'rgba(241,196,15,0.15)' : 'rgba(255,255,255,0.05)'}; border: 2px solid ${isMe ? '#f39c12' : 'rgba(255,255,255,0.1)'}; border-radius: 6px; font-size: 1em;`;
+                                div.innerHTML = `<span style="color: ${isMe ? '#f1c40f' : '#fff'}; font-weight: ${isMe ? 'bold' : 'normal'};">${index + 1}. ${isMe ? 'Ви' : 'Гравець ' + player.playerId.slice(0, 4)}: ${player.total}</span>`;
+                                orderDiv.appendChild(div);
+                            });
+                        }
+                        
+                        if (status) {
+                            status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
+                            status.style.color = '#27ae60';
+                        }
+                    }
+                });
             }
     }
 }
@@ -2972,177 +3155,6 @@ document.getElementById('closeYourTurnBtn').addEventListener('click', () => {
     handleRegularDiceRoll();
 });
 
-// ===== REGISTER MULTIPLAYER EVENT HANDLERS =====
-// These need to be registered AFTER initMultiplayer() creates the client
-// We use a small delay to ensure multiplayerClient is initialized
-setTimeout(() => {
-    if (multiplayerClient) {
-        // Initial phase handlers
-        multiplayerClient.onStartDicePhase((data) => {
-            console.log('Dice phase started:', data);
-            startDicePhase(data.players);
-        });
-        
-        multiplayerClient.onPlayerDiceRolled((data) => {
-            console.log('Player rolled:', data);
-            onPlayerDiceRolled(data);
-        });
-        
-        multiplayerClient.onInitialBuildStart((data) => {
-            console.log('Initial build started:', data);
-            onInitialBuildStart(data);
-        });
-        
-        multiplayerClient.onInitialBuildNextPlayer((data) => {
-            console.log('Next player:', data);
-            onInitialBuildNextPlayer(data);
-        });
-        
-        multiplayerClient.onInitialBuildRound2Start((data) => {
-            console.log('Round 2 started:', data);
-            onInitialBuildRound2Start(data);
-        });
-        
-        // NEW TURN-BASED INITIAL BUILD HANDLERS
-        multiplayerClient.onInitialBuildYourTurn((data) => {
-            console.log('Initial build - your turn:', data);
-            // Enable building
-            initialPhase.canBuild = true;
-            const status = document.getElementById('buildPhaseStatus');
-            status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
-            status.style.color = '#27ae60';
-        });
-        
-        multiplayerClient.onInitialBuildWaiting((data) => {
-            console.log('Initial build - waiting:', data);
-            initialPhase.canBuild = false;
-            const currentId = data.currentPlayerId;
-            const playerInfo = data.order ? data.order.find(p => p.playerId === currentId) : null;
-            const name = playerInfo ? 'Гравець ' + currentId.slice(0, 4) : 'Інший гравець';
-            const status = document.getElementById('buildPhaseStatus');
-            status.textContent = `⏳ Чекаємо, поки ${name} побудує...`;
-            status.style.color = '#f1c40f';
-            setBuildMode('none');
-        });
-        
-        multiplayerClient.onInitialBuildYourDone((data) => {
-            console.log('Initial build - your done:', data);
-            const status = document.getElementById('buildPhaseStatus');
-            status.textContent = '✅ Ви завершили будівництво! Чекайте інших гравців.';
-            status.style.color = '#f1c40f';
-            setBuildMode('none');
-        });
-        
-        // Regular turn handlers
-        multiplayerClient.onYourTurn((data) => {
-            console.log('Your turn:', data);
-            showYourTurn(data);
-        });
-        
-        multiplayerClient.onWaitingForTurn((data) => {
-            console.log('Waiting for turn:', data);
-            showWaitingForTurn(data);
-        });
-        
-        multiplayerClient.onRegularDiceRolled((data) => {
-            console.log('Regular dice rolled:', data);
-            // Update dice display for all players
-            const d1 = document.getElementById('die1');
-            const d2 = document.getElementById('die2');
-            d1.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[data.die1-1] + '</span>';
-            d2.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[data.die2-1] + '</span>';
-            document.getElementById('total').textContent = 'Сума: ' + data.total;
-        });
-        
-        multiplayerClient.onCollectResources((data) => {
-            console.log('Collect resources:', data);
-            handleCollectResources(data);
-        });
-        
-        multiplayerClient.onRegularGameStart((data) => {
-            console.log('Regular game start:', data);
-            // Close build phase overlay
-            document.getElementById('buildPhaseOverlay').style.display = 'none';
-            initialPhase.active = false;
-            initialPhase.phase = 'complete';
-        });
-        
-        multiplayerClient.onTurnEnded((data) => {
-            console.log('Turn ended:', data);
-            // Hide waiting overlay
-            document.getElementById('waitingTurnOverlay').style.display = 'none';
-            if (waitingDotsTimer) {
-                clearInterval(waitingDotsTimer);
-                waitingDotsTimer = null;
-            }
-        });
-        
-        multiplayerClient.onActionError((data) => {
-            console.log('Action error:', data);
-            showMessage(data.message || 'Помилка дії');
-        });
-        
-        multiplayerClient.onDiceTie((data) => {
-            console.log('Dice tie:', data);
-            showMessage(data.message || 'Нічия! Перекиньте кубики');
-            // Reset my roll for re-roll
-            initialPhase.myRoll = null;
-            const rollBtn = document.getElementById('rollDiceInitialBtn');
-            rollBtn.disabled = false;
-            rollBtn.style.opacity = '1';
-            rollBtn.style.cursor = 'pointer';
-        });
-        
-        multiplayerClient.onBuildingSynced((data) => {
-            console.log('Building synced:', data);
-            handleBuildingSynced(data);
-        });
-        
-        multiplayerClient.onGameStateSync((data) => {
-            console.log('Game state sync:', data);
-            // Handle reconnection state
-            if (data.gamePhase === 'regular-turn') {
-                initialPhase.active = false;
-                initialPhase.phase = 'complete';
-                if (data.currentTurnPlayerId === myPlayerId) {
-                    showYourTurn({ playerId: data.currentTurnPlayerId });
-                } else {
-                    showWaitingForTurn({ currentPlayerId: data.currentTurnPlayerId });
-                }
-            } else if (data.gamePhase === 'initial-build') {
-                // Rejoin during initial build phase
-                initialPhase.active = true;
-                initialPhase.phase = 'initial-build';
-                initialPhase.buildOrder = data.initialBuildOrder || [];
-                initialPhase.currentIndex = data.currentIndex || 0;
-                
-                // Show build phase overlay
-                const overlay = document.getElementById('buildPhaseOverlay');
-                const info = document.getElementById('buildPhaseInfo');
-                const orderDiv = document.getElementById('buildPhaseOrder');
-                const status = document.getElementById('buildPhaseStatus');
-                
-                overlay.style.display = 'flex';
-                info.textContent = '🏗️ Всі гравці будують ОДНОЧАСНО! Побудуйте 1 село та 2 дороги';
-                
-                // Show build order
-                orderDiv.innerHTML = '';
-                if (data.initialBuildOrder) {
-                    data.initialBuildOrder.forEach((player, index) => {
-                        const isMe = player.playerId === myPlayerId;
-                        const div = document.createElement('div');
-                        div.style.cssText = `padding: 8px; background: ${isMe ? 'rgba(241,196,15,0.15)' : 'rgba(255,255,255,0.05)'}; border: 2px solid ${isMe ? '#f39c12' : 'rgba(255,255,255,0.1)'}; border-radius: 6px; font-size: 1em;`;
-                        div.innerHTML = `<span style="color: ${isMe ? '#f1c40f' : '#fff'}; font-weight: ${isMe ? 'bold' : 'normal'};">${index + 1}. ${isMe ? 'Ви' : 'Гравець ' + player.playerId.slice(0, 4)}: ${player.total}</span>`;
-                        orderDiv.appendChild(div);
-                    });
-                }
-                
-                status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
-                status.style.color = '#27ae60';
-            }
-        });
-    }
-}, 1000); // Wait 1 second for multiplayer client to initialize
 
 window.addEventListener('resize', () => {
     if (mapData) {
