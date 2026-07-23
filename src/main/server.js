@@ -454,6 +454,27 @@ io.on('connection', (socket) => {
         const key = data.edgeKey || data.vertexKey;
         if (!key) return;
         
+        // VALIDATION: Check if building spot is already taken
+        if (room.buildings.has(key)) {
+            socket.emit('action-error', { message: 'Це місце вже зайняте!' });
+            return;
+        }
+        
+        // VALIDATION: During regular turn phase, check if it's this player's turn
+        if (room.gamePhase === 'regular-turn') {
+            const currentPlayerId = room.turnOrder[room.currentTurnIndex];
+            if (currentPlayerId !== socket.id) {
+                socket.emit('action-error', { message: 'Зараз не ваш хід!' });
+                return;
+            }
+            
+            // Check if dice has been rolled
+            if (room.turnState && room.turnState.actionsLocked) {
+                socket.emit('action-error', { message: 'Спочатку киньте кубики!' });
+                return;
+            }
+        }
+        
         // Store building with player info for validation
         room.buildings.set(key, {
             playerId: socket.id,

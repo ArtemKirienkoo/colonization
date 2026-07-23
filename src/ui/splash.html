@@ -969,6 +969,12 @@
                 document.getElementById('roomCodeDisplay').textContent = data.roomCode;
                 // Show host with color button immediately
                 updatePlayersList(data.players, mySocketId);
+                // Save host's color from server response
+                const myPlayerData = data.players.find(p => p.id === mySocketId);
+                if (myPlayerData && myPlayerData.color) {
+                    myPlayerColor = myPlayerData.color;
+                    sessionStorage.setItem('myPlayerColor', myPlayerData.color);
+                }
                 document.getElementById('roomCreatedModal').style.display = 'flex';
                 
                 // Show server URL for sharing
@@ -1176,6 +1182,12 @@ document.getElementById('exitRoomBtn').addEventListener('click', () => {
                     document.getElementById('roomCodeDisplay').textContent = code;
                     // Show players list (including self as "Гравець (ви)")
                     updatePlayersListForGuest(data.players, mySocketId);
+                    // Save guest's color from server response
+                    const myPlayerData = data.players.find(p => p.id === mySocketId);
+                    if (myPlayerData && myPlayerData.color) {
+                        myPlayerColor = myPlayerData.color;
+                        sessionStorage.setItem('myPlayerColor', myPlayerData.color);
+                    }
                     
                     // Hide start game button for guest (don't destroy it)
                     const startGameBtn = document.getElementById('startGameBtn');

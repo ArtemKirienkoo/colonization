@@ -1309,6 +1309,25 @@ function buildSettlementGraph() {
     }
     return graph;
 }
+function buildFullVertexGraph() {
+    // Build a graph of ALL possible connections between adjacent vertices on land hexes
+    // (not just placed roads) — used for distance checking during initial phase
+    const graph = new Map(), p2v = new Map();
+    for (const [vk, vert] of vertexGeom) { const pk = Math.round(vert.pos.x*1000)+','+Math.round(vert.pos.y*1000); p2v.set(pk, vk); }
+    const landHexes = new Set();
+    if (mapData) [mapData.center,...mapData.ring1,...mapData.ring2].forEach(h => landHexes.add(hexKey(h)));
+    for (const [ek, edge] of edgeGeom.edges) {
+        // Only consider edges on land hexes
+        if (!landHexes.has(hexKey(edge.hex1)) && !landHexes.has(hexKey(edge.hex2))) continue;
+        const va = Math.round(edge.va.x*1000)+','+Math.round(edge.va.y*1000);
+        const vb = Math.round(edge.vb.x*1000)+','+Math.round(edge.vb.y*1000);
+        const a = p2v.get(va), b = p2v.get(vb); if (!a||!b) continue;
+        if (!graph.has(a)) graph.set(a, new Set());
+        if (!graph.has(b)) graph.set(b, new Set());
+        graph.get(a).add(b); graph.get(b).add(a);
+    }
+    return graph;
+}
 function roadPathLength(f, t, graph) {
     if (f===t) return 0; const visited = new Set([f]), q = [{ vk:f, dist:0 }];
     while (q.length > 0) { const { vk, dist } = q.shift(); const n = graph.get(vk); if (!n) continue; for (const x of n) { if (x===t) return dist+1; if (!visited.has(x)) { visited.add(x); q.push({ vk:x, dist:dist+1 }); } } }
@@ -1322,6 +1341,10 @@ function isVertexOnLand(vk) {
 function canPlaceSettlement(vk) {
     if (gameState.settlements.has(vk)) return false; if (!isVertexOnLand(vk)) return false;
     
+    // Build the full vertex graph for distance checking (based on hex topology, not roads)
+    // This ensures the "2 edges apart" rule works correctly even when no roads are built
+    const fullGraph = buildFullVertexGraph();
+    
     // During initial phase, only check distance from MY settlements
     if (initialPhase.active && initialPhase.phase === 'initial-build') {
         const mySettlements = new Set();
@@ -1334,21 +1357,34 @@ function canPlaceSettlement(vk) {
         // If I have no settlements yet, I can build anywhere (first settlement)
         if (mySettlements.size === 0) return true;
         
-        // Check distance from my existing settlements only
-        const graph = buildSettlementGraph();
+        // Check distance from my existing settlements using full vertex graph
         for (const existingVk of mySettlements) {
-            const len = roadPathLength(existingVk, vk, graph);
+            const len = roadPathLength(existingVk, vk, fullGraph);
             if (len >= 0 && len < 2) return false;
-            if (len === -1) return false;
         }
         return true;
     }
     
-    // Regular gameplay: check distance from ALL settlements
+    // Regular gameplay: check distance from ALL settlements (uses full hex topology, not roads)
     if (gameState.settlements.size === 0) return true;
-    const graph = buildSettlementGraph();
-    for (const [evk] of gameState.settlements) { const len = roadPathLength(evk, vk, graph); if (len>=0 && len<2) return false; if (len===-1) return false; }
-    return true;
+    for (const [evk] of gameState.settlements) { const len = roadPathLength(evk, vk, fullGraph); if (len>=0 && len<2) return false; }
+    
+    // Also check that the vertex is connected to MY road network (can't build isolated settlements)
+    const p2v = new Map();
+    for (const [vk2, vert] of vertexGeom) { const pk = Math.round(vert.pos.x*1000)+','+Math.round(vert.pos.y*1000); p2v.set(pk, vk2); }
+    const vert = vertexGeom.get(vk);
+    if (!vert) return false;
+    const vkPos = Math.round(vert.pos.x*1000)+','+Math.round(vert.pos.y*1000);
+    // Check if any of MY roads connect to this vertex
+    for (const [ek, roadData] of gameState.roads) {
+        if (roadData.playerId !== myPlayerId) continue;
+        const edge = edgeGeom.edges.get(ek);
+        if (!edge) continue;
+        const eva = Math.round(edge.va.x*1000)+','+Math.round(edge.va.y*1000);
+        const evb = Math.round(edge.vb.x*1000)+','+Math.round(edge.vb.y*1000);
+        if (vkPos === eva || vkPos === evb) return true;
+    }
+    return false;
 }
 function hasResourcesForBuilding(t) { const c = gameState.resourceCards; switch(t) { case 'road': return c.wood>=1&&c.brick>=1; case 'settlement': return c.wood>=1&&c.brick>=1&&c.geese>=1&&c.water>=1; case 'city': return c.stone>=3&&c.water>=2; default: return false; } }
 function deductResources(t) { const c = gameState.resourceCards; switch(t) { case 'road': c.wood--;c.brick--;break; case 'settlement': c.wood--;c.brick--;c.geese--;c.water--;break; case 'city': c.stone-=3;c.water-=2;break; } updateResourceCardsDisplay();updateDevHandDisplay(); }
@@ -1505,9 +1541,9 @@ function isEdgeConnected(ek){const e=edgeGeom.edges.get(ek);if(!e)return false;c
         return false;
     }
     
-    // Regular gameplay: check all roads/settlements
-    if((a&&gameState.settlements.has(a))||(b&&gameState.settlements.has(b)))return true;
-    for(const [ek2] of gameState.roads){if(ek2===ek)continue;const e2=edgeGeom.edges.get(ek2);if(!e2)continue;const e2va=Math.round(e2.va.x*1000)+','+Math.round(e2.va.y*1000),e2vb=Math.round(e2.vb.x*1000)+','+Math.round(e2.vb.y*1000);if(va===e2va||va===e2vb||vb===e2va||vb===e2vb)return true;}return false;}
+    // Regular gameplay: check MY settlements and MY roads ONLY!
+    if((a&&gameState.settlements.has(a)&&gameState.settlements.get(a).playerId===myPlayerId)||(b&&gameState.settlements.has(b)&&gameState.settlements.get(b).playerId===myPlayerId))return true;
+    for(const [ek2,roadData] of gameState.roads){if(ek2===ek)continue;if(roadData.playerId!==myPlayerId)continue;const e2=edgeGeom.edges.get(ek2);if(!e2)continue;const e2va=Math.round(e2.va.x*1000)+','+Math.round(e2.va.y*1000),e2vb=Math.round(e2.vb.x*1000)+','+Math.round(e2.vb.y*1000);if(va===e2va||va===e2vb||vb===e2va||vb===e2vb)return true;}return false;}
 canvas.addEventListener('click', (e) => {
     if (isPaused) return;
     const m = buildMode!=='none'?buildMode:(gameState.roadBuildingMode>0?'road':'none'); 
@@ -1577,6 +1613,16 @@ canvas.addEventListener('click', (e) => {
             hoverVertex = null;
             checkInitialPhaseComplete();
         }
+        return;
+    }
+    
+    // Normal building (after initial phase) - check if it's my turn
+    if (isMultiplayer && !isMyTurn) {
+        showMessage('Зараз не ваш хід!');
+        return;
+    }
+    if (isMultiplayer && !canPerformActions) {
+        showMessage('Спочатку киньте кубики!');
         return;
     }
     
@@ -2287,6 +2333,10 @@ function initMultiplayer() {
                 }).then(() => {
                     console.log('Connected to multiplayer server');
                     
+                    // Initialize myPlayerId immediately after connection
+                    myPlayerId = getMyPlayerId();
+                    console.log('My player ID:', myPlayerId);
+                    
                     // Rejoin the room after navigation (the old socket disconnected)
                     multiplayerClient.rejoinRoom(roomCode, isHost);
                     
@@ -2837,88 +2887,6 @@ setBuildMode = function(mode) {
     }
 };
 
-// Override click handler to track initial phase buildings
-canvas.removeEventListener('click', canvas.onclick);
-canvas.addEventListener('click', (e) => {
-    if (isPaused) return;
-    const m = buildMode !== 'none' ? buildMode : (gameState.roadBuildingMode > 0 ? 'road' : 'none');
-    if (m === 'none') return;
-    
-    // Check if in initial phase
-    if (initialPhase.active && initialPhase.phase === 'initial-build') {
-        if (!canBuildDuringInitialPhase()) {
-            showMessage('Зараз не ваш хід!');
-            return;
-        }
-        
-        // Allow building without resources during initial phase
-        if (m === 'road' && hoverEdge) {
-            if (gameState.roads.has(hoverEdge) || !isEdgeValidForRoad(hoverEdge)) return;
-            if (!isEdgeConnected(hoverEdge)) return;
-            if (!canBuildPieceInitial('road')) {
-                showMessage('Ліміт доріг!');
-                return;
-            }
-            audioManager.playBuildSound();
-            // Store road with player color
-            gameState.roads.set(hoverEdge, { 
-                color: myPlayerColor,
-                playerId: myPlayerId 
-            });
-            
-            // Track per-player buildings
-            const myRoads = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
-            myRoads.roads++;
-            initialPhaseBuildings.set(myPlayerId, myRoads);
-            
-            renderMap(mapData, canvas, mapHexSize);
-            updateBuildStats();
-            
-            // Sync to other players
-            if (multiplayerClient && isMultiplayer) {
-                multiplayerClient.syncBuild('road', { edgeKey: hoverEdge, color: myPlayerColor });
-            }
-            
-            hoverEdge = null;
-            checkInitialPhaseComplete();
-        }
-        else if (m === 'settlement' && hoverVertex) {
-            if (!canPlaceSettlement(hoverVertex)) return;
-            if (!canBuildPieceInitial('settlement')) {
-                showMessage('Ліміт поселень!');
-                return;
-            }
-            audioManager.playBuildSound();
-            // Store settlement with player color
-            gameState.settlements.set(hoverVertex, { 
-                type: 'settlement', 
-                vk: hoverVertex,
-                color: myPlayerColor,
-                playerId: myPlayerId
-            });
-            
-            // Track per-player buildings
-            const mySettlements = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
-            mySettlements.settlements++;
-            initialPhaseBuildings.set(myPlayerId, mySettlements);
-            
-            renderMap(mapData, canvas, mapHexSize);
-            updateBuildStats();
-            
-            // Sync to other players
-            if (multiplayerClient && isMultiplayer) {
-                multiplayerClient.syncBuild('settlement', { vertexKey: hoverVertex, color: myPlayerColor });
-            }
-            
-            hoverVertex = null;
-            checkInitialPhaseComplete();
-        }
-    } else {
-        // Normal building (use original logic)
-        // ... (keep existing click handler logic)
-    }
-});
-
 // Check if initial phase is complete for current player
 function checkInitialPhaseComplete() {
     if (initialPhase.active && initialPhase.phase === 'initial-build') {
@@ -3058,6 +3026,36 @@ setTimeout(() => {
                 } else {
                     showWaitingForTurn({ currentPlayerId: data.currentTurnPlayerId });
                 }
+            } else if (data.gamePhase === 'initial-build') {
+                // Rejoin during initial build phase
+                initialPhase.active = true;
+                initialPhase.phase = 'initial-build';
+                initialPhase.buildOrder = data.initialBuildOrder || [];
+                initialPhase.currentIndex = data.currentIndex || 0;
+                
+                // Show build phase overlay
+                const overlay = document.getElementById('buildPhaseOverlay');
+                const info = document.getElementById('buildPhaseInfo');
+                const orderDiv = document.getElementById('buildPhaseOrder');
+                const status = document.getElementById('buildPhaseStatus');
+                
+                overlay.style.display = 'flex';
+                info.textContent = '🏗️ Всі гравці будують ОДНОЧАСНО! Побудуйте 1 село та 2 дороги';
+                
+                // Show build order
+                orderDiv.innerHTML = '';
+                if (data.initialBuildOrder) {
+                    data.initialBuildOrder.forEach((player, index) => {
+                        const isMe = player.playerId === myPlayerId;
+                        const div = document.createElement('div');
+                        div.style.cssText = `padding: 8px; background: ${isMe ? 'rgba(241,196,15,0.15)' : 'rgba(255,255,255,0.05)'}; border: 2px solid ${isMe ? '#f39c12' : 'rgba(255,255,255,0.1)'}; border-radius: 6px; font-size: 1em;`;
+                        div.innerHTML = `<span style="color: ${isMe ? '#f1c40f' : '#fff'}; font-weight: ${isMe ? 'bold' : 'normal'};">${index + 1}. ${isMe ? 'Ви' : 'Гравець ' + player.playerId.slice(0, 4)}: ${player.total}</span>`;
+                        orderDiv.appendChild(div);
+                    });
+                }
+                
+                status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
+                status.style.color = '#27ae60';
             }
         });
     }
