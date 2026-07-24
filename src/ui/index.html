@@ -2287,19 +2287,10 @@ audioManager.startBackgroundMusic();
 
 // ===== MULTIPLAYER INTEGRATION =====
 let multiplayerClient = null;
+let mpClient = null;
 let isMultiplayer = false;
 let isHost = false;
 let roomCode = null;
-
-// Parse URL parameters
-function getUrlParams() {
-    const params = new URLSearchParams(window.location.search);
-    return {
-        mode: params.get('mode'),
-        host: params.get('host') === 'true',
-        code: params.get('code')
-    };
-}
 
 function registerMultiplayerHandlers(client) {
     client.onPlayerJoined((data) => {
@@ -2475,12 +2466,18 @@ function registerMultiplayerHandlers(client) {
 
 // Initialize multiplayer if needed
 function initMultiplayer() {
+    const urlParams = getUrlParams();
+    if (urlParams.mode !== 'multiplayer') {
+        console.log('Single player mode - skipping multiplayer init');
+        return Promise.resolve();
+    }
+    
     mpClient = new MultiplayerClient();
-    // Реєструємо всі обробники ОДИН РАЗ (до підключення)
-    registerSplashHandlers(mpClient);
+    // Реєструємо всі обробники (визначені в index.html)
+    registerMultiplayerHandlers(mpClient);
 
-    const serverUrl = getSelectedServerUrl();
-    sessionStorage.setItem('serverUrl', serverUrl);
+    // Get server URL from sessionStorage (set in splash.html)
+    const serverUrl = sessionStorage.getItem('serverUrl') || 'https://colonization.onrender.com';
     console.log('Connecting to server:', serverUrl);
 
     return mpClient.connect(serverUrl)
@@ -2488,11 +2485,21 @@ function initMultiplayer() {
             console.log('Successfully connected to server');
             mySocketId = mpClient.socket.id;
             console.log('My socket ID:', mySocketId);
-            // Якщо потрібно щось зробити після підключення – додайте тут
+            
+            // Set multiplayer flags
+            multiplayerClient = mpClient;
+            isMultiplayer = true;
+            isHost = urlParams.host;
+            roomCode = urlParams.code;
+            
+            // Rejoin the room after navigation
+            if (urlParams.code) {
+                mpClient.rejoinRoom(urlParams.code, urlParams.host);
+            }
         })
         .catch(err => {
             console.error('Failed to connect to server:', err);
-            throw new Error('Не вдалося підключитися до сервера на ' + serverUrl);
+            console.log('Continuing in single player mode');
         });
 }
 
