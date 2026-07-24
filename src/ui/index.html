@@ -2632,6 +2632,7 @@ function startDicePhase(players) {
     initialPhase.phase = 'dice-roll';
     initialPhase.diceRolls = new Map();
     initialPhase.myRoll = null;
+    initialPhase.totalPlayers = players ? players.length : 0;
     myPlayerId = getMyPlayerId();
     
     // Show dice phase overlay
@@ -2641,7 +2642,8 @@ function startDicePhase(players) {
     const initialRollBtn = document.getElementById('rollDiceInitialBtn');
     
     overlay.style.display = 'flex';
-    status.textContent = 'Очікування гравців...';
+    status.textContent = '🎲 Киньте кубики для визначення черги!';
+    status.style.color = '#f1c40f';
     results.innerHTML = '';
     
     // Enable roll button
@@ -2662,9 +2664,27 @@ function startDicePhase(players) {
         const total = die1 + die2;
         initialPhase.myRoll = total;
         
-        // Show dice animation
-        document.getElementById('initialDie1').textContent = '⚀⚁⚂⚃⚄⚅'[die1-1];
-        document.getElementById('initialDie2').textContent = '⚀⚁⚂⚃⚄⚅'[die2-1];
+        // Show dice animation with rolling effect
+        const die1El = document.getElementById('initialDie1');
+        const die2El = document.getElementById('initialDie2');
+        die1El.style.animation = 'roll 0.8s cubic-bezier(0.3, 0.7, 0.5, 1.5)';
+        die2El.style.animation = 'roll 0.8s cubic-bezier(0.3, 0.7, 0.5, 1.5)';
+        
+        setTimeout(() => {
+            die1El.textContent = '⚀⚁⚂⚃⚄⚅'[die1-1];
+            die2El.textContent = '⚀⚁⚂⚃⚄⚅'[die2-1];
+            die1El.style.animation = '';
+            die2El.style.animation = '';
+        }, 800);
+        
+        // Update status
+        status.textContent = '✅ Ви кинули кубики! Очікування інших гравців...';
+        status.style.color = '#27ae60';
+        
+        // Disable button
+        initialRollBtn.disabled = true;
+        initialRollBtn.style.opacity = '0.5';
+        initialRollBtn.style.cursor = 'not-allowed';
         
         // Send to server
         if (multiplayerClient && isMultiplayer) {
@@ -2679,7 +2699,15 @@ function startDicePhase(players) {
 // Handle my dice roll (for single player or after server confirmation)
 function handleMyDiceRoll(total) {
     initialPhase.diceRolls.set(myPlayerId, total);
+    initialPhase.myRoll = total;
     updateDicePhaseUI();
+    
+    // Show message that we're waiting for other players
+    const status = document.getElementById('dicePhaseStatus');
+    if (status && initialPhase.totalPlayers > 1) {
+        status.textContent = '✅ Ви кинули кубики! Очікування інших гравців...';
+        status.style.color = '#27ae60';
+    }
 }
 
 // Update dice phase UI
@@ -2690,7 +2718,8 @@ function updateDicePhaseUI() {
     
     // Count how many players have rolled
     const rolledCount = initialPhase.diceRolls.size;
-    status.textContent = `Кинуто: ${rolledCount} / ${initialPhase.diceRolls.size + (initialPhase.myRoll ? 0 : 1)}`;
+    const totalPlayers = initialPhase.totalPlayers || rolledCount + (initialPhase.myRoll ? 0 : 1);
+    status.textContent = `🎲 Кинуто кубики: ${rolledCount} / ${totalPlayers}`;
     
     // Show results
     results.innerHTML = '';
@@ -2707,6 +2736,12 @@ function updateDicePhaseUI() {
         rollBtn.disabled = true;
         rollBtn.style.opacity = '0.5';
         rollBtn.style.cursor = 'not-allowed';
+    }
+    
+    // Show waiting message if not all players have rolled
+    if (rolledCount < totalPlayers) {
+        status.textContent = `⏳ Очікування гравців... (${rolledCount}/${totalPlayers})`;
+        status.style.color = '#f1c40f';
     }
 }
 
