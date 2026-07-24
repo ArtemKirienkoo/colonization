@@ -741,7 +741,6 @@
 
         function initMultiplayer(serverUrl) {
             mpClient = new MultiplayerClient();
-            registerSplashHandlers(mpClient);
             // Setup event handlers
             const setupEventHandlers = () => {
                 mySocketId = mpClient.socket.id;

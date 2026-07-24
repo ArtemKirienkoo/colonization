@@ -11,6 +11,14 @@ class MultiplayerClient {
         this.connected = false;
     }
 
+    // Safe wrapper for socket.on() - prevents "cannot read properties of null" errors
+    // when event handlers are registered before the socket is connected
+    _safeOn(event, callback) {
+        if (this.socket) {
+            this.socket.on(event, callback);
+        }
+    }
+
     // Connect to server
     connect(serverUrl = 'http://localhost:3000') {
         if (typeof io === 'undefined') {
@@ -216,78 +224,77 @@ class MultiplayerClient {
 
     // Handle color changed event
     onColorChanged(callback) {
-        this.socket.on('color-changed', callback);
+        this._safeOn('color-changed', callback);
     }
 
     // Handle color change failed event
     onColorChangeFailed(callback) {
-        this.socket.on('color-change-failed', callback);
+        this._safeOn('color-change-failed', callback);
     }
 
     // Handle sync-buildings (receiving all buildings after reconnect)
     onSyncBuildings(callback) {
-
-        this.socket.on('sync-buildings', callback);
+        this._safeOn('sync-buildings', callback);
     }
 
     // Handle incoming game actions
     onGameAction(callback) {
-        this.socket.on('game-action', callback);
+        this._safeOn('game-action', callback);
     }
 
     // Handle player joined
     onPlayerJoined(callback) {
-        this.socket.on('player-joined', callback);
+        this._safeOn('player-joined', callback);
     }
 
     // Handle player left
     onPlayerLeft(callback) {
-        this.socket.on('player-left', callback);
+        this._safeOn('player-left', callback);
     }
 
     // Handle game started
     onGameStarted(callback) {
-        this.socket.on('game-started', callback);
+        this._safeOn('game-started', callback);
     }
 
     // Handle start dice phase
     onStartDicePhase(callback) {
-        this.socket.on('start-dice-phase', callback);
+        this._safeOn('start-dice-phase', callback);
     }
 
     // Handle player dice rolled (initial)
     onPlayerDiceRolled(callback) {
-        this.socket.on('player-dice-rolled', callback);
+        this._safeOn('player-dice-rolled', callback);
     }
 
     // Handle initial build start
     onInitialBuildStart(callback) {
-        this.socket.on('initial-build-start', callback);
+        this._safeOn('initial-build-start', callback);
     }
 
     // Handle initial build next player
     onInitialBuildNextPlayer(callback) {
-        this.socket.on('initial-build-next-player', callback);
+        this._safeOn('initial-build-next-player', callback);
     }
 
     // Handle initial build round 2 start
     onInitialBuildRound2Start(callback) {
-        this.socket.on('initial-build-round2-start', callback);
+        this._safeOn('initial-build-round2-start', callback);
     }
 
     // Handle initial build - your turn!
     onInitialBuildYourTurn(callback) {
-        this.socket.on('initial-build-your-turn', callback);
+        this._safeOn('initial-build-your-turn', callback);
     }
 
     // Handle initial build - waiting for other player
     onInitialBuildWaiting(callback) {
-        this.socket.on('initial-build-waiting', callback);
+        this._safeOn('initial-build-waiting', callback);
     }
 
     // Handle initial build - your done (turn ended, waiting)
     onInitialBuildYourDone(callback) {
-        this.socket.on('initial-build-your-done', callback);
+        this._safeOn('initial-build-your-done', callback);
     }
 
     // Notify server that initial build turn is complete (with counts)
@@ -304,52 +311,52 @@ class MultiplayerClient {
 
     // Handle "your-turn" event (it's this player's turn)
     onYourTurn(callback) {
-        this.socket.on('your-turn', callback);
+        this._safeOn('your-turn', callback);
     }
 
     // Handle "waiting-for-turn" event (waiting for another player)
     onWaitingForTurn(callback) {
-        this.socket.on('waiting-for-turn', callback);
+        this._safeOn('waiting-for-turn', callback);
     }
 
     // Handle regular dice rolled (during regular gameplay)
     onRegularDiceRolled(callback) {
-        this.socket.on('regular-dice-rolled', callback);
+        this._safeOn('regular-dice-rolled', callback);
     }
 
     // Handle resource collection (after dice roll)
     onCollectResources(callback) {
-        this.socket.on('collect-resources', callback);
+        this._safeOn('collect-resources', callback);
     }
 
     // Handle regular game start
     onRegularGameStart(callback) {
-        this.socket.on('regular-game-start', callback);
+        this._safeOn('regular-game-start', callback);
     }
 
     // Handle turn ended
     onTurnEnded(callback) {
-        this.socket.on('turn-ended', callback);
+        this._safeOn('turn-ended', callback);
     }
 
     // Handle action error
     onActionError(callback) {
-        this.socket.on('action-error', callback);
+        this._safeOn('action-error', callback);
     }
 
     // Handle dice tie (re-roll needed)
     onDiceTie(callback) {
-        this.socket.on('dice-tie', callback);
+        this._safeOn('dice-tie', callback);
     }
 
     // Handle building synced (confirmation from server)
     onBuildingSynced(callback) {
-        this.socket.on('building-synced', callback);
+        this._safeOn('building-synced', callback);
     }
 
     // Handle game state sync (for reconnection)
     onGameStateSync(callback) {
-        this.socket.on('game-state-sync', callback);
+        this._safeOn('game-state-sync', callback);
     }
 
     // ===== REGULAR TURN EMITTERS =====
@@ -374,12 +381,12 @@ class MultiplayerClient {
 
     // Handle room closed (host left)
     onRoomClosed(callback) {
-        this.socket.on('room-closed', callback);
+        this._safeOn('room-closed', callback);
     }
 
     // Handle rooms list update
     onRoomsList(callback) {
-        this.socket.on('rooms-list', callback);
+        this._safeOn('rooms-list', callback);
     }
 
     // Leave room explicitly
