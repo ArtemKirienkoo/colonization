@@ -85,8 +85,8 @@ function createWindow() {
 
 // This method will be called when Electron has finished initialization
 app.whenReady().then(() => {
-    // Start the local multiplayer server
-    startServer();
+    // Local server is disabled - using cloud server only (https://colonization.onrender.com)
+    // startServer(); // Disabled: only cloud multiplayer is supported
     createWindow();
 });
 

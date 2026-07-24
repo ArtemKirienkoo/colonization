@@ -652,19 +652,7 @@
         let myPlayerColor = null; // Track current player's color
 
         async function getSelectedServerUrl() {
-            // Try to get local server URL from main process first
-            try {
-                if (window.electronAPI && window.electronAPI.getServerInfo) {
-                    const info = await window.electronAPI.getServerInfo();
-                    if (info && info.localUrl) {
-                        console.log('Using local server URL:', info.localUrl);
-                        return info.localUrl;
-                    }
-                }
-            } catch (e) {
-                console.warn('Failed to get server info from main process:', e);
-            }
-            // Fallback to cloud server
+            // Cloud-only multiplayer - always use the cloud server
             console.log('Using cloud server URL');
             return 'https://colonization.onrender.com';
         }
@@ -914,48 +902,23 @@
             // Start animated dots
             startLoadingAnimation();
 
-            let serverUrl = null;
-            let connected = false;
-
             try {
-                // Get server URL (async - tries local first, falls back to cloud)
-                serverUrl = await getSelectedServerUrl();
+                // Get cloud server URL (cloud-only multiplayer)
+                const serverUrl = await getSelectedServerUrl();
                 sessionStorage.setItem('serverUrl', serverUrl);
 
                 await initMultiplayer(serverUrl);
-                connected = true;
-            } catch (err) {
-                console.error('Failed to connect to server:', err);
 
-                // If local server failed, try cloud server as fallback
-                if (serverUrl !== 'https://colonization.onrender.com') {
-                    console.log('Trying cloud server as fallback...');
-                    try {
-                        serverUrl = 'https://colonization.onrender.com';
-                        sessionStorage.setItem('serverUrl', serverUrl);
-                        await initMultiplayer(serverUrl);
-                        connected = true;
-                    } catch (cloudErr) {
-                        console.error('Failed to connect to cloud server:', cloudErr);
-                        stopLoadingAnimation();
-                        alert('Не вдалося підключитися до сервера.\n\nЛокальний сервер: ' + (err.message || err) + '\n\nХмарний сервер: ' + (cloudErr.message || cloudErr) + '\n\nПеревірте, чи запущений сервер, та спробуйте знову.');
-                        document.getElementById('multiplayerLobbyModal').style.display = 'none';
-                        return;
-                    }
-                } else {
-                    stopLoadingAnimation();
-                    alert('Не вдалося підключитися до сервера.\n\n' + (err.message || err) + '\n\nПеревірте, чи запущений сервер, та спробуйте знову.');
-                    document.getElementById('multiplayerLobbyModal').style.display = 'none';
-                    return;
-                }
-            }
-
-            if (connected) {
                 // Hide loading, show rooms
                 document.getElementById('connectionLoading').style.display = 'none';
                 document.getElementById('roomsListContainer').style.display = 'block';
                 stopLoadingAnimation();
                 loadRoomsList();
+            } catch (err) {
+                console.error('Failed to connect to server:', err);
+                stopLoadingAnimation();
+                alert('Не вдалося підключитися до сервера.\n\n' + (err.message || err) + '\n\nПеревірте, чи запущений сервер, та спробуйте знову.');
+                document.getElementById('multiplayerLobbyModal').style.display = 'none';
             }
         });
 
