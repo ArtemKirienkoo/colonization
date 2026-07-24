@@ -3063,9 +3063,6 @@ function isInitialPhaseComplete() {
 
 // Override canRollDice to prevent rolling during initial phase
 function canRollDice() {
-    if (initialPhase.active && initialPhase.phase === 'initial-build') {
-        return false; // Can't roll during initial build phase
-    }
     if (initialPhase.active && initialPhase.phase === 'dice-roll') {
         return false; // Can't roll during dice phase
     }
