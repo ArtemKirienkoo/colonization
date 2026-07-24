@@ -656,9 +656,79 @@
             return 'https://colonization.onrender.com';
         }
 
+        function registerSplashHandlers(client) {
+    client.onPlayerJoined((data) => {
+        console.log('Player joined:', data);
+        if (isHost && currentRoomCode) {
+            updatePlayersList(data.players, mySocketId);
+            const startGameBtn = document.getElementById('startGameBtn');
+            if (startGameBtn && startGameBtn.style.display === 'none') {
+                startGameBtn.style.display = 'inline-block';
+            }
+        }
+    });
+    client.onColorChanged((data) => {
+        console.log('Color changed:', data);
+        if (isHost && currentRoomCode) {
+            updatePlayersList(data.players, mySocketId);
+        } else if (!isHost && currentRoomCode) {
+            updatePlayersListForGuest(data.players, mySocketId);
+        }
+    });
+    client.onColorChangeFailed((data) => {
+        console.log('Color change failed:', data);
+        alert(data.message || 'Не вдалося змінити колір');
+        if (selectedPlayerIdForColor) {
+            colorSelectionModal.style.display = 'flex';
+        }
+    });
+    client.onPlayerLeft((data) => {
+        console.log('Player left:', data);
+        if (isHost && currentRoomCode) {
+            updatePlayersList(data.players, mySocketId);
+            const startGameBtn = document.getElementById('startGameBtn');
+            if (startGameBtn && startGameBtn.style.display === 'none') {
+                startGameBtn.style.display = 'inline-block';
+            }
+        }
+        if (!isHost && currentRoomCode) {
+            updatePlayersListForGuest(data.players, mySocketId);
+        }
+    });
+    client.onRoomClosed((data) => {
+        document.getElementById('roomCreatedModal').style.display = 'none';
+        document.getElementById('joinRoomModal').style.display = 'none';
+        document.getElementById('multiplayerLobbyModal').style.display = 'flex';
+        loadRoomsList();
+        console.log('Кімната закрита:', data.message || 'Хозяїн вийшов');
+    });
+    client.onRoomsList((rooms) => {
+        if (document.getElementById('multiplayerLobbyModal').style.display === 'flex') {
+            const roomsList = document.getElementById('roomsList');
+            if (rooms.length === 0) {
+                roomsList.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">Немає активних кімнат</div>';
+            } else {
+                roomsList.innerHTML = rooms.map(room => `
+                    <div class="room-item" data-code="${room.code}" style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 6px; margin-bottom: 8px; cursor: pointer; border: 1px solid rgba(243,156,18,0.2);">
+                        <div style="font-weight: bold; color: #f39c12;">${room.name}</div>
+                        <div style="font-size: 0.85em; color: #aaa;">Гравці: ${room.players}/${room.maxPlayers}</div>
+                    </div>
+                `).join('');
+                document.querySelectorAll('.room-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        document.getElementById('multiplayerLobbyModal').style.display = 'none';
+                        document.getElementById('joinRoomModal').style.display = 'flex';
+                    });
+                });
+            }
+        }
+    });
+    // onGameStarted обробляється окремо в логіці очікування
+}
+
         function initMultiplayer() {
             mpClient = new MultiplayerClient();
-            
+            registerSplashHandlers(mpClient);
             // Setup event handlers
             const setupEventHandlers = () => {
                 mySocketId = mpClient.socket.id;

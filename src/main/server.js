@@ -532,12 +532,12 @@ io.on('connection', (socket) => {
                 socket.emit('action-error', { message: 'Зараз не ваш хід!' });
                 return;
             }
-            
-            // Check if dice has been rolled
-            if (room.turnState && room.turnState.actionsLocked) {
-                socket.emit('action-error', { message: 'Спочатку киньте кубики!' });
-                return;
-            }
+        }
+        
+        // Check if dice has been rolled (only during regular turn, not initial-build)
+        if (room.gamePhase === 'regular-turn' && room.turnState && room.turnState.actionsLocked) {
+            socket.emit('action-error', { message: 'Спочатку киньте кубики!' });
+            return;
         }
         
         // Store building with player info for validation
