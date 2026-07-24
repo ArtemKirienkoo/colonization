@@ -911,27 +911,52 @@
             document.getElementById('multiplayerLobbyModal').style.display = 'flex';
             document.getElementById('connectionLoading').style.display = 'block';
             document.getElementById('roomsListContainer').style.display = 'none';
-            
+
             // Start animated dots
             startLoadingAnimation();
-            
+
+            let serverUrl = null;
+            let connected = false;
+
             try {
                 // Get server URL (async - tries local first, falls back to cloud)
-                const serverUrl = await getSelectedServerUrl();
+                serverUrl = await getSelectedServerUrl();
                 sessionStorage.setItem('serverUrl', serverUrl);
-                
+
                 await initMultiplayer(serverUrl);
-                
+                connected = true;
+            } catch (err) {
+                console.error('Failed to connect to server:', err);
+
+                // If local server failed, try cloud server as fallback
+                if (serverUrl !== 'https://colonization.onrender.com') {
+                    console.log('Trying cloud server as fallback...');
+                    try {
+                        serverUrl = 'https://colonization.onrender.com';
+                        sessionStorage.setItem('serverUrl', serverUrl);
+                        await initMultiplayer(serverUrl);
+                        connected = true;
+                    } catch (cloudErr) {
+                        console.error('Failed to connect to cloud server:', cloudErr);
+                        stopLoadingAnimation();
+                        alert('Не вдалося підключитися до сервера.\n\nЛокальний сервер: ' + (err.message || err) + '\n\nХмарний сервер: ' + (cloudErr.message || cloudErr) + '\n\nПеревірте, чи запущений сервер, та спробуйте знову.');
+                        document.getElementById('multiplayerLobbyModal').style.display = 'none';
+                        return;
+                    }
+                } else {
+                    stopLoadingAnimation();
+                    alert('Не вдалося підключитися до сервера.\n\n' + (err.message || err) + '\n\nПеревірте, чи запущений сервер, та спробуйте знову.');
+                    document.getElementById('multiplayerLobbyModal').style.display = 'none';
+                    return;
+                }
+            }
+
+            if (connected) {
                 // Hide loading, show rooms
                 document.getElementById('connectionLoading').style.display = 'none';
                 document.getElementById('roomsListContainer').style.display = 'block';
                 stopLoadingAnimation();
                 loadRoomsList();
-            } catch (err) {
-                console.error('Failed to connect to server:', err);
-                stopLoadingAnimation();
-                alert('Не вдалося підключитися до сервера.\n\n' + (err.message || err) + '\n\nПеревірте, чи запущений сервер, та спробуйте знову.');
-                document.getElementById('multiplayerLobbyModal').style.display = 'none';
             }
         });
 

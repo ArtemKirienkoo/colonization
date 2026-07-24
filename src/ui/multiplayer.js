@@ -51,9 +51,12 @@ class MultiplayerClient {
 
             this.socket.on('connect_error', (error) => {
                 console.error('Помилка підключення:', error);
-                // Always reject on connection error - Socket.IO will continue
-                // trying to reconnect internally, but the promise should reject
-                // immediately so the user gets feedback instead of hanging.
+                // Disconnect the socket to stop Socket.IO from continuing to
+                // reconnect internally. This is important when we want to
+                // try a fallback server URL (e.g., cloud server) instead.
+                if (this.socket) {
+                    this.socket.disconnect();
+                }
                 clearTimeout(timeout);
                 reject(error);
             });
@@ -63,6 +66,9 @@ class MultiplayerClient {
             });
 
             this.socket.on('reconnect_failed', () => {
+                if (this.socket) {
+                    this.socket.disconnect();
+                }
                 clearTimeout(timeout);
                 console.error('Не вдалося перепідключитися');
                 reject(new Error('Не вдалося підключитися до сервера після 20 спроб.\nПеревірте:\n1. Сервер запущений (npm start)\n2. Порт 3000 не заблокований фаєрволом\n3. Обидва гравці в одній мережі (для локальної гри)'));
