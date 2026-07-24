@@ -1733,8 +1733,39 @@ function showMessage(msg){const te=document.getElementById('total'),ot=te.textCo
 
 function setBuildMode(mode){if(gameState.roadBuildingMode>0){showMessage('🛤️ Спочатку завершіть карту "Дороги"!');return;}document.querySelectorAll('.build-btn').forEach(b=>b.classList.remove('active'));buildMode=mode;if(mode!=='none'){const btn=document.querySelector(`.build-btn[data-mode="${mode}"]`);if(btn)btn.classList.add('active');canvas.classList.add('crosshair');}else canvas.classList.remove('crosshair');hoverEdge=null;hoverVertex=null;if(mapData)renderMap(mapData,canvas,mapHexSize);}
 document.querySelectorAll('.build-btn').forEach(b=>{b.addEventListener('click',()=>{audioManager.playBuildSound();setBuildMode(b.dataset.mode);});});
-function isInitialPhaseComplete(){return gameState.settlements.size>=INITIAL_SETTLEMENT_LIMIT&&gameState.roads.size>=INITIAL_ROAD_LIMIT;}
-function canRollDice(){return!isRolling&&isInitialPhaseComplete()&&gameState.roadBuildingMode===0&&!gameState.cardInProgress;}
+function isInitialPhaseComplete() {
+    // Якщо initial-phase НЕ активна або завершена - пропускаємо перевірку (regular-turn або одиночна)
+    if (!initialPhase.active || initialPhase.phase === 'complete' || initialPhase.phase === 'none') {
+        return true;
+    }
+    // Під час початкового будівництва - перевіряємо чи поточний гравець завершив
+    if (initialPhase.phase === 'initial-build') {
+        const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
+        return myBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && 
+               myBuildings.roads >= INITIAL_ROAD_LIMIT;
+    }
+    // Фаза кидання кубиків - ще не будували
+    return false;
+}
+function canRollDice() {
+    // Під час фази кидання кубиків (початкова) - дозволяємо через overlay
+    if (initialPhase.active && initialPhase.phase === 'dice-roll') {
+        return true;
+    }
+    // Під час початкового будівництва - забороняємо
+    if (initialPhase.active && initialPhase.phase === 'initial-build') {
+        return false;
+    }
+    // Звичайна гра (regular-turn)
+    if (isMultiplayer) {
+        // В мультиплеєрі тільки якщо мій хід і ще не кидав
+        return !isRolling && isMyTurn && !hasRolledThisTurn && 
+               gameState.roadBuildingMode === 0 && !gameState.cardInProgress;
+    }
+    // Одиночна гра
+    return !isRolling && isInitialPhaseComplete() && 
+           gameState.roadBuildingMode === 0 && !gameState.cardInProgress;
+}
 
 function collectResources(diceTotal){const c=[];if(!mapData)return c;for(const[vk,b]of gameState.settlements){const v=vertexGeom.get(vk);if(!v)continue;const m=b.type==='city'?2:1;for(const h of v.hexes){const hk=hexKey(h),n=mapData.numbers.get(hk),rt=mapData.resources.get(hk);if(n===diceTotal&&rt&&rt!=='desert'){for(let i=0;i<m;i++){gameState.resourceCards[rt]++;c.push({type:rt,icon:RESOURCES[rt].icon,name:RESOURCES[rt].name});}}}}return c;}
 function showResourceNotification(collected){if(collected.length===0)return;audioManager.playResourceSound();updateResourceCardsDisplay();updateDevHandDisplay();const n=document.createElement('div');n.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(26,26,46,0.95);border:2px solid #f39c12;border-radius:12px;padding:18px 25px;color:#fff;font-family:\'Segoe UI\',Tahoma,Geneva,Verdana,sans-serif;font-size:1em;z-index:1000;box-shadow:0 0 30px rgba(243,156,18,0.5);text-align:center;';let c='<div style="color:#f1c40f;margin-bottom:8px;font-weight:bold;">🎉 Отримано ресурси!</div><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">';const g={};for(const i of collected){if(!g[i.type])g[i.type]={icon:i.icon,name:i.name,count:0};g[i.type].count++;}for(const d of Object.values(g))c+='<div style="display:flex;align-items:center;gap:6px;padding:4px 8px;background:rgba(255,255,255,0.1);border-radius:6px;"><span style="font-size:1.3em;">'+d.icon+'</span><span>'+d.name+' ×'+d.count+'</span></div>';c+='</div>';n.innerHTML=c;document.body.appendChild(n);setTimeout(()=>{n.style.transition='opacity 0.5s';n.style.opacity='0';setTimeout(()=>n.remove(),500);},2000);}
@@ -1961,6 +1992,11 @@ function openTradeModal(){
     },100);
 }
 function rollDice(){
+    // В мультиплеєрі використовуємо handleRegularDiceRoll, яка надсилає кидок на сервер
+    if (isMultiplayer) {
+        handleRegularDiceRoll();
+        return;
+    }
     if(!canRollDice()){
         const te=document.getElementById('total'),ot=te.textContent;
         if(gameState.roadBuildingMode>0||gameState.cardInProgress){
@@ -2959,7 +2995,7 @@ function canBuildDuringInitialPhase() {
         return false;
     }
     
-    // Check if it's my turn (currentPlayerId matches myPlayerId or canBuild flag is set)
+    // Check if it's my turn (canBuild flag is set)
     if (initialPhase.canBuild !== true) {
         return false;
     }
@@ -2982,36 +3018,6 @@ function canBuildPieceInitial(t) {
         case 'city': return false; // Can't build city during initial phase
         default: return false;
     }
-}
-
-// Override isInitialPhaseComplete to account for initial phase
-function isInitialPhaseComplete() {
-    if (initialPhase.active && initialPhase.phase === 'initial-build') {
-        // During initial phase, check if THIS player has completed their builds
-        // Each player needs 1 settlement and 2 roads
-        // Use PER-PLAYER counts from initialPhaseBuildings, not global gameState counts
-        const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
-        return myBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && 
-               myBuildings.roads >= INITIAL_ROAD_LIMIT;
-    }
-    
-    // After initial phase, use normal check (global counts are fine for regular gameplay)
-    return gameState.settlements.size >= INITIAL_SETTLEMENT_LIMIT && 
-           gameState.roads.size >= INITIAL_ROAD_LIMIT;
-}
-
-// Override canRollDice to prevent rolling during initial phase
-function canRollDice() {
-    // Під час фази кидання – дозволяємо (але кнопка буде заблокована)
-    if (initialPhase.active && initialPhase.phase === 'dice-roll') {
-        return true;
-    }
-    // Під час початкового будівництва – забороняємо
-    if (initialPhase.active && initialPhase.phase === 'initial-build') {
-        return false;
-    }
-    // Звичайна гра
-    return !isRolling && isInitialPhaseComplete() && gameState.roadBuildingMode === 0 && !gameState.cardInProgress;
 }
 
 // Track initial phase buildings PER PLAYER (playerId -> {settlements, roads})
