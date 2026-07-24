@@ -51,19 +51,11 @@ class MultiplayerClient {
 
             this.socket.on('connect_error', (error) => {
                 console.error('Помилка підключення:', error);
-                // Provide helpful error messages
-                if (error.message) {
-                    if (error.message.includes('timeout') || error.message.includes('ETIMEDOUT')) {
-                        clearTimeout(timeout);
-                        reject(new Error('Таймаут підключення. Сервер не відповідає.'));
-                    } else if (error.message.includes('ECONNREFUSED')) {
-                        clearTimeout(timeout);
-                        reject(new Error('Відмовлено в підключенні. Перевірте, чи запущений сервер на порту 3000.'));
-                    } else if (error.message.includes('websocket')) {
-                        console.warn('WebSocket помилка, спробуємо polling...');
-                        // Don't reject, let it try polling
-                    }
-                }
+                // Always reject on connection error - Socket.IO will continue
+                // trying to reconnect internally, but the promise should reject
+                // immediately so the user gets feedback instead of hanging.
+                clearTimeout(timeout);
+                reject(error);
             });
 
             this.socket.on('reconnect_attempt', (attempt) => {

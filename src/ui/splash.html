@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Colonization - Запуск гри</title>
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
     <script src="multiplayer.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
@@ -651,8 +651,21 @@
         };
         let myPlayerColor = null; // Track current player's color
 
-        function getSelectedServerUrl() {
-            // Cloud server URL - замінити на свій після деплою
+        async function getSelectedServerUrl() {
+            // Try to get local server URL from main process first
+            try {
+                if (window.electronAPI && window.electronAPI.getServerInfo) {
+                    const info = await window.electronAPI.getServerInfo();
+                    if (info && info.localUrl) {
+                        console.log('Using local server URL:', info.localUrl);
+                        return info.localUrl;
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to get server info from main process:', e);
+            }
+            // Fallback to cloud server
+            console.log('Using cloud server URL');
             return 'https://colonization.onrender.com';
         }
 
@@ -726,7 +739,7 @@
     // onGameStarted обробляється окремо в логіці очікування
 }
 
-        function initMultiplayer() {
+        function initMultiplayer(serverUrl) {
             mpClient = new MultiplayerClient();
             registerSplashHandlers(mpClient);
             // Setup event handlers
@@ -819,25 +832,17 @@
                 });
             };
             
-            // Get server URL based on selection
-            const serverUrl = getSelectedServerUrl();
             console.log('Connecting to server:', serverUrl);
             
-            // Add a small delay to ensure server is fully ready
-            return new Promise((resolve, reject) => {
-                setTimeout(() => {
-                    mpClient.connect(serverUrl)
-                        .then(() => {
-                            console.log('Successfully connected to server');
-                            setupEventHandlers();
-                            resolve();
-                        })
-                        .catch(err => {
-                            console.error('Failed to connect to server:', err);
-                            reject(new Error('Не вдалося підключитися до сервера на ' + serverUrl + '.\nПеревірте консоль на наявність помилок.'));
-                        });
-                }, 2000); // Wait 2 seconds for server to be fully ready
-            });
+            return mpClient.connect(serverUrl)
+                .then(() => {
+                    console.log('Successfully connected to server');
+                    setupEventHandlers();
+                })
+                .catch(err => {
+                    console.error('Failed to connect to server:', err);
+                    throw new Error('Не вдалося підключитися до сервера на ' + serverUrl + '.\n' + (err.message || err));
+                });
         }
 
         function showGameModeModal() {
@@ -901,7 +906,7 @@
             }, 500);
         });
 
-        document.getElementById('multiplayerBtn').addEventListener('click', () => {
+        document.getElementById('multiplayerBtn').addEventListener('click', async () => {
             // Show loading state
             document.getElementById('multiplayerLobbyModal').style.display = 'flex';
             document.getElementById('connectionLoading').style.display = 'block';
@@ -910,22 +915,24 @@
             // Start animated dots
             startLoadingAnimation();
             
-            // Save server URL so index.html can use it when game starts
-            const serverUrl = getSelectedServerUrl();
-            sessionStorage.setItem('serverUrl', serverUrl);
-            
-            initMultiplayer().then(() => {
+            try {
+                // Get server URL (async - tries local first, falls back to cloud)
+                const serverUrl = await getSelectedServerUrl();
+                sessionStorage.setItem('serverUrl', serverUrl);
+                
+                await initMultiplayer(serverUrl);
+                
                 // Hide loading, show rooms
                 document.getElementById('connectionLoading').style.display = 'none';
                 document.getElementById('roomsListContainer').style.display = 'block';
                 stopLoadingAnimation();
                 loadRoomsList();
-            }).catch(err => {
+            } catch (err) {
                 console.error('Failed to connect to server:', err);
                 stopLoadingAnimation();
-                alert('Не вдалося підключитися до сервера.\n\nПеревірте підключення до інтернету та спробуйте знову.');
+                alert('Не вдалося підключитися до сервера.\n\n' + (err.message || err) + '\n\nПеревірте, чи запущений сервер, та спробуйте знову.');
                 document.getElementById('multiplayerLobbyModal').style.display = 'none';
-            });
+            }
         });
 
         document.getElementById('backFromMode').addEventListener('click', () => {
