@@ -2781,11 +2781,11 @@ function startDicePhase(data) {
     const initialRollBtn = document.getElementById('rollDiceInitialBtn');
 
     overlay.style.display = 'flex';
-    status.textContent = '🎲 Киньте кубики для визначення черги!';
+    status.textContent = '🎲 Киньте кубики для визначення черги. Натисніть «Продовжити», щоб здійснити свій кидок.';
     status.style.color = '#f1c40f';
     results.innerHTML = '';
 
-    if (data.diceRolls) {
+    if (data && Array.isArray(data.diceRolls)) {
         initialPhase.diceRolls = new Map(data.diceRolls.map(item => [item.playerId, item.total]));
         if (initialPhase.diceRolls.has(myPlayerId)) {
             initialPhase.myRoll = initialPhase.diceRolls.get(myPlayerId);
@@ -2797,7 +2797,7 @@ function startDicePhase(data) {
     const newBtn = document.createElement('button');
     newBtn.id = 'rollDiceInitialBtn';
     newBtn.style.cssText = 'padding: 15px 40px; font-size: 1.2em; background: linear-gradient(135deg, #9b59b6, #8e44ad); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold;';
-    newBtn.textContent = '🎲 Кинути кубики';
+    newBtn.textContent = 'Продовжити';
     // Замінюємо стару кнопку
     initialRollBtn.parentNode.replaceChild(newBtn, initialRollBtn);
 
@@ -2805,7 +2805,8 @@ function startDicePhase(data) {
     newBtn.addEventListener('click', function() {
         console.log('Кнопка кидання натиснута');
         if (initialPhase.myRoll !== null) {
-            showMessage('Ви вже кинули кубики!');
+            overlay.style.display = 'none';
+            showMessage('Ви вже кинули кубики. Очікуйте інших гравців.');
             return;
         }
 
@@ -2835,14 +2836,17 @@ function startDicePhase(data) {
         newBtn.style.opacity = '0.5';
         newBtn.style.cursor = 'not-allowed';
 
-        // Надсилаємо на сервер (якщо мультиплеєр)
         if (multiplayerClient && isMultiplayer) {
             console.log('Надсилання кидка на сервер');
             multiplayerClient.rollDiceInitial(die1, die2);
         } else {
-            // Однокористувацький режим
             handleMyDiceRoll(total);
         }
+
+        setTimeout(() => {
+            overlay.style.display = 'none';
+            showMessage('Початковий кидок встановлено. Дочекайтеся всіх гравців.');
+        }, 900);
     });
 
     if (data.diceRolls) {
