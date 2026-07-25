@@ -205,14 +205,16 @@ class MultiplayerClient {
         } catch (error) {
             console.warn('Не вдалося прочитати multiplayerPlayerId:', error);
         }
+        console.log('[MultiplayerClient] rejoinRoom', { roomCode, isHost, oldPlayerId, socketId: this.socket?.id });
         this.socket.emit('rejoin-room', { roomCode, isHost, oldPlayerId });
 
         // Fallback: request full game state in case any phase events were emitted
         // before the client rejoined and missed them. Server will emit 'game-state-sync'.
         try {
+            console.log('[MultiplayerClient] request-game-state', { roomCode, socketId: this.socket?.id });
             this.socket.emit('request-game-state', { roomCode });
         } catch (e) {
-            // ignore
+            console.warn('[MultiplayerClient] request-game-state failed', e);
         }
     }
 

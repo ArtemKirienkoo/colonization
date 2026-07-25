@@ -126,6 +126,7 @@ io.on('connection', (socket) => {
     // Rejoin room after page navigation (when game starts)
     // The room still exists because we DON'T delete it on disconnect during game
     socket.on('rejoin-room', ({ roomCode, isHost, oldPlayerId }) => {
+        console.log('[server] rejoin-room', { roomCode, isHost, oldPlayerId, socketId: socket.id });
         const room = rooms.get(roomCode);
         if (!room) return;
 
@@ -236,6 +237,7 @@ io.on('connection', (socket) => {
 
     // Client can explicitly request current game state (fallback if events were missed)
     socket.on('request-game-state', ({ roomCode }) => {
+        console.log('[server] request-game-state', { roomCode, socketId: socket.id });
         const room = rooms.get(roomCode);
         if (!room) return;
         // Only respond if this socket is a known player in the room
