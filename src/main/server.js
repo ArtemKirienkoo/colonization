@@ -127,14 +127,57 @@ io.on('connection', (socket) => {
     });
 
     // Rejoin room after page navigation
-    socket.on('rejoin-room', ({ roomCode, isHost }) => {
+    socket.on('rejoin-room', ({ roomCode, isHost, oldPlayerId }) => {
+        console.log('[server] rejoin-room', { roomCode, isHost, oldPlayerId, socketId: socket.id });
         const room = rooms.get(roomCode);
         if (!room) return;
-        
-        // Check if this player was already in the room
-        const existingPlayer = room.players.find(p => p.id === socket.id);
+
+        // Preserve the same player record on reconnect
+        if (oldPlayerId) {
+            const oldPlayerIndex = room.players.findIndex(p => p.id === oldPlayerId);
+            if (oldPlayerIndex !== -1) {
+                room.players[oldPlayerIndex].id = socket.id;
+                room.players[oldPlayerIndex].disconnected = false;
+            }
+
+            if (room.turnOrder) {
+                room.turnOrder = room.turnOrder.map(pid => pid === oldPlayerId ? socket.id : pid);
+            }
+
+            if (room.initialBuildOrder) {
+                room.initialBuildOrder = room.initialBuildOrder.map(item => {
+                    if (item.playerId === oldPlayerId) {
+                        return { ...item, playerId: socket.id };
+                    }
+                    return item;
+                });
+            }
+
+            if (room.diceRolls && room.diceRolls.has(oldPlayerId)) {
+                const roll = room.diceRolls.get(oldPlayerId);
+                room.diceRolls.delete(oldPlayerId);
+                room.diceRolls.set(socket.id, roll);
+            }
+
+            if (room.initialBuildProgress && room.initialBuildProgress.has(oldPlayerId)) {
+                const progress = room.initialBuildProgress.get(oldPlayerId);
+                room.initialBuildProgress.delete(oldPlayerId);
+                room.initialBuildProgress.set(socket.id, progress);
+            }
+
+            if (room.buildings) {
+                for (const [key, building] of room.buildings.entries()) {
+                    if (building.playerId === oldPlayerId) {
+                        room.buildings.set(key, { ...building, playerId: socket.id });
+                    }
+                }
+            }
+        }
+
+        if (isHost) room.host = socket.id;
+
+        let existingPlayer = room.players.find(p => p.id === socket.id);
         if (!existingPlayer) {
-            // Add them back
             room.players.push({
                 id: socket.id,
                 name: 'Гравець',
@@ -142,11 +185,46 @@ io.on('connection', (socket) => {
                 color: 'red'
             });
         }
-        
+
         socket.join(roomCode);
-        
-        // Send current game state
-        if (room.gamePhase === 'regular-turn') {
+
+        if (room.gameState) {
+            socket.emit('game-started', { mapSeed: room.gameState });
+        }
+        if (room.buildings) {
+            socket.emit('sync-buildings', { buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val})) });
+        }
+
+        if (room.gamePhase === 'dice-roll') {
+            const diceRolls = Array.from(room.diceRolls.entries()).map(([playerId, total]) => ({ playerId, total }));
+            socket.emit('start-dice-phase', {
+                players: room.players.map(p => ({ id: p.id, name: p.name })),
+                diceRolls
+            });
+        } else if (room.gamePhase === 'initial-build') {
+            const currentPlayerId = room.initialBuildOrder[room.currentInitialBuildIndex]?.playerId;
+            socket.emit('game-state-sync', {
+                gamePhase: room.gamePhase,
+                currentPlayerId,
+                initialBuildOrder: room.initialBuildOrder,
+                currentIndex: room.currentInitialBuildIndex,
+                buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
+            });
+
+            if (currentPlayerId === socket.id) {
+                socket.emit('initial-build-your-turn', {
+                    playerId: socket.id,
+                    order: room.initialBuildOrder
+                });
+            } else if (currentPlayerId) {
+                const yourPosition = room.initialBuildOrder.findIndex(p => p.playerId === socket.id);
+                socket.emit('initial-build-waiting', {
+                    currentPlayerId,
+                    yourPosition,
+                    order: room.initialBuildOrder
+                });
+            }
+        } else if (room.gamePhase === 'regular-turn') {
             const currentPlayerId = room.turnOrder[room.currentTurnIndex];
             socket.emit('game-state-sync', {
                 gamePhase: room.gamePhase,
@@ -154,15 +232,83 @@ io.on('connection', (socket) => {
                 turnOrder: room.turnOrder,
                 buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
             });
+            if (currentPlayerId === socket.id) {
+                socket.emit('your-turn', {
+                    playerId: currentPlayerId,
+                    mustRollDice: !room.turnState.diceRolled
+                });
+            } else {
+                socket.emit('waiting-for-turn', {
+                    currentPlayerId,
+                    yourPosition: room.turnOrder.indexOf(socket.id)
+                });
+            }
+        }
+    });
+
+    // Client can explicitly request current game state (fallback if events were missed)
+    socket.on('request-game-state', ({ roomCode }) => {
+        console.log('[server] request-game-state', { roomCode, socketId: socket.id });
+        const room = rooms.get(roomCode);
+        if (!room) return;
+        const player = room.players.find(p => p.id === socket.id);
+        if (!player) return;
+
+        if (room.gameState) {
+            socket.emit('game-started', { mapSeed: room.gameState });
+        }
+        if (room.buildings) {
+            socket.emit('sync-buildings', { buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val})) });
+        }
+
+        if (room.gamePhase === 'dice-roll') {
+            const diceRolls = Array.from(room.diceRolls.entries()).map(([playerId, total]) => ({ playerId, total }));
+            socket.emit('start-dice-phase', {
+                players: room.players.map(p => ({ id: p.id, name: p.name })),
+                diceRolls
+            });
         } else if (room.gamePhase === 'initial-build') {
             const currentPlayerId = room.initialBuildOrder[room.currentInitialBuildIndex]?.playerId;
             socket.emit('game-state-sync', {
                 gamePhase: room.gamePhase,
-                currentPlayerId: currentPlayerId,
+                currentPlayerId,
                 initialBuildOrder: room.initialBuildOrder,
                 currentIndex: room.currentInitialBuildIndex,
                 buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
             });
+
+            if (currentPlayerId === socket.id) {
+                socket.emit('initial-build-your-turn', {
+                    playerId: socket.id,
+                    order: room.initialBuildOrder
+                });
+            } else if (currentPlayerId) {
+                const yourPosition = room.initialBuildOrder.findIndex(p => p.playerId === socket.id);
+                socket.emit('initial-build-waiting', {
+                    currentPlayerId,
+                    yourPosition,
+                    order: room.initialBuildOrder
+                });
+            }
+        } else if (room.gamePhase === 'regular-turn') {
+            const currentPlayerId = room.turnOrder[room.currentTurnIndex];
+            socket.emit('game-state-sync', {
+                gamePhase: room.gamePhase,
+                currentTurnPlayerId: currentPlayerId,
+                turnOrder: room.turnOrder,
+                buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
+            });
+            if (currentPlayerId === socket.id) {
+                socket.emit('your-turn', {
+                    playerId: currentPlayerId,
+                    mustRollDice: !room.turnState.diceRolled
+                });
+            } else {
+                socket.emit('waiting-for-turn', {
+                    currentPlayerId,
+                    yourPosition: room.turnOrder.indexOf(socket.id)
+                });
+            }
         }
     });
 

@@ -136,7 +136,6 @@ io.on('connection', (socket) => {
             if (oldPlayerIndex !== -1) {
                 room.players[oldPlayerIndex].id = socket.id;
                 room.players[oldPlayerIndex].disconnected = false;
-                room.players[oldPlayerIndex].disconnected = false;
             }
 
             if (room.turnOrder) {
