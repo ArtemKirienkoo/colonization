@@ -71,6 +71,14 @@ class MultiplayerClient {
                     this.socket.on(listener.event, listener.callback);
                 }
                 this.pendingListeners = [];
+                // Debug: log any incoming socket events for troubleshooting
+                try {
+                    this.socket.onAny((event, ...args) => {
+                        console.log('[socket.onAny] event=', event, 'args=', args);
+                    });
+                } catch (e) {
+                    console.warn('onAny not supported or failed:', e);
+                }
                 resolve();
             });
 
