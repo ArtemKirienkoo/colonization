@@ -1363,12 +1363,14 @@ function canPlaceSettlement(vk) {
             const len = roadPathLength(existingVk, vk, fullGraph);
             if (len >= 0 && len < 2) return false;
         }
+        if(isVertexOnOpponentRoad(vk)) return false;
         return true;
     }
     
     // Regular gameplay: check distance from ALL settlements (uses full hex topology, not roads)
     if (gameState.settlements.size === 0) return true;
     for (const [evk] of gameState.settlements) { const len = roadPathLength(evk, vk, fullGraph); if (len>=0 && len<2) return false; }
+    if(isVertexOnOpponentRoad(vk)) return false;
     
     // Also check that the vertex is connected to MY road network (can't build isolated settlements)
     const p2v = new Map();
@@ -1517,7 +1519,7 @@ canvas.addEventListener('mousemove', (e) => {
     if(m==='none'){if(hoverEdge!==null||hoverVertex!==null){hoverEdge=null;hoverVertex=null;renderMap(mapData,canvas,mapHexSize);}return;}
     const r=canvas.getBoundingClientRect(),sx=canvas.width/r.width,sy=canvas.height/r.height,mx=(e.clientX-r.left)*sx,my=(e.clientY-r.top)*sy,ox=mapOffset.ox,oy=mapOffset.oy;
     let nhe=null,nhv=null;
-    if(m==='road'){let md=Infinity;for(const[ek,edge]of edgeGeom.edges){if(!isEdgeValidForRoad(ek))continue;if(buildMode==='road'&&!isEdgeConnected(ek)&&gameState.roadBuildingMode===0)continue;if(gameState.roads.has(ek))continue;const d=Math.sqrt((mx-(edge.cx+ox))**2+(my-(edge.cy+oy))**2);if(d<md&&d<mapHexSize*0.7){md=d;nhe=ek;}}}else{let md=Infinity;for(const[vk,vert]of vertexGeom){if(m==='settlement'&&!canPlaceSettlement(vk))continue;if(m==='city'){const ex=gameState.settlements.get(vk);if(!ex||ex.type!=='settlement')continue;}const d=Math.sqrt((mx-(vert.pos.x+ox))**2+(my-(vert.pos.y+oy))**2);if(d<md&&d<mapHexSize*0.7){md=d;nhv=vk;}}}
+    if(m==='road'){let md=Infinity;for(const[ek,edge]of edgeGeom.edges){if(!isEdgeValidForRoad(ek))continue;if(buildMode==='road'&&!isEdgeConnected(ek)&&gameState.roadBuildingMode===0)continue;if(gameState.roads.has(ek))continue;const d=Math.sqrt((mx-(edge.cx+ox))**2+(my-(edge.cy+oy))**2);if(d<md&&d<mapHexSize*0.7){md=d;nhe=ek;}}}else{let md=Infinity;for(const[vk,vert]of vertexGeom){if(m==='settlement'&&!canPlaceSettlement(vk))continue;if(m==='city'){const ex=gameState.settlements.get(vk);if(!ex||ex.type!=='settlement'||(isMultiplayer&&ex.playerId!==myPlayerId))continue;}const d=Math.sqrt((mx-(vert.pos.x+ox))**2+(my-(vert.pos.y+oy))**2);if(d<md&&d<mapHexSize*0.7){md=d;nhv=vk;}}}
     if(nhe!==hoverEdge||nhv!==hoverVertex){hoverEdge=nhe;hoverVertex=nhv;const ctx=canvas.getContext('2d');clearHoverAndRedraw(ctx,mapOffset.ox,mapOffset.oy,mapHexSize);}
 });
 function isEdgeValidForRoad(ek){const e=edgeGeom.edges.get(ek);if(!e)return false;const ls=new Set();if(mapData)[mapData.center,...mapData.ring1,...mapData.ring2].forEach(h=>ls.add(hexKey(h)));return ls.has(hexKey(e.hex1))||ls.has(hexKey(e.hex2));}
@@ -1701,6 +1703,10 @@ canvas.addEventListener('click', (e) => {
     else if(m==='city' && hoverVertex) {
         const ex = gameState.settlements.get(hoverVertex);
         if (!ex || ex.type !== 'settlement') return;
+        if (isMultiplayer && ex.playerId !== myPlayerId) {
+            showMessage('Не можна покращити чуже поселення!');
+            return;
+        }
         if (!canBuildPiece('city')) {
             showMessage('Ліміт міст!');
             return;
@@ -1779,10 +1785,47 @@ function canRollDice() {
            gameState.roadBuildingMode === 0 && !gameState.cardInProgress;
 }
 
-function collectResources(diceTotal){const c=[];if(!mapData)return c;for(const[vk,b]of gameState.settlements){const v=vertexGeom.get(vk);if(!v)continue;const m=b.type==='city'?2:1;for(const h of v.hexes){const hk=hexKey(h),n=mapData.numbers.get(hk),rt=mapData.resources.get(hk);if(n===diceTotal&&rt&&rt!=='desert'){for(let i=0;i<m;i++){gameState.resourceCards[rt]++;c.push({type:rt,icon:RESOURCES[rt].icon,name:RESOURCES[rt].name});}}}}return c;}
+function collectResources(diceTotal, forPlayerId){
+    const c=[];
+    if(!mapData)return c;
+    const targetId = forPlayerId || (isMultiplayer ? myPlayerId : null);
+    for(const[vk,b]of gameState.settlements){
+        if(targetId && b.playerId !== targetId) continue;
+        const v=vertexGeom.get(vk);if(!v)continue;
+        const m=b.type==='city'?2:1;
+        for(const h of v.hexes){
+            const hk=hexKey(h),n=mapData.numbers.get(hk),rt=mapData.resources.get(hk);
+            if(n===diceTotal&&rt&&rt!=='desert'){
+                for(let i=0;i<m;i++){
+                    gameState.resourceCards[rt]++;
+                    c.push({type:rt,icon:RESOURCES[rt].icon,name:RESOURCES[rt].name});
+                }
+            }
+        }
+    }
+    return c;
+}
+function canPerformMultiplayerActions(){
+    if(!isMultiplayer) return true;
+    if(initialPhase.active && initialPhase.phase === 'dice-roll') return false;
+    if(initialPhase.active && initialPhase.phase === 'initial-build') return false;
+    return isMyTurn && canPerformActions;
+}
+function isVertexOnOpponentRoad(vk){
+    const vert=vertexGeom.get(vk);if(!vert)return false;
+    const vkPos=Math.round(vert.pos.x*1000)+','+Math.round(vert.pos.y*1000);
+    for(const[ek,roadData] of gameState.roads){
+        if(roadData.playerId===myPlayerId) continue;
+        const edge=edgeGeom.edges.get(ek);if(!edge) continue;
+        const eva=Math.round(edge.va.x*1000)+','+Math.round(edge.va.y*1000);
+        const evb=Math.round(edge.vb.x*1000)+','+Math.round(edge.vb.y*1000);
+        if(vkPos===eva||vkPos===evb) return true;
+    }
+    return false;
+}
 function showResourceNotification(collected){if(collected.length===0)return;audioManager.playResourceSound();updateResourceCardsDisplay();updateDevHandDisplay();const n=document.createElement('div');n.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(26,26,46,0.95);border:2px solid #f39c12;border-radius:12px;padding:18px 25px;color:#fff;font-family:\'Segoe UI\',Tahoma,Geneva,Verdana,sans-serif;font-size:1em;z-index:1000;box-shadow:0 0 30px rgba(243,156,18,0.5);text-align:center;';let c='<div style="color:#f1c40f;margin-bottom:8px;font-weight:bold;">🎉 Отримано ресурси!</div><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">';const g={};for(const i of collected){if(!g[i.type])g[i.type]={icon:i.icon,name:i.name,count:0};g[i.type].count++;}for(const d of Object.values(g))c+='<div style="display:flex;align-items:center;gap:6px;padding:4px 8px;background:rgba(255,255,255,0.1);border-radius:6px;"><span style="font-size:1.3em;">'+d.icon+'</span><span>'+d.name+' ×'+d.count+'</span></div>';c+='</div>';n.innerHTML=c;document.body.appendChild(n);setTimeout(()=>{n.style.transition='opacity 0.5s';n.style.opacity='0';setTimeout(()=>n.remove(),500);},2000);}
 
-function buyDevCard(){if(gameState.roadBuildingMode>0||gameState.cardInProgress){showMessage('Спочатку завершіть поточну дію!');return;}const c=gameState.resourceCards;if(c.stone<1||c.geese<1||c.water<1){showMessage('Недостатньо ресурсів!');return;}if(gameState.devDeck.length===0){showMessage('Колода порожня!');return;}audioManager.playCardSound();c.stone--;c.geese--;c.water--;const card=gameState.devDeck.pop();card.used=false;gameState.devHand.push(card);if(card.type==='knight'){showMessage('⚔️ Рицар! Клікніть, щоб використати');}else{showMessage('Отримано: '+getDevCardInfo(card.type).icon+' '+getDevCardInfo(card.type).name);}updateAllUI();renderMap(mapData,canvas,mapHexSize);}
+function buyDevCard(){if(gameState.roadBuildingMode>0||gameState.cardInProgress){showMessage('Спочатку завершіть поточну дію!');return;}if(isMultiplayer&&!canPerformMultiplayerActions()){showMessage(isMyTurn&&!canPerformActions?'Спочатку киньте кубики!':'Зараз не ваш хід!');return;}const c=gameState.resourceCards;if(c.stone<1||c.geese<1||c.water<1){showMessage('Недостатньо ресурсів!');return;}if(gameState.devDeck.length===0){showMessage('Колода порожня!');return;}audioManager.playCardSound();c.stone--;c.geese--;c.water--;const card=gameState.devDeck.pop();card.used=false;gameState.devHand.push(card);if(card.type==='knight'){showMessage('⚔️ Рицар! Клікніть, щоб використати');}else{showMessage('Отримано: '+getDevCardInfo(card.type).icon+' '+getDevCardInfo(card.type).name);}updateAllUI();renderMap(mapData,canvas,mapHexSize);}
 function confirmActivateDevCard(index){if(gameState.roadBuildingMode>0||gameState.cardInProgress){showMessage('Спочатку завершіть поточну дію!');return;}const card=gameState.devHand[index];if(card.used)return;const info=getDevCardInfo(card.type);if(card.type.startsWith('vp_')){const overlay=document.createElement('div');overlay.className='confirm-overlay';overlay.innerHTML='<div class="confirm-box"><h3>📜 '+info.name+'</h3><p style="font-size:2em;color:#f1c40f;font-weight:bold;">+1 ПО</p><div class="confirm-btns"><button class="btn-yes" id="vpOk">✅ ОК</button></div></div>';document.body.appendChild(overlay);document.getElementById('vpOk').addEventListener('click',()=>overlay.remove());overlay.addEventListener('click',(e)=>{if(e.target===overlay)overlay.remove();});return;}const overlay=document.createElement('div');overlay.className='confirm-overlay';overlay.innerHTML='<div class="confirm-box"><h3>'+info.icon+' '+info.name+'</h3><p>Використати цю карту?</p><div class="confirm-btns"><button class="btn-yes" id="confirmYes">✅ Так</button><button class="btn-no" id="confirmNo">❌ Ні</button></div></div>';document.body.appendChild(overlay);document.getElementById('confirmYes').addEventListener('click',()=>{overlay.remove();activateDevCard(index);});document.getElementById('confirmNo').addEventListener('click',()=>overlay.remove());overlay.addEventListener('click',(e)=>{if(e.target===overlay)overlay.remove();});}
 function activateDevCard(index){const card=gameState.devHand[index];if(card.used)return;const bt=card.type.split('_')[0];switch(bt){case'knight':showMessage('⚔️ Рицар (функціонал вимкнено)');break;case'plenty':activateYearOfPlenty(index);break;case'monopoly':showMessage('👑 Монополія (функціонал в розробці)');break;case'roads':activateRoadBuilding(index);break;default:if(card.type.startsWith('vp_')){showMessage('📜 Карта перемоги (функціонал вимкнено)');}else{showMessage('Карта (в розробці)');}}}
 
@@ -1911,9 +1954,14 @@ function openTradeModal(){
         showMessage('Спочатку завершіть використання карт!');
         return;
     }
+    if(isMultiplayer&&!canPerformMultiplayerActions()){
+        showMessage(isMyTurn&&!canPerformActions?'Спочатку киньте кубики!':'Зараз не ваш хід!');
+        return;
+    }
     const pt=[];
     if(mapData&&vertexGeom) {
         for(const[vk,building]of gameState.settlements){
+            if(isMultiplayer && building.playerId !== myPlayerId) continue;
             const vert=vertexGeom.get(vk);
             if(!vert)continue;
             for(const h of vert.hexes){
@@ -2475,12 +2523,7 @@ function registerMultiplayerHandlers(client) {
     });
     client.onTurnEnded((data) => {
         console.log('Turn ended:', data);
-        const waitingOverlay = document.getElementById('waitingTurnOverlay');
-        if (waitingOverlay) waitingOverlay.style.display = 'none';
-        if (waitingDotsTimer) {
-            clearInterval(waitingDotsTimer);
-            waitingDotsTimer = null;
-        }
+        showWaitingForTurn({ currentPlayerId: data.nextPlayerId });
     });
     client.onActionError((data) => {
         console.log('Action error:', data);
@@ -3022,8 +3065,10 @@ function handleRegularDiceRoll() {
         d2.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[die2-1] + '</span>';
         document.getElementById('total').textContent = 'Сума: ' + total;
         
-        // Collect resources for ALL players' settlements near this number
-        showResourceNotification(collectResources(total));
+        // У мультиплеєрі ресурси нараховує сервер через collect-resources
+        if (!isMultiplayer) {
+            showResourceNotification(collectResources(total));
+        }
         
         // Show end turn button
         document.getElementById('endTurnBtn').style.display = 'inline-block';
@@ -3168,6 +3213,8 @@ setBuildMode = function(mode) {
         }
     } else if (initialPhase.active && initialPhase.phase === 'initial-build') {
         showMessage('Зараз не ваш хід!');
+    } else if (initialPhase.active && initialPhase.phase === 'dice-roll') {
+        showMessage('Спочатку киньте кубики для визначення черги!');
     } else {
         originalSetBuildMode(mode);
     }

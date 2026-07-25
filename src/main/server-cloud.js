@@ -643,6 +643,14 @@ io.on('connection', (socket) => {
             }
         }
         // ===== КІНЕЦЬ ВСТАВКИ =====
+        // VALIDATION: During initial build, only current builder can place
+        if (room.gamePhase === 'initial-build') {
+            const currentBuilderId = room.initialBuildOrder[room.currentInitialBuildIndex].playerId;
+            if (currentBuilderId !== socket.id) {
+                socket.emit('action-error', { message: 'Зараз не ваш хід!' });
+                return;
+            }
+        }
         // VALIDATION: During regular turn phase, check if it's this player's turn
         if (room.gamePhase === 'regular-turn') {
             const currentPlayerId = room.turnOrder[room.currentTurnIndex];
