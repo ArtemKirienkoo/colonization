@@ -2412,19 +2412,19 @@ function registerMultiplayerHandlers(client) {
         }
     });
     client.onStartDicePhase((data) => {
-    console.log('Отримано start-dice-phase:', data);
+    console.log('Отримано start-dice-phase:', data, ' myPlayerId=', myPlayerId, ' initialPhase=', initialPhase);
     startDicePhase(data);
     });
     client.onPlayerDiceRolled((data) => {
-        console.log('Player rolled:', data);
+        console.log('Player rolled:', data, ' myPlayerId=', myPlayerId, ' diceRolls=', initialPhase.diceRolls);
         onPlayerDiceRolled(data);
     });
     client.onInitialBuildStart((data) => {
-        console.log('Initial build started:', data);
+        console.log('Initial build started:', data, ' myPlayerId=', myPlayerId);
         onInitialBuildStart(data);
     });
     client.onInitialBuildNextPlayer((data) => {
-        console.log('Next player:', data);
+        console.log('Next player:', data, ' myPlayerId=', myPlayerId, ' initialPhase.canBuild=', initialPhase.canBuild);
         initialPhase.currentIndex = data.currentIndex || 0;
         
         const status = document.getElementById('buildPhaseStatus');
@@ -2459,7 +2459,7 @@ function registerMultiplayerHandlers(client) {
         onInitialBuildRound2Start(data);
     });
     client.onInitialBuildYourTurn((data) => {
-        console.log('Initial build - your turn:', data);
+        console.log('Initial build - your turn:', data, ' myPlayerId=', myPlayerId);
         initialPhase.canBuild = true;
         const status = document.getElementById('buildPhaseStatus');
         if (status) {
@@ -2468,7 +2468,7 @@ function registerMultiplayerHandlers(client) {
         }
     });
     client.onInitialBuildWaiting((data) => {
-        console.log('Initial build - waiting:', data);
+        console.log('Initial build - waiting:', data, ' myPlayerId=', myPlayerId);
         initialPhase.canBuild = false;
         const currentId = data.currentPlayerId;
         const playerInfo = data.order ? data.order.find(p => p.playerId === currentId) : null;
@@ -2481,7 +2481,7 @@ function registerMultiplayerHandlers(client) {
         setBuildMode('none');
     });
     client.onInitialBuildYourDone((data) => {
-        console.log('Initial build - your done:', data);
+        console.log('Initial build - your done:', data, ' myPlayerId=', myPlayerId);
         const status = document.getElementById('buildPhaseStatus');
         if (status) {
             status.textContent = '✅ Ви завершили будівництво! Чекайте інших гравців.';
@@ -2490,11 +2490,11 @@ function registerMultiplayerHandlers(client) {
         setBuildMode('none');
     });
     client.onYourTurn((data) => {
-        console.log('Your turn:', data);
+        console.log('Your turn:', data, ' myPlayerId=', myPlayerId);
         showYourTurn(data);
     });
     client.onWaitingForTurn((data) => {
-        console.log('Waiting for turn:', data);
+        console.log('Waiting for turn:', data, ' myPlayerId=', myPlayerId);
         showWaitingForTurn(data);
     });
     client.onRegularDiceRolled((data) => {
