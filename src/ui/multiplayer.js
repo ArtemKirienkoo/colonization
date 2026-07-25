@@ -206,6 +206,14 @@ class MultiplayerClient {
             console.warn('Не вдалося прочитати multiplayerPlayerId:', error);
         }
         this.socket.emit('rejoin-room', { roomCode, isHost, oldPlayerId });
+
+        // Fallback: request full game state in case any phase events were emitted
+        // before the client rejoined and missed them. Server will emit 'game-state-sync'.
+        try {
+            this.socket.emit('request-game-state', { roomCode });
+        } catch (e) {
+            // ignore
+        }
     }
 
     // Sync a building action to all players in the room (stores on server)

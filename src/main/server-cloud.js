@@ -234,6 +234,60 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Client can explicitly request current game state (fallback if events were missed)
+    socket.on('request-game-state', ({ roomCode }) => {
+        const room = rooms.get(roomCode);
+        if (!room) return;
+        // Only respond if this socket is a known player in the room
+        const player = room.players.find(p => p.id === socket.id);
+        if (!player) return;
+
+        // Send map and buildings always
+        if (room.gameState) socket.emit('game-started', { mapSeed: room.gameState });
+        if (room.buildings) {
+            socket.emit('sync-buildings', { buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val})) });
+        }
+
+        if (room.gamePhase === 'dice-roll') {
+            const diceRolls = Array.from(room.diceRolls.entries()).map(([playerId, total]) => ({ playerId, total }));
+            socket.emit('start-dice-phase', {
+                players: room.players.map(p => ({ id: p.id, name: p.name })),
+                diceRolls
+            });
+        } else if (room.gamePhase === 'initial-build') {
+            const currentPlayerId = room.initialBuildOrder[room.currentInitialBuildIndex]?.playerId;
+            const playerData = {
+                gamePhase: room.gamePhase,
+                currentPlayerId: currentPlayerId,
+                initialBuildOrder: room.initialBuildOrder,
+                currentIndex: room.currentInitialBuildIndex
+            };
+            socket.emit('game-state-sync', playerData);
+
+            if (currentPlayerId === socket.id) {
+                socket.emit('initial-build-your-turn', {
+                    playerId: socket.id,
+                    order: room.initialBuildOrder
+                });
+            } else if (currentPlayerId) {
+                const yourPosition = room.initialBuildOrder.findIndex(p => p.playerId === socket.id);
+                socket.emit('initial-build-waiting', {
+                    currentPlayerId: currentPlayerId,
+                    yourPosition: yourPosition,
+                    order: room.initialBuildOrder
+                });
+            }
+        } else if (room.gamePhase === 'regular-turn') {
+            const currentPlayerId = room.turnOrder[room.currentTurnIndex];
+            socket.emit('game-state-sync', { gamePhase: room.gamePhase, currentTurnPlayerId: currentPlayerId, turnOrder: room.turnOrder });
+            if (currentPlayerId === socket.id) {
+                socket.emit('your-turn', { playerId: currentPlayerId, mustRollDice: !room.turnState.diceRolled });
+            } else {
+                socket.emit('waiting-for-turn', { currentPlayerId: currentPlayerId, yourPosition: room.turnOrder.indexOf(socket.id) });
+            }
+        }
+    });
+
     // Change player color
     socket.on('change-color', ({ roomCode, playerId, color }) => {
         const room = rooms.get(roomCode);
