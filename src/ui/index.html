@@ -2685,7 +2685,7 @@ function startDicePhase(players) {
         }
         
         // Add click handler for roll button (2 dice)
-        newBtn.onclick = () => {
+        newBtn.addEventListener('click', function() {
             if (initialPhase.myRoll !== null) {
                 showMessage('Ви вже кинули кубики!');
                 return;
@@ -2726,9 +2726,10 @@ function startDicePhase(players) {
                 // Single player mode - simulate the roll
                 handleMyDiceRoll(total);
             }
-        };
+        });
     }
 }
+
 
 // Handle my dice roll (for single player or after server confirmation)
 function handleMyDiceRoll(total) {
