@@ -2327,6 +2327,7 @@ let mpClient = null;
 let isMultiplayer = false;
 let isHost = false;
 let roomCode = null;
+let myPlayerId = null;
 
 function registerMultiplayerHandlers(client) {
     client.onPlayerJoined((data) => {
@@ -2500,11 +2501,39 @@ function registerMultiplayerHandlers(client) {
     });
 }
 
+// ===== SINGLE PLAYER INITIAL PHASE =====
+function startSinglePlayerInitialPhase() {
+    if (isMultiplayer) return;
+    
+    myPlayerId = 'single_player';
+    initialPhase.active = true;
+    initialPhase.phase = 'initial-build';
+    initialPhaseBuildings = new Map();
+    initialPhaseBuildings.set(myPlayerId, { settlements: 0, roads: 0 });
+    
+    const overlay = document.getElementById('buildPhaseOverlay');
+    const info = document.getElementById('buildPhaseInfo');
+    const status = document.getElementById('buildPhaseStatus');
+    const endBtn = document.getElementById('initialBuildEndTurnBtn');
+    
+    if (overlay) overlay.style.display = 'flex';
+    if (info) info.textContent = '🏗️ Початкове будівництво: побудуйте 1 село та 2 дороги';
+    if (status) {
+        status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
+        status.style.color = '#27ae60';
+    }
+    if (endBtn) endBtn.style.display = 'none';
+    
+    initialPhase.canBuild = true;
+}
+
 // Initialize multiplayer if needed
 function initMultiplayer() {
     const urlParams = getUrlParams();
     if (urlParams.mode !== 'multiplayer') {
         console.log('Single player mode - skipping multiplayer init');
+        // Start single player initial phase
+        setTimeout(() => startSinglePlayerInitialPhase(), 500);
         return Promise.resolve();
     }
     
@@ -2611,9 +2640,6 @@ function sendGameAction(action, data) {
 
 // Call init on load
 initMultiplayer();
-
-// ===== INITIAL PHASE MANAGEMENT =====
-let myPlayerId = null;
 
 // Get my player ID from socket
 function getMyPlayerId() {
@@ -3062,9 +3088,6 @@ function canBuildPieceInitial(t) {
         default: return false;
     }
 }
-
-// Track initial phase buildings PER PLAYER (playerId -> {settlements, roads})
-let initialPhaseBuildings = new Map();
 
 // Override building functions to track initial phase
 const originalSetBuildMode = setBuildMode;
