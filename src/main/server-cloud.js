@@ -127,66 +127,34 @@ io.on('connection', (socket) => {
     // The room still exists because we DON'T delete it on disconnect during game
     socket.on('rejoin-room', ({ roomCode, isHost }) => {
         const room = rooms.get(roomCode);
-        
-        if (!room) {
-            // Room was somehow deleted (unlikely now), reject
-            console.log(`Player ${socket.id} tried to rejoin non-existent room ${roomCode}`);
-            return;
-        }
-        
-        if (isHost) {
-            room.host = socket.id;
-        }
-        
-        // Check if this player already exists (from a previous reconnect)
+        if (!room) return;
+
+        if (isHost) room.host = socket.id;
         let existingPlayer = room.players.find(p => p.id === socket.id);
         if (!existingPlayer) {
-            // Player not in room, add them
-            room.players.push({
-                id: socket.id,
-                name: 'Гравець',
-                isHost: isHost
-            });
-        } else {
-            // Update the existing player entry
-            existingPlayer.isHost = isHost;
+            room.players.push({ id: socket.id, name: 'Гравець', isHost: isHost });
         }
-        
         socket.join(roomCode);
-        console.log(`Player ${socket.id} rejoined room ${roomCode} (host: ${isHost})`);
         
-        // Send the stored game state (map + buildings) to the rejoining player
-        if (room.gameState) {
-            socket.emit('game-started', { mapSeed: room.gameState });
-        }
-        
-        // Also send current buildings if any (stored separately in room)
+        // Завжди надсилаємо карту та будівлі
+        if (room.gameState) socket.emit('game-started', { mapSeed: room.gameState });
         if (room.buildings) {
             socket.emit('sync-buildings', { buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val})) });
         }
 
-        // Send game state sync if in progress
-        if (room.gamePhase === 'regular-turn') {
-            const currentPlayerId = room.turnOrder[room.currentTurnIndex];
-            socket.emit('game-state-sync', {
-                gamePhase: room.gamePhase,
-                currentTurnPlayerId: currentPlayerId,
-                turnOrder: room.turnOrder,
-                buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
-            });
+        // ===== ЗМІНЕНО ТУТ =====
+        // Якщо фаза 'dice-roll' активна, але цей гравець ЩЕ НЕ кинув кубики - надсилаємо йому вікно
+        if (room.gamePhase === 'dice-roll' && !room.diceRolls.has(socket.id)) {
+            socket.emit('start-dice-phase', { players: room.players.map(p => ({ id: p.id, name: p.name })) });
         } else if (room.gamePhase === 'initial-build') {
+            // Якщо фаза будівництва - надсилаємо стан фази будівництва
             const currentPlayerId = room.initialBuildOrder[room.currentInitialBuildIndex]?.playerId;
-            socket.emit('game-state-sync', {
-                gamePhase: room.gamePhase,
-                currentPlayerId: currentPlayerId,
-                initialBuildOrder: room.initialBuildOrder,
-                currentIndex: room.currentInitialBuildIndex,
-                buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
-            });
-        } else if (room.gamePhase === 'dice-roll') {
-            socket.emit('start-dice-phase', {
-                players: room.players.map(p => ({ id: p.id, name: p.name }))
-            });
+            const playerData = { currentPlayerId, order: room.initialBuildOrder, currentIndex: room.currentInitialBuildIndex };
+            socket.emit('game-state-sync', { gamePhase: room.gamePhase, ...playerData });
+        } else if (room.gamePhase === 'regular-turn') {
+            // Звичайна гра
+            const currentPlayerId = room.turnOrder[room.currentTurnIndex];
+            socket.emit('game-state-sync', { gamePhase: room.gamePhase, currentTurnPlayerId: currentPlayerId, turnOrder: room.turnOrder });
         }
     });
 

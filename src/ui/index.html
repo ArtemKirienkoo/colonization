@@ -1734,18 +1734,30 @@ function showMessage(msg){const te=document.getElementById('total'),ot=te.textCo
 function setBuildMode(mode){if(gameState.roadBuildingMode>0){showMessage('🛤️ Спочатку завершіть карту "Дороги"!');return;}document.querySelectorAll('.build-btn').forEach(b=>b.classList.remove('active'));buildMode=mode;if(mode!=='none'){const btn=document.querySelector(`.build-btn[data-mode="${mode}"]`);if(btn)btn.classList.add('active');canvas.classList.add('crosshair');}else canvas.classList.remove('crosshair');hoverEdge=null;hoverVertex=null;if(mapData)renderMap(mapData,canvas,mapHexSize);}
 document.querySelectorAll('.build-btn').forEach(b=>{b.addEventListener('click',()=>{audioManager.playBuildSound();setBuildMode(b.dataset.mode);});});
 function isInitialPhaseComplete() {
-    // Якщо initial-phase НЕ активна або завершена - пропускаємо перевірку (regular-turn або одиночна)
-    if (!initialPhase.active || initialPhase.phase === 'complete' || initialPhase.phase === 'none') {
+    if (isMultiplayer) {
+        // У мультиплеєрі перевіряємо свої будівлі через gameState
+        let mySettlements = 0, myRoads = 0;
+        for (const [, bld] of gameState.settlements) {
+            if (bld.playerId === myPlayerId) mySettlements++;
+        }
+        for (const [, roadData] of gameState.roads) {
+            if (roadData.playerId === myPlayerId) myRoads++;
+        }
+        
+        // Якщо ми в фазі початкового будівництва
+        if (initialPhase.active && initialPhase.phase === 'initial-build') {
+            return mySettlements >= INITIAL_SETTLEMENT_LIMIT && myRoads >= INITIAL_ROAD_LIMIT;
+        }
         return true;
+    } else {
+        // Стара логіка для одиночної гри (без змін)
+        if (!initialPhase.active || initialPhase.phase === 'complete' || initialPhase.phase === 'none') return true;
+        if (initialPhase.phase === 'initial-build') {
+            const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
+            return myBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && myBuildings.roads >= INITIAL_ROAD_LIMIT;
+        }
+        return false;
     }
-    // Під час початкового будівництва - перевіряємо чи поточний гравець завершив
-    if (initialPhase.phase === 'initial-build') {
-        const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
-        return myBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && 
-               myBuildings.roads >= INITIAL_ROAD_LIMIT;
-    }
-    // Фаза кидання кубиків - ще не будували
-    return false;
 }
 function canRollDice() {
     // Під час фази кидання кубиків (початкова) - дозволяємо через overlay
@@ -3117,11 +3129,8 @@ setBuildMode = function(mode) {
 // Check if initial phase is complete for current player
 function checkInitialPhaseComplete() {
     if (initialPhase.active && initialPhase.phase === 'initial-build') {
-        const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
-        if (myBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && 
-            myBuildings.roads >= INITIAL_ROAD_LIMIT) {
-            
-            // Show the end turn button
+        // Використовуємо нову функцію isInitialPhaseComplete()
+        if (isInitialPhaseComplete()) {
             const endBtn = document.getElementById('initialBuildEndTurnBtn');
             if (endBtn) {
                 endBtn.style.display = 'inline-block';
@@ -3129,7 +3138,6 @@ function checkInitialPhaseComplete() {
                 status.textContent = '✅ Побудовано! Натисніть "Завершити хід"';
                 status.style.color = '#27ae60';
             }
-            
             setBuildMode('none');
         }
     }
