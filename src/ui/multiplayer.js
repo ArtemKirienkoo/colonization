@@ -211,8 +211,9 @@ class MultiplayerClient {
         // Fallback: request full game state in case any phase events were emitted
         // before the client rejoined and missed them. Server will emit 'game-state-sync'.
         try {
-            console.log('[MultiplayerClient] request-game-state', { roomCode, socketId: this.socket?.id });
-            this.socket.emit('request-game-state', { roomCode });
+            const oldPlayerId = sessionStorage.getItem('multiplayerPlayerId');
+            console.log('[MultiplayerClient] request-game-state', { roomCode, socketId: this.socket?.id, oldPlayerId });
+            this.socket.emit('request-game-state', { roomCode, oldPlayerId });
         } catch (e) {
             console.warn('[MultiplayerClient] request-game-state failed', e);
         }

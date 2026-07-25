@@ -235,13 +235,50 @@ io.on('connection', (socket) => {
     });
 
     // Client can explicitly request current game state (fallback if events were missed)
-    socket.on('request-game-state', ({ roomCode }) => {
-        console.log('[server] request-game-state', { roomCode, socketId: socket.id });
+    socket.on('request-game-state', ({ roomCode, oldPlayerId }) => {
+        console.log('[server] request-game-state', { roomCode, socketId: socket.id, oldPlayerId });
         const room = rooms.get(roomCode);
         if (!room) return;
-        // Only respond if this socket is a known player in the room
-        const player = room.players.find(p => p.id === socket.id);
-        if (!player) return;
+
+        // Ensure this socket is in the room or can be mapped from the old player ID
+        let player = room.players.find(p => p.id === socket.id);
+        if (!player && oldPlayerId) {
+            const oldPlayerIndex = room.players.findIndex(p => p.id === oldPlayerId);
+            if (oldPlayerIndex !== -1) {
+                room.players[oldPlayerIndex].id = socket.id;
+                player = room.players[oldPlayerIndex];
+                console.log('[server] request-game-state: mapped old player ID to new socket ID', { oldPlayerId, newSocketId: socket.id });
+
+                if (room.turnOrder) {
+                    room.turnOrder = room.turnOrder.map(pid => pid === oldPlayerId ? socket.id : pid);
+                }
+                if (room.initialBuildOrder) {
+                    room.initialBuildOrder = room.initialBuildOrder.map(item => item.playerId === oldPlayerId ? { ...item, playerId: socket.id } : item);
+                }
+                if (room.diceRolls && room.diceRolls.has(oldPlayerId)) {
+                    const roll = room.diceRolls.get(oldPlayerId);
+                    room.diceRolls.delete(oldPlayerId);
+                    room.diceRolls.set(socket.id, roll);
+                }
+                if (room.initialBuildProgress && room.initialBuildProgress.has(oldPlayerId)) {
+                    const progress = room.initialBuildProgress.get(oldPlayerId);
+                    room.initialBuildProgress.delete(oldPlayerId);
+                    room.initialBuildProgress.set(socket.id, progress);
+                }
+                if (room.buildings) {
+                    for (const [key, building] of room.buildings.entries()) {
+                        if (building.playerId === oldPlayerId) {
+                            room.buildings.set(key, { ...building, playerId: socket.id });
+                        }
+                    }
+                }
+                socket.join(roomCode);
+            }
+        }
+        if (!player) {
+            console.warn('[server] request-game-state: player not found in room', { roomCode, socketId: socket.id, oldPlayerId });
+            return;
+        }
 
         // Send map and buildings always
         if (room.gameState) socket.emit('game-started', { mapSeed: room.gameState });
