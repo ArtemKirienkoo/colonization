@@ -2352,8 +2352,8 @@ function registerMultiplayerHandlers(client) {
         }
     });
     client.onStartDicePhase((data) => {
-        console.log('Dice phase started:', data);
-        startDicePhase(data.players);
+    console.log('Отримано start-dice-phase:', data);
+    startDicePhase(data.players);
     });
     client.onPlayerDiceRolled((data) => {
         console.log('Player rolled:', data);
@@ -2651,6 +2651,7 @@ function getMyPlayerId() {
 
 // Start dice phase
 function startDicePhase(players) {
+    console.log('startDicePhase викликано, players:', players);
     const rollBtn = document.getElementById('rollBtn');
     if (rollBtn) rollBtn.disabled = true;
 
@@ -2660,74 +2661,73 @@ function startDicePhase(players) {
     initialPhase.myRoll = null;
     initialPhase.totalPlayers = players ? players.length : 0;
     myPlayerId = getMyPlayerId();
-    
-    // Show dice phase overlay
+    console.log('myPlayerId:', myPlayerId);
+
     const overlay = document.getElementById('dicePhaseOverlay');
     const status = document.getElementById('dicePhaseStatus');
     const results = document.getElementById('dicePhaseResults');
     const initialRollBtn = document.getElementById('rollDiceInitialBtn');
-    
+
     overlay.style.display = 'flex';
     status.textContent = '🎲 Киньте кубики для визначення черги!';
     status.style.color = '#f1c40f';
     results.innerHTML = '';
-    
-    // Enable roll button
-    if (initialRollBtn) {
-        initialRollBtn.disabled = false;
-        initialRollBtn.style.opacity = '1';
-        initialRollBtn.style.cursor = 'pointer';
-        
-        // Remove any existing event listeners by cloning
-        const newBtn = initialRollBtn.cloneNode(true);
-        if (initialRollBtn.parentNode) {
-            initialRollBtn.parentNode.replaceChild(newBtn, initialRollBtn);
+
+    // Видаляємо старі обробники, щоб уникнути дублювання
+    // Просто замінюємо кнопку на нову (без клонування)
+    const newBtn = document.createElement('button');
+    newBtn.id = 'rollDiceInitialBtn';
+    newBtn.style.cssText = 'padding: 15px 40px; font-size: 1.2em; background: linear-gradient(135deg, #9b59b6, #8e44ad); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold;';
+    newBtn.textContent = '🎲 Кинути кубики';
+    // Замінюємо стару кнопку
+    initialRollBtn.parentNode.replaceChild(newBtn, initialRollBtn);
+
+    // Додаємо обробник кліку
+    newBtn.addEventListener('click', function() {
+        console.log('Кнопка кидання натиснута');
+        if (initialPhase.myRoll !== null) {
+            showMessage('Ви вже кинули кубики!');
+            return;
         }
-        
-        // Add click handler for roll button (2 dice)
-        newBtn.addEventListener('click', function() {
-            if (initialPhase.myRoll !== null) {
-                showMessage('Ви вже кинули кубики!');
-                return;
-            }
-            
-            // Roll 2 dice (1-6 each)
-            const die1 = Math.floor(Math.random() * 6) + 1;
-            const die2 = Math.floor(Math.random() * 6) + 1;
-            const total = die1 + die2;
-            initialPhase.myRoll = total;
-            
-            // Show dice animation with rolling effect
-            const die1El = document.getElementById('initialDie1');
-            const die2El = document.getElementById('initialDie2');
+
+        const die1 = Math.floor(Math.random() * 6) + 1;
+        const die2 = Math.floor(Math.random() * 6) + 1;
+        const total = die1 + die2;
+        initialPhase.myRoll = total;
+        console.log('Кидок:', die1, die2, 'сума:', total);
+
+        // Анімація
+        const die1El = document.getElementById('initialDie1');
+        const die2El = document.getElementById('initialDie2');
+        if (die1El && die2El) {
             die1El.style.animation = 'roll 0.8s cubic-bezier(0.3, 0.7, 0.5, 1.5)';
             die2El.style.animation = 'roll 0.8s cubic-bezier(0.3, 0.7, 0.5, 1.5)';
-            
             setTimeout(() => {
                 die1El.textContent = '⚀⚁⚂⚃⚄⚅'[die1-1];
                 die2El.textContent = '⚀⚁⚂⚃⚄⚅'[die2-1];
                 die1El.style.animation = '';
                 die2El.style.animation = '';
             }, 800);
-            
-            // Update status
-            status.textContent = '✅ Ви кинули кубики! Очікування інших гравців...';
-            status.style.color = '#27ae60';
-            
-            // Disable button
-            newBtn.disabled = true;
-            newBtn.style.opacity = '0.5';
-            newBtn.style.cursor = 'not-allowed';
-            
-            // Send to server
-            if (multiplayerClient && isMultiplayer) {
-                multiplayerClient.rollDiceInitial(die1, die2);
-            } else {
-                // Single player mode - simulate the roll
-                handleMyDiceRoll(total);
-            }
-        });
-    }
+        }
+
+        status.textContent = '✅ Ви кинули кубики! Очікування інших гравців...';
+        status.style.color = '#27ae60';
+        newBtn.disabled = true;
+        newBtn.style.opacity = '0.5';
+        newBtn.style.cursor = 'not-allowed';
+
+        // Надсилаємо на сервер (якщо мультиплеєр)
+        if (multiplayerClient && isMultiplayer) {
+            console.log('Надсилання кидка на сервер');
+            multiplayerClient.rollDiceInitial(die1, die2);
+        } else {
+            // Однокористувацький режим
+            handleMyDiceRoll(total);
+        }
+    });
+
+    // Переконуємося, що оверлей видимий
+    overlay.style.display = 'flex';
 }
 
 
