@@ -2652,14 +2652,14 @@ function initMultiplayer() {
         .then(() => {
             console.log('Successfully connected to server');
             mySocketId = mpClient.socket.id;
-            myPlayerId = getMyPlayerId();
-            console.log('My socket ID:', mySocketId, 'My player ID:', myPlayerId);
             
-            // Set multiplayer flags
+            // Set multiplayer flags before reading the player ID
             multiplayerClient = mpClient;
             isMultiplayer = true;
             isHost = urlParams.host;
             roomCode = urlParams.code;
+            myPlayerId = mySocketId;
+            console.log('My socket ID:', mySocketId, 'My player ID:', myPlayerId);
             
             // Rejoin the room after navigation
             if (urlParams.code) {
@@ -2745,9 +2745,9 @@ function sendGameAction(action, data) {
 // Call init on load
 initMultiplayer();
 
-// Get my player ID from socket
+// Get my player ID from socket or stored reconnect ID
 function getMyPlayerId() {
-    if (multiplayerClient && multiplayerClient.socket) {
+    if (multiplayerClient && multiplayerClient.socket && multiplayerClient.socket.id) {
         return multiplayerClient.socket.id;
     }
     return null;
