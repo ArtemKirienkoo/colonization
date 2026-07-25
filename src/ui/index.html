@@ -2647,53 +2647,61 @@ function startDicePhase(players) {
     results.innerHTML = '';
     
     // Enable roll button
-    initialRollBtn.disabled = false;
-    initialRollBtn.style.opacity = '1';
-    initialRollBtn.style.cursor = 'pointer';
-    
-    // Add click handler for roll button (2 dice)
-    initialRollBtn.onclick = () => {
-        if (initialPhase.myRoll !== null) {
-            showMessage('Ви вже кинули кубики!');
-            return;
+    if (initialRollBtn) {
+        initialRollBtn.disabled = false;
+        initialRollBtn.style.opacity = '1';
+        initialRollBtn.style.cursor = 'pointer';
+        
+        // Remove any existing event listeners by cloning
+        const newBtn = initialRollBtn.cloneNode(true);
+        if (initialRollBtn.parentNode) {
+            initialRollBtn.parentNode.replaceChild(newBtn, initialRollBtn);
         }
         
-        // Roll 2 dice (1-6 each)
-        const die1 = Math.floor(Math.random() * 6) + 1;
-        const die2 = Math.floor(Math.random() * 6) + 1;
-        const total = die1 + die2;
-        initialPhase.myRoll = total;
-        
-        // Show dice animation with rolling effect
-        const die1El = document.getElementById('initialDie1');
-        const die2El = document.getElementById('initialDie2');
-        die1El.style.animation = 'roll 0.8s cubic-bezier(0.3, 0.7, 0.5, 1.5)';
-        die2El.style.animation = 'roll 0.8s cubic-bezier(0.3, 0.7, 0.5, 1.5)';
-        
-        setTimeout(() => {
-            die1El.textContent = '⚀⚁⚂⚃⚄⚅'[die1-1];
-            die2El.textContent = '⚀⚁⚂⚃⚄⚅'[die2-1];
-            die1El.style.animation = '';
-            die2El.style.animation = '';
-        }, 800);
-        
-        // Update status
-        status.textContent = '✅ Ви кинули кубики! Очікування інших гравців...';
-        status.style.color = '#27ae60';
-        
-        // Disable button
-        initialRollBtn.disabled = true;
-        initialRollBtn.style.opacity = '0.5';
-        initialRollBtn.style.cursor = 'not-allowed';
-        
-        // Send to server
-        if (multiplayerClient && isMultiplayer) {
-            multiplayerClient.rollDiceInitial(die1, die2);
-        } else {
-            // Single player mode - simulate the roll
-            handleMyDiceRoll(total);
-        }
-    };
+        // Add click handler for roll button (2 dice)
+        newBtn.onclick = () => {
+            if (initialPhase.myRoll !== null) {
+                showMessage('Ви вже кинули кубики!');
+                return;
+            }
+            
+            // Roll 2 dice (1-6 each)
+            const die1 = Math.floor(Math.random() * 6) + 1;
+            const die2 = Math.floor(Math.random() * 6) + 1;
+            const total = die1 + die2;
+            initialPhase.myRoll = total;
+            
+            // Show dice animation with rolling effect
+            const die1El = document.getElementById('initialDie1');
+            const die2El = document.getElementById('initialDie2');
+            die1El.style.animation = 'roll 0.8s cubic-bezier(0.3, 0.7, 0.5, 1.5)';
+            die2El.style.animation = 'roll 0.8s cubic-bezier(0.3, 0.7, 0.5, 1.5)';
+            
+            setTimeout(() => {
+                die1El.textContent = '⚀⚁⚂⚃⚄⚅'[die1-1];
+                die2El.textContent = '⚀⚁⚂⚃⚄⚅'[die2-1];
+                die1El.style.animation = '';
+                die2El.style.animation = '';
+            }, 800);
+            
+            // Update status
+            status.textContent = '✅ Ви кинули кубики! Очікування інших гравців...';
+            status.style.color = '#27ae60';
+            
+            // Disable button
+            newBtn.disabled = true;
+            newBtn.style.opacity = '0.5';
+            newBtn.style.cursor = 'not-allowed';
+            
+            // Send to server
+            if (multiplayerClient && isMultiplayer) {
+                multiplayerClient.rollDiceInitial(die1, die2);
+            } else {
+                // Single player mode - simulate the roll
+                handleMyDiceRoll(total);
+            }
+        };
+    }
 }
 
 // Handle my dice roll (for single player or after server confirmation)

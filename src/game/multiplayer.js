@@ -105,6 +105,20 @@ class MultiplayerClient {
         this.socket.emit('start-game', { roomCode: this.roomCode });
     }
 
+    // Roll dice during initial phase
+    rollDiceInitial(die1, die2) {
+        if (!this.socket || !this.roomCode) {
+            console.error('Cannot roll dice: not connected or not in a room');
+            return;
+        }
+        this.socket.emit('dice-roll', {
+            roomCode: this.roomCode,
+            playerId: this.socket.id,
+            die1: die1,
+            die2: die2
+        });
+    }
+
     // Store map state (host sends map to server)
     storeMap(mapData) {
         if (!this.isHost) return;
