@@ -54,6 +54,11 @@ class MultiplayerClient {
                 clearTimeout(timeout);
                 this.connected = true;
                 console.log('Підключено до сервера:', this.socket.id);
+                try {
+                    sessionStorage.setItem('multiplayerPlayerId', this.socket.id);
+                } catch (error) {
+                    console.warn('Не вдалося зберегти multiplayerPlayerId:', error);
+                }
                 resolve();
             });
 
@@ -174,7 +179,13 @@ class MultiplayerClient {
     rejoinRoom(roomCode, isHost) {
         this.roomCode = roomCode;
         this.isHost = isHost;
-        this.socket.emit('rejoin-room', { roomCode, isHost });
+        let oldPlayerId = null;
+        try {
+            oldPlayerId = sessionStorage.getItem('multiplayerPlayerId');
+        } catch (error) {
+            console.warn('Не вдалося прочитати multiplayerPlayerId:', error);
+        }
+        this.socket.emit('rejoin-room', { roomCode, isHost, oldPlayerId });
     }
 
     // Sync a building action to all players in the room (stores on server)

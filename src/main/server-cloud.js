@@ -125,9 +125,52 @@ io.on('connection', (socket) => {
 
     // Rejoin room after page navigation (when game starts)
     // The room still exists because we DON'T delete it on disconnect during game
-    socket.on('rejoin-room', ({ roomCode, isHost }) => {
+    socket.on('rejoin-room', ({ roomCode, isHost, oldPlayerId }) => {
         const room = rooms.get(roomCode);
         if (!room) return;
+
+        // If reconnecting from a previous socket, keep the same player record and update room state references
+        if (oldPlayerId) {
+            const oldPlayerIndex = room.players.findIndex(p => p.id === oldPlayerId);
+            if (oldPlayerIndex !== -1) {
+                room.players[oldPlayerIndex].id = socket.id;
+                room.players[oldPlayerIndex].disconnected = false;
+                room.players[oldPlayerIndex].disconnected = false;
+            }
+
+            if (room.turnOrder) {
+                room.turnOrder = room.turnOrder.map(pid => pid === oldPlayerId ? socket.id : pid);
+            }
+
+            if (room.initialBuildOrder) {
+                room.initialBuildOrder = room.initialBuildOrder.map(item => {
+                    if (item.playerId === oldPlayerId) {
+                        return { ...item, playerId: socket.id };
+                    }
+                    return item;
+                });
+            }
+
+            if (room.diceRolls && room.diceRolls.has(oldPlayerId)) {
+                const roll = room.diceRolls.get(oldPlayerId);
+                room.diceRolls.delete(oldPlayerId);
+                room.diceRolls.set(socket.id, roll);
+            }
+
+            if (room.initialBuildProgress && room.initialBuildProgress.has(oldPlayerId)) {
+                const progress = room.initialBuildProgress.get(oldPlayerId);
+                room.initialBuildProgress.delete(oldPlayerId);
+                room.initialBuildProgress.set(socket.id, progress);
+            }
+
+            if (room.buildings) {
+                for (const [key, building] of room.buildings.entries()) {
+                    if (building.playerId === oldPlayerId) {
+                        room.buildings.set(key, { ...building, playerId: socket.id });
+                    }
+                }
+            }
+        }
 
         if (isHost) room.host = socket.id;
         let existingPlayer = room.players.find(p => p.id === socket.id);
@@ -143,9 +186,13 @@ io.on('connection', (socket) => {
         }
 
         // ===== ЗМІНЕНО ТУТ =====
-        // Якщо фаза 'dice-roll' активна, але цей гравець ЩЕ НЕ кинув кубики - надсилаємо йому вікно
-        if (room.gamePhase === 'dice-roll' && !room.diceRolls.has(socket.id)) {
-            socket.emit('start-dice-phase', { players: room.players.map(p => ({ id: p.id, name: p.name })) });
+        // Якщо фаза 'dice-roll' активна, надсилаємо стан кидків для відновлення після перезавантаження
+        if (room.gamePhase === 'dice-roll') {
+            const diceRolls = Array.from(room.diceRolls.entries()).map(([playerId, total]) => ({ playerId, total }));
+            socket.emit('start-dice-phase', {
+                players: room.players.map(p => ({ id: p.id, name: p.name })),
+                diceRolls
+            });
         } else if (room.gamePhase === 'initial-build') {
             const currentPlayerId = room.initialBuildOrder[room.currentInitialBuildIndex]?.playerId;
             
@@ -179,6 +226,11 @@ io.on('connection', (socket) => {
             // Звичайна гра
             const currentPlayerId = room.turnOrder[room.currentTurnIndex];
             socket.emit('game-state-sync', { gamePhase: room.gamePhase, currentTurnPlayerId: currentPlayerId, turnOrder: room.turnOrder });
+            if (currentPlayerId === socket.id) {
+                socket.emit('your-turn', { playerId: currentPlayerId, mustRollDice: !room.turnState.diceRolled });
+            } else {
+                socket.emit('waiting-for-turn', { currentPlayerId: currentPlayerId, yourPosition: room.turnOrder.indexOf(socket.id) });
+            }
         }
     });
 
@@ -642,6 +694,18 @@ io.on('connection', (socket) => {
                 }
             }
         }
+
+        if (room.gamePhase === 'initial-build') {
+            const progress = room.initialBuildProgress.get(socket.id) || { settlements: 0, roads: 0 };
+            if (type === 'settlement' && progress.settlements >= 1) {
+                socket.emit('action-error', { message: 'Ви вже побудували 1 поселення під час початкового будівництва!' });
+                return;
+            }
+            if (type === 'road' && progress.roads >= 2) {
+                socket.emit('action-error', { message: 'Ви вже побудували 2 дороги під час початкового будівництва!' });
+                return;
+            }
+        }
         // ===== КІНЕЦЬ ВСТАВКИ =====
         // VALIDATION: During initial build, only current builder can place
         if (room.gamePhase === 'initial-build') {
@@ -674,6 +738,13 @@ io.on('connection', (socket) => {
             edgeKey: data.edgeKey,
             vertexKey: data.vertexKey
         });
+
+        if (room.gamePhase === 'initial-build') {
+            const progress = room.initialBuildProgress.get(socket.id) || { settlements: 0, roads: 0 };
+            if (type === 'settlement') progress.settlements++;
+            if (type === 'road') progress.roads++;
+            room.initialBuildProgress.set(socket.id, progress);
+        }
         
         // Broadcast to all players in room (including sender for confirmation)
         io.to(roomCode).emit('building-synced', {
@@ -724,23 +795,33 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         console.log('Player disconnected:', socket.id);
         
-        // IMPORTANT: We do NOT delete rooms on disconnect anymore!
-        // The room stays alive so players can rejoin after page navigation.
-        // Just remove the player from the room's player list.
         rooms.forEach((room, code) => {
             const playerIndex = room.players.findIndex(p => p.id === socket.id);
-            if (playerIndex !== -1) {
+            if (playerIndex === -1) return;
+            const player = room.players[playerIndex];
+            
+            if (!room.gamePhase) {
                 room.players.splice(playerIndex, 1);
-                
-                // Notify remaining players that this player left (temporarily)
+                if (room.host === socket.id && room.players.length > 0) {
+                    room.host = room.players[0].id;
+                    room.players[0].isHost = true;
+                }
+                if (room.players.length === 0) {
+                    rooms.delete(code);
+                    return;
+                }
                 io.to(code).emit('player-left', {
                     playerId: socket.id,
                     players: room.players
                 });
+            } else {
+                player.disconnected = true;
+                socket.to(code).emit('player-disconnected', {
+                    playerId: socket.id
+                });
             }
         });
         
-        // Update room list
         io.emit('rooms-list', getRoomsList());
     });
 });

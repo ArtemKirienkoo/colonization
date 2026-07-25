@@ -64,7 +64,7 @@
             height: 100%;
         }
         canvas.crosshair {
-            /* Still uses global cursor - no override needed */
+            cursor: crosshair;
         }
         
         /* Legacy cursor classes (kept for reference) */
@@ -2413,7 +2413,7 @@ function registerMultiplayerHandlers(client) {
     });
     client.onStartDicePhase((data) => {
     console.log('Отримано start-dice-phase:', data);
-    startDicePhase(data.players);
+    startDicePhase(data);
     });
     client.onPlayerDiceRolled((data) => {
         console.log('Player rolled:', data);
@@ -2546,6 +2546,7 @@ function registerMultiplayerHandlers(client) {
     });
     client.onGameStateSync((data) => {
         console.log('Game state sync:', data);
+        myPlayerId = getMyPlayerId();
         if (data.gamePhase === 'regular-turn') {
             initialPhase.active = false;
             initialPhase.phase = 'complete';
@@ -2651,7 +2652,8 @@ function initMultiplayer() {
         .then(() => {
             console.log('Successfully connected to server');
             mySocketId = mpClient.socket.id;
-            console.log('My socket ID:', mySocketId);
+            myPlayerId = getMyPlayerId();
+            console.log('My socket ID:', mySocketId, 'My player ID:', myPlayerId);
             
             // Set multiplayer flags
             multiplayerClient = mpClient;
@@ -2752,8 +2754,8 @@ function getMyPlayerId() {
 }
 
 // Start dice phase
-function startDicePhase(players) {
-    console.log('startDicePhase викликано, players:', players);
+function startDicePhase(data) {
+    console.log('startDicePhase викликано, data:', data);
     const rollBtn = document.getElementById('rollBtn');
     if (rollBtn) rollBtn.disabled = true;
 
@@ -2761,9 +2763,17 @@ function startDicePhase(players) {
     initialPhase.phase = 'dice-roll';
     initialPhase.diceRolls = new Map();
     initialPhase.myRoll = null;
-    initialPhase.totalPlayers = players ? players.length : 0;
+    const players = Array.isArray(data) ? data : (data?.players || []);
+    initialPhase.totalPlayers = players.length;
     myPlayerId = getMyPlayerId();
     console.log('myPlayerId:', myPlayerId);
+
+    if (data && Array.isArray(data.diceRolls)) {
+        initialPhase.diceRolls = new Map(data.diceRolls.map(item => [item.playerId, item.total]));
+        if (initialPhase.diceRolls.has(myPlayerId)) {
+            initialPhase.myRoll = initialPhase.diceRolls.get(myPlayerId);
+        }
+    }
 
     const overlay = document.getElementById('dicePhaseOverlay');
     const status = document.getElementById('dicePhaseStatus');
@@ -2774,6 +2784,13 @@ function startDicePhase(players) {
     status.textContent = '🎲 Киньте кубики для визначення черги!';
     status.style.color = '#f1c40f';
     results.innerHTML = '';
+
+    if (data.diceRolls) {
+        initialPhase.diceRolls = new Map(data.diceRolls.map(item => [item.playerId, item.total]));
+        if (initialPhase.diceRolls.has(myPlayerId)) {
+            initialPhase.myRoll = initialPhase.diceRolls.get(myPlayerId);
+        }
+    }
 
     // Видаляємо старі обробники, щоб уникнути дублювання
     // Просто замінюємо кнопку на нову (без клонування)
@@ -2827,6 +2844,10 @@ function startDicePhase(players) {
             handleMyDiceRoll(total);
         }
     });
+
+    if (data.diceRolls) {
+        updateDicePhaseUI();
+    }
 
     // Переконуємося, що оверлей видимий
     overlay.style.display = 'flex';
@@ -2993,6 +3014,7 @@ function showYourTurn(data) {
     isMyTurn = true;
     hasRolledThisTurn = false;
     canPerformActions = false;
+    currentTurnPlayerId = data?.playerId || myPlayerId;
     
     // Hide waiting overlay if visible
     document.getElementById('waitingTurnOverlay').style.display = 'none';
@@ -3001,11 +3023,19 @@ function showYourTurn(data) {
         waitingDotsTimer = null;
     }
     
+    // Enable roll button for this player
+    const rollBtn = document.getElementById('rollBtn');
+    if (rollBtn) {
+        rollBtn.disabled = false;
+        rollBtn.style.opacity = '1';
+        rollBtn.style.cursor = 'pointer';
+    }
+    
     // Show the "Your Turn" overlay
     const overlay = document.getElementById('yourTurnOverlay');
     overlay.style.display = 'flex';
     
-    // Show end turn button
+    // Hide end turn button until after roll
     document.getElementById('endTurnBtn').style.display = 'none';
 }
 
@@ -3014,11 +3044,20 @@ function showWaitingForTurn(data) {
     isMyTurn = false;
     hasRolledThisTurn = false;
     canPerformActions = false;
+    currentTurnPlayerId = data?.currentPlayerId || null;
     
     // Hide your turn overlay
     document.getElementById('yourTurnOverlay').style.display = 'none';
     
-    // Enable actions lock
+    // Disable roll button while waiting
+    const rollBtn = document.getElementById('rollBtn');
+    if (rollBtn) {
+        rollBtn.disabled = true;
+        rollBtn.style.opacity = '0.5';
+        rollBtn.style.cursor = 'not-allowed';
+    }
+    
+    // Hide end turn button while waiting
     document.getElementById('endTurnBtn').style.display = 'none';
     
     // Show waiting overlay with dots
@@ -3037,12 +3076,27 @@ function showWaitingForTurn(data) {
 
 // Handle regular dice roll (when it's my turn)
 function handleRegularDiceRoll() {
-    if (!isMyTurn) return;
+    if (initialPhase.active && initialPhase.phase === 'dice-roll') {
+        showMessage('Спочатку киньте кубики для визначення черги!');
+        return;
+    }
+    if (initialPhase.active && initialPhase.phase === 'initial-build') {
+        showMessage('Зараз триває початкове будівництво!');
+        return;
+    }
+    if (!isMyTurn) {
+        showMessage('Зараз не ваш хід!');
+        return;
+    }
     if (hasRolledThisTurn) {
         showMessage('Ви вже кинули кубики!');
         return;
     }
-    
+    if (gameState.roadBuildingMode > 0 || gameState.cardInProgress) {
+        showMessage('Спочатку завершіть поточну дію!');
+        return;
+    }
+
     // Roll 2 dice
     const die1 = Math.floor(Math.random() * 6) + 1;
     const die2 = Math.floor(Math.random() * 6) + 1;
@@ -3082,6 +3136,7 @@ function handleRegularDiceRoll() {
         multiplayerClient.rollRegularDice(die1, die2);
     }
 }
+
 
 // Handle "collect resources" event from server (multiplayer)
 function handleCollectResources(data) {
