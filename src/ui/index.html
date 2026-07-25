@@ -1452,7 +1452,7 @@ function renderMap(data, canvas, hexSize) {
     scaleCanvasContext();
     mapData = data; 
     mapHexSize = hexSize;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const all = [data.center,...data.ring1,...data.ring2,...data.ring3]; allHexes = all;
     let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
     for(const h of all){const p=hexToPixel(h,hexSize);if(p.x<minX)minX=p.x;if(p.x>maxX)maxX=p.x;if(p.y<minY)minY=p.y;if(p.y>maxY)maxY=p.y;}

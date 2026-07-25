@@ -58,7 +58,8 @@ io.on('connection', (socket) => {
                 diceRolled: false, // has current player rolled?
                 actionsLocked: true // locked until dice rolled
             },
-            buildings: new Map() // edgeKey/vertexKey -> {playerId, color, type}
+            buildings: new Map(),
+            topology: null // edgeKey/vertexKey -> {playerId, color, type}
         };
         
         rooms.set(roomCode, room);
@@ -227,7 +228,13 @@ io.on('connection', (socket) => {
             room.gameState = mapData;
         }
     });
-
+    // Додати це після socket.on('store-map', ...)
+    socket.on('store-topology', ({ roomCode, topology }) => {
+        const room = rooms.get(roomCode);
+        if (room && room.host === socket.id) {
+            room.topology = topology; // Зберігаємо топологію в кімнаті
+        }
+    });
     // Start game
     socket.on('start-game', ({ roomCode }) => {
         const room = rooms.get(roomCode);
@@ -533,7 +540,77 @@ io.on('connection', (socket) => {
             }
         }
     });
-
+    // ===== ДОПОМІЖНІ ФУНКЦІЇ ДЛЯ СЕРВЕРНОЇ ПЕРЕВІРКИ =====
+    // Перевірка, чи належить ребро (дорога) гравцеві
+    function isMyServerRoad(edgeKey, playerId, room) {
+        const bld = room.buildings.get(edgeKey);
+        return bld && bld.playerId === playerId;
+    }
+    // Перевірка, чи належить вершина (поселення/місто) гравцеві
+    function isMyServerVertex(vertexKey, playerId, room) {
+        const bld = room.buildings.get(vertexKey);
+        return bld && bld.playerId === playerId;
+    }
+    // Чи з'єднана дорога з існуючою мережею гравця (свої поселення або свої дороги)
+    function isEdgeConnectedServer(edgeKey, playerId, room) {
+        const edgeMap = new Map(room.topology.edges);
+        const edge = edgeMap.get(edgeKey);
+        if (!edge) return false;
+        const va = edge[1].va; const vb = edge[1].vb;
+        // Шукаємо вершини (координати) в будівлях
+        const vertexMap = new Map(room.topology.vertices);
+        let vkA = null, vkB = null;
+        for (const [vk, vData] of vertexMap) {
+            if (vData.pos.x === va.x && vData.pos.y === va.y) vkA = vk;
+            if (vData.pos.x === vb.x && vData.pos.y === vb.y) vkB = vk;
+        }
+        // Якщо своє поселення на одному з кінців дороги - можна будувати
+        if (vkA && isMyServerVertex(vkA, playerId, room)) return true;
+        if (vkB && isMyServerVertex(vkB, playerId, room)) return true;
+        // Якщо своя дорога з'єднується з цим ребром
+        for (const [ek2, bld] of room.buildings) {
+            if (bld.type !== 'road' || bld.playerId !== playerId) continue;
+            const edge2 = edgeMap.get(ek2);
+            if (!edge2) continue;
+            // Спільна вершина
+            if ((edge2[1].va.x === va.x && edge2[1].va.y === va.y) ||
+                (edge2[1].va.x === vb.x && edge2[1].va.y === vb.y) ||
+                (edge2[1].vb.x === va.x && edge2[1].vb.y === va.y) ||
+                (edge2[1].vb.x === vb.x && edge2[1].vb.y === vb.y)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    // Чи можна поставити поселення (не ближче 2 ребер від ЧУЖИХ і СВОЇХ)
+    function canPlaceSettlementServer(vertexKey, playerId, room) {
+        const vertexMap = new Map(room.topology.vertices);
+        const vData = vertexMap.get(vertexKey);
+        if (!vData) return false;
+        // Шукаємо сусідні вершини (відстань 1 ребро)
+        const neighborKeys = [];
+        const edgeMap = new Map(room.topology.edges);
+        for (const [ek, edge] of edgeMap) {
+            if ((edge[1].va.x === vData.pos.x && edge[1].va.y === vData.pos.y) ||
+                (edge[1].vb.x === vData.pos.x && edge[1].vb.y === vData.pos.y)) {
+                // Знаходимо іншу точку ребра
+                const target = (edge[1].va.x === vData.pos.x && edge[1].va.y === vData.pos.y) ? edge[1].vb : edge[1].va;
+                for (const [vk2, v2] of vertexMap) {
+                    if (v2.pos.x === target.x && v2.pos.y === target.y) neighborKeys.push(vk2);
+                }
+            }
+        }
+        // Перевіряємо всі існуючі поселення/міста
+        for (const [vk2, bld] of room.buildings) {
+            if (bld.type === 'settlement' || bld.type === 'city') {
+                if (vk2 === vertexKey) return false; // Місце зайняте
+                // Відстань 0 (це саме місце) або 1 (сусідня вершина)
+                if (neighborKeys.includes(vk2)) return false;
+            }
+        }
+        return true;
+    }
+    // ===== КІНЕЦЬ ДОПОМІЖНИХ ФУНКЦІЙ =====
     // Sync a building action to all players (with validation)
     socket.on('sync-build', ({ roomCode, type, data }) => {
         const room = rooms.get(roomCode);
@@ -550,7 +627,30 @@ io.on('connection', (socket) => {
             socket.emit('action-error', { message: 'Це місце вже зайняте!' });
             return;
         }
-        
+        // ===== ДОДАТИ ЦЮ ПЕРЕВІРКУ ВІДРАЗУ ПІСЛЯ ПОПЕРЕДНЬОГО IF =====
+        if (room.topology) {
+            if (type === 'road') {
+                // Не будувати, якщо не з'єднано зі своєю мережею
+                if (!isEdgeConnectedServer(key, socket.id, room)) {
+                    socket.emit('action-error', { message: 'Дорога не з\'єднана з вашою мережею!' });
+                    return;
+                }
+            } else if (type === 'settlement') {
+                // Не будувати, якщо поруч є інше поселення (відстань 2)
+                if (!canPlaceSettlementServer(key, socket.id, room)) {
+                    socket.emit('action-error', { message: 'Не можна будувати поселення тут (відстань або чужі дороги)!' });
+                    return;
+                }
+            } else if (type === 'city') {
+                // Місто можна будувати тільки на своєму поселенні
+                const existing = room.buildings.get(key);
+                if (!existing || existing.playerId !== socket.id || existing.type !== 'settlement') {
+                    socket.emit('action-error', { message: 'Не можна покращити це місто!' });
+                    return;
+                }
+            }
+        }
+        // ===== КІНЕЦЬ ВСТАВКИ =====
         // VALIDATION: During regular turn phase, check if it's this player's turn
         if (room.gamePhase === 'regular-turn') {
             const currentPlayerId = room.turnOrder[room.currentTurnIndex];

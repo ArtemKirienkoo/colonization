@@ -1070,8 +1070,8 @@
         document.getElementById('startGameBtn').addEventListener('click', () => {
             audioManager.playClickSound();
             // Generate and send map to server before starting game
+            // ===== ВСТАВИТИ ЦЕ =====
             const mapSeed = generateMap();
-            // Convert Map objects to plain objects for JSON serialization
             const serializedMap = {
                 center: mapSeed.center,
                 ring1: mapSeed.ring1,
@@ -1081,14 +1081,30 @@
                 numbers: Object.fromEntries(mapSeed.numbers),
                 ocean: Object.fromEntries(mapSeed.ocean)
             };
-            // Store map in sessionStorage for host to use in game
             sessionStorage.setItem('multiplayerMap', JSON.stringify(serializedMap));
+
+            // 1. Генеруємо топологію (структуру ребер і вершин) для сервера
+            const allHexes = [mapSeed.center, ...mapSeed.ring1, ...mapSeed.ring2, ...mapSeed.ring3];
+            const topology = computeEdgesAndVertices(allHexes, 40); // 40 - розмір гекса, для перевірок не важливий
+
+            // 2. Серіалізуємо (перетворюємо Map у масиви, бо JSON не вміє в Map)
+            const topologyData = {
+                edges: Array.from(topology.edges.entries()).map(([key, val]) => [key, { cx: val.cx, cy: val.cy, va: val.va, vb: val.vb }]),
+                vertices: Array.from(topology.vertices.entries()).map(([key, val]) => [key, { pos: val.pos, hexes: val.hexes }])
+            };
+
+            // 3. Відправляємо топологію на сервер ДО старту гри
+            mpClient.socket.emit('store-topology', { roomCode: currentRoomCode, topology: topologyData });
+
+            // 4. Відправляємо карту і запускаємо гру (як і було)
             mpClient.storeMap(serializedMap);
             mpClient.startGame();
+
             document.getElementById('loading').classList.add('active');
             setTimeout(() => {
                 window.location.href = 'index.html?mode=multiplayer&host=true&code=' + currentRoomCode;
             }, 500);
+            // ===== КІНЕЦЬ ВСТАВКИ =====
         });
 
 document.getElementById('exitRoomBtn').addEventListener('click', () => {
