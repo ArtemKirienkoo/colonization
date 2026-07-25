@@ -9,13 +9,15 @@ class MultiplayerClient {
         this.playerName = 'Гравець';
         this.players = [];
         this.connected = false;
+        this.pendingListeners = [];
     }
 
-    // Safe wrapper for socket.on() - prevents "cannot read properties of null" errors
-    // when event handlers are registered before the socket is connected
+    // Safe wrapper for socket.on() - queues handlers if socket is not connected yet
     _safeOn(event, callback) {
         if (this.socket) {
             this.socket.on(event, callback);
+        } else {
+            this.pendingListeners.push({ event, callback });
         }
     }
 
@@ -59,6 +61,11 @@ class MultiplayerClient {
                 } catch (error) {
                     console.warn('Не вдалося зберегти multiplayerPlayerId:', error);
                 }
+                // Attach any queued listeners registered before socket creation
+                for (const listener of this.pendingListeners) {
+                    this.socket.on(listener.event, listener.callback);
+                }
+                this.pendingListeners = [];
                 resolve();
             });
 
