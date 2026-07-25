@@ -57,7 +57,12 @@ class MultiplayerClient {
                 this.connected = true;
                 console.log('Підключено до сервера:', this.socket.id);
                 try {
-                    sessionStorage.setItem('multiplayerPlayerId', this.socket.id);
+                    const existingPlayerId = sessionStorage.getItem('multiplayerPlayerId');
+                    if (!existingPlayerId) {
+                        sessionStorage.setItem('multiplayerPlayerId', this.socket.id);
+                    } else {
+                        console.log('Збережено старий multiplayerPlayerId для reconnect:', existingPlayerId);
+                    }
                 } catch (error) {
                     console.warn('Не вдалося зберегти multiplayerPlayerId:', error);
                 }
