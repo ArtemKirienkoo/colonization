@@ -1549,6 +1549,7 @@ function isEdgeConnected(ek){const e=edgeGeom.edges.get(ek);if(!e)return false;c
     for(const [ek2,roadData] of gameState.roads){if(ek2===ek)continue;if(roadData.playerId!==myPlayerId)continue;const e2=edgeGeom.edges.get(ek2);if(!e2)continue;const e2va=Math.round(e2.va.x*1000)+','+Math.round(e2.va.y*1000),e2vb=Math.round(e2.vb.x*1000)+','+Math.round(e2.vb.y*1000);if(va===e2va||va===e2vb||vb===e2va||vb===e2vb)return true;}return false;}
 canvas.addEventListener('click', (e) => {
     if (isPaused) return;
+    try { console.log('[DEBUG canvas click] buildMode=', buildMode, 'initialPhase=', initialPhase, 'initialPhase.canBuild=', initialPhase.canBuild, 'isMyTurn=', isMyTurn, 'canPerformActions=', canPerformActions, 'myPlayerId=', myPlayerId); } catch(e){}
     const m = buildMode!=='none'?buildMode:(gameState.roadBuildingMode>0?'road':'none'); 
     if(m==='none') return;
     
@@ -1735,7 +1736,14 @@ canvas.addEventListener('click', (e) => {
         hoverVertex = null;
     }
 });
-function showMessage(msg){const te=document.getElementById('total'),ot=te.textContent;te.textContent=msg;te.style.color='#e74c3c';setTimeout(()=>{te.textContent=ot;te.style.color='#f1c40f';},2000);}
+
+// showMessage: update UI and also log debug info
+function showMessage(msg){
+    try {
+        console.log('[DEBUG showMessage] msg=', msg, ' isMyTurn=', isMyTurn, 'canPerformActions=', canPerformActions, 'initialPhase=', initialPhase, 'myPlayerId=', myPlayerId);
+    } catch (e) { console.warn('Debug log failed', e); }
+    const te=document.getElementById('total'),ot=te.textContent;te.textContent=msg;te.style.color='#e74c3c';setTimeout(()=>{te.textContent=ot;te.style.color='#f1c40f';},2000);
+}
 
 function setBuildMode(mode){if(gameState.roadBuildingMode>0){showMessage('🛤️ Спочатку завершіть карту "Дороги"!');return;}document.querySelectorAll('.build-btn').forEach(b=>b.classList.remove('active'));buildMode=mode;if(mode!=='none'){const btn=document.querySelector(`.build-btn[data-mode="${mode}"]`);if(btn)btn.classList.add('active');canvas.classList.add('crosshair');}else canvas.classList.remove('crosshair');hoverEdge=null;hoverVertex=null;if(mapData)renderMap(mapData,canvas,mapHexSize);}
 document.querySelectorAll('.build-btn').forEach(b=>{b.addEventListener('click',()=>{audioManager.playBuildSound();setBuildMode(b.dataset.mode);});});
@@ -3080,6 +3088,7 @@ function showWaitingForTurn(data) {
 
 // Handle regular dice roll (when it's my turn)
 function handleRegularDiceRoll() {
+    try { console.log('[DEBUG handleRegularDiceRoll] initialPhase=', initialPhase, 'isMyTurn=', isMyTurn, 'hasRolledThisTurn=', hasRolledThisTurn, 'canPerformActions=', canPerformActions, 'myPlayerId=', myPlayerId); } catch(e){}
     if (initialPhase.active && initialPhase.phase === 'dice-roll') {
         showMessage('Спочатку киньте кубики для визначення черги!');
         return;
