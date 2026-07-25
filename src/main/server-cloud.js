@@ -46,7 +46,19 @@ io.on('connection', (socket) => {
                 color: color || defaultColors[0]
             }],
             gameState: null,
-            createdAt: Date.now()
+            createdAt: Date.now(),
+            gamePhase: null, // 'dice-roll', 'initial-build', 'regular-turn'
+            diceRolls: new Map(), // playerId -> total
+            initialBuildOrder: [], // sorted array of {playerId, total}
+            currentInitialBuildIndex: 0,
+            initialBuildRoundComplete: false,
+            turnOrder: [], // order of players for regular turns (same as dice roll order)
+            currentTurnIndex: 0,
+            turnState: {
+                diceRolled: false, // has current player rolled?
+                actionsLocked: true // locked until dice rolled
+            },
+            buildings: new Map() // edgeKey/vertexKey -> {playerId, color, type}
         };
         
         rooms.set(roomCode, room);
@@ -110,64 +122,6 @@ io.on('connection', (socket) => {
         io.emit('rooms-list', getRoomsList());
     });
 
-    // Change player color
-    socket.on('change-color', ({ roomCode, playerId, color }) => {
-        const room = rooms.get(roomCode);
-        if (!room) return;
-
-        const player = room.players.find(p => p.id === playerId);
-        if (!player) return;
-
-        // Check if the requested color is already taken by another player
-        const usedColors = new Set(room.players.filter(p => p.id !== playerId).map(p => p.color).filter(c => c));
-        if (usedColors.has(color)) {
-            socket.emit('color-change-failed', { playerId, color, message: 'Цей колір вже зайнятий' });
-            return;
-        }
-
-        // Update the player's color
-        player.color = color;
-
-        // Broadcast the updated player list to all players in the room
-        io.to(roomCode).emit('color-changed', {
-            playerId,
-            color,
-            players: room.players
-        });
-    });
-
-    // Get rooms list
-    socket.on('get-rooms', () => {
-
-
-        socket.emit('rooms-list', getRoomsList());
-    });
-
-    // Store map state (host sends map to server)
-    socket.on('store-map', ({ roomCode, mapData }) => {
-        const room = rooms.get(roomCode);
-        if (room && room.host === socket.id) {
-            room.gameState = mapData;
-        }
-    });
-
-    // Start game
-    socket.on('start-game', ({ roomCode }) => {
-        const room = rooms.get(roomCode);
-        if (room && room.host === socket.id) {
-            // Send map seed for synchronization
-            const mapSeed = room.gameState || {
-                center: {q:0,r:0,s:0},
-                ring1: [],
-                ring2: [],
-                ring3: [],
-                resources: {},
-                numbers: {}
-            };
-            io.to(roomCode).emit('game-started', { mapSeed });
-        }
-    });
-
     // Rejoin room after page navigation (when game starts)
     // The room still exists because we DON'T delete it on disconnect during game
     socket.on('rejoin-room', ({ roomCode, isHost }) => {
@@ -207,70 +161,435 @@ io.on('connection', (socket) => {
         
         // Also send current buildings if any (stored separately in room)
         if (room.buildings) {
-            socket.emit('sync-buildings', { buildings: room.buildings });
+            socket.emit('sync-buildings', { buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val})) });
+        }
+
+        // Send game state sync if in progress
+        if (room.gamePhase === 'regular-turn') {
+            const currentPlayerId = room.turnOrder[room.currentTurnIndex];
+            socket.emit('game-state-sync', {
+                gamePhase: room.gamePhase,
+                currentTurnPlayerId: currentPlayerId,
+                turnOrder: room.turnOrder,
+                buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
+            });
+        } else if (room.gamePhase === 'initial-build') {
+            const currentPlayerId = room.initialBuildOrder[room.currentInitialBuildIndex]?.playerId;
+            socket.emit('game-state-sync', {
+                gamePhase: room.gamePhase,
+                currentPlayerId: currentPlayerId,
+                initialBuildOrder: room.initialBuildOrder,
+                currentIndex: room.currentInitialBuildIndex,
+                buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
+            });
+        } else if (room.gamePhase === 'dice-roll') {
+            socket.emit('start-dice-phase', {
+                players: room.players.map(p => ({ id: p.id, name: p.name }))
+            });
         }
     });
 
-    // Sync buildings (road, settlement, city) to all players in the room
+    // Change player color
+    socket.on('change-color', ({ roomCode, playerId, color }) => {
+        const room = rooms.get(roomCode);
+        if (!room) return;
+
+        const player = room.players.find(p => p.id === playerId);
+        if (!player) return;
+
+        // Check if the requested color is already taken by another player
+        const usedColors = new Set(room.players.filter(p => p.id !== playerId).map(p => p.color).filter(c => c));
+        if (usedColors.has(color)) {
+            socket.emit('color-change-failed', { playerId, color, message: 'Цей колір вже зайнятий' });
+            return;
+        }
+
+        // Update the player's color
+        player.color = color;
+
+        // Broadcast the updated player list to all players in the room
+        io.to(roomCode).emit('color-changed', {
+            playerId,
+            color,
+            players: room.players
+        });
+    });
+
+    // Get rooms list
+    socket.on('get-rooms', () => {
+        socket.emit('rooms-list', getRoomsList());
+    });
+
+    // Store map state (host sends map to server)
+    socket.on('store-map', ({ roomCode, mapData }) => {
+        const room = rooms.get(roomCode);
+        if (room && room.host === socket.id) {
+            room.gameState = mapData;
+        }
+    });
+
+    // Start game
+    socket.on('start-game', ({ roomCode }) => {
+        const room = rooms.get(roomCode);
+        if (room && room.host === socket.id) {
+            // Initialize game phase
+            room.gamePhase = 'dice-roll';
+            room.diceRolls = new Map();
+            room.initialBuildOrder = [];
+            room.currentInitialBuildIndex = 0;
+            room.initialBuildRoundComplete = false;
+            room.buildings = new Map();
+            
+            // Send map seed for synchronization
+            const mapSeed = room.gameState || {
+                center: {q:0,r:0,s:0},
+                ring1: [],
+                ring2: [],
+                ring3: [],
+                resources: {},
+                numbers: {}
+            };
+            
+            // Notify all players to start dice phase
+            io.to(roomCode).emit('game-started', { mapSeed });
+            io.to(roomCode).emit('start-dice-phase', { 
+                players: room.players.map(p => ({ id: p.id, name: p.name }))
+            });
+        }
+    });
+
+    // Handle dice roll during initial phase (2 dice, sum 2-12)
+    socket.on('dice-roll', ({ roomCode, playerId, die1, die2 }) => {
+        const room = rooms.get(roomCode);
+        if (!room || room.gamePhase !== 'dice-roll') return;
+        
+        // Validate dice values (1-6 each)
+        if (die1 < 1 || die1 > 6 || die2 < 1 || die2 > 6) return;
+        
+        const total = die1 + die2;
+        
+        // Store the dice roll
+        room.diceRolls.set(playerId, total);
+        
+        // Broadcast to all players
+        io.to(roomCode).emit('player-dice-rolled', { 
+            playerId, 
+            total,
+            die1,
+            die2,
+            rollsCount: room.diceRolls.size,
+            totalPlayers: room.players.length
+        });
+        
+        // Check if all players have rolled
+        if (room.diceRolls.size === room.players.length) {
+            // Calculate build order (highest to lowest)
+            const rolls = Array.from(room.diceRolls.entries()).map(([playerId, total]) => ({
+                playerId,
+                total
+            }));
+            rolls.sort((a, b) => b.total - a.total);
+            
+            // In case of tie, re-roll is needed
+            // Check for ties
+            const totals = rolls.map(r => r.total);
+            const uniqueTotals = new Set(totals);
+            if (uniqueTotals.size < rolls.length) {
+                // There's a tie - need re-roll for tied players
+                const tiedPlayers = [];
+                for (let i = 0; i < rolls.length; i++) {
+                    for (let j = i + 1; j < rolls.length; j++) {
+                        if (rolls[i].total === rolls[j].total) {
+                            if (!tiedPlayers.includes(rolls[i].playerId)) tiedPlayers.push(rolls[i].playerId);
+                            if (!tiedPlayers.includes(rolls[j].playerId)) tiedPlayers.push(rolls[j].playerId);
+                        }
+                    }
+                }
+                
+                // Clear only tied players' rolls
+                for (const pid of tiedPlayers) {
+                    room.diceRolls.delete(pid);
+                }
+                
+                io.to(roomCode).emit('dice-tie', {
+                    players: tiedPlayers,
+                    message: 'Нічия! Перекиньте кубики'
+                });
+                return;
+            }
+            
+            room.initialBuildOrder = rolls;
+            room.turnOrder = rolls.map(r => r.playerId); // Same order for regular turns
+            room.gamePhase = 'initial-build';
+            room.currentInitialBuildIndex = 0;
+            room.initialBuildRoundComplete = false;
+            
+            // Track each player's built items during initial phase
+            room.initialBuildProgress = new Map(); // playerId -> {settlements: number, roads: number}
+            for (const p of room.players) {
+                room.initialBuildProgress.set(p.id, { settlements: 0, roads: 0 });
+            }
+            
+            // Notify the first player to build
+            const firstPlayerId = rolls[0].playerId;
+            io.to(roomCode).emit('initial-build-start', {
+                order: rolls,
+                currentPlayerId: firstPlayerId,
+                round: 0
+            });
+            
+            // Tell the first player it's their turn
+            io.to(firstPlayerId).emit('initial-build-your-turn', {
+                playerId: firstPlayerId,
+                order: rolls
+            });
+            
+            // Tell others they're waiting
+            for (let i = 1; i < rolls.length; i++) {
+                const pid = rolls[i].playerId;
+                io.to(pid).emit('initial-build-waiting', {
+                    currentPlayerId: firstPlayerId,
+                    yourPosition: i,
+                    order: rolls
+                });
+            }
+        }
+    });
+    
+    // Handle initial build - player ends their turn (1 settlement + 2 roads per player, one by one)
+    socket.on('initial-build-end-turn', ({ roomCode, playerId, settlements, roads }) => {
+        const room = rooms.get(roomCode);
+        if (!room || room.gamePhase !== 'initial-build') return;
+        
+        // Verify it's this player's turn
+        const currentPlayerId = room.initialBuildOrder[room.currentInitialBuildIndex].playerId;
+        if (currentPlayerId !== playerId) {
+            socket.emit('action-error', { message: 'Зараз не ваш хід!' });
+            return;
+        }
+        
+        // Validate that the player has built the required items
+        if (settlements < 1 || roads < 2) {
+            socket.emit('action-error', { message: 'Ви повинні побудувати 1 село та 2 дороги!' });
+            return;
+        }
+        
+        // Store this player's progress
+        room.initialBuildProgress.set(playerId, { settlements, roads });
+        
+        // Move to next player
+        room.currentInitialBuildIndex++;
+        
+        // Check if all players have built
+        if (room.currentInitialBuildIndex >= room.initialBuildOrder.length) {
+            // All players finished! Start regular turns
+            room.gamePhase = 'regular-turn';
+            room.currentTurnIndex = 0;
+            
+            // Reset turn state
+            room.turnState = {
+                diceRolled: false,
+                actionsLocked: true
+            };
+            
+            // Notify all players that regular gameplay starts
+            const firstPlayerId = room.turnOrder[0];
+            io.to(roomCode).emit('regular-game-start', {
+                turnOrder: room.turnOrder,
+                firstPlayerId: firstPlayerId
+            });
+            
+            // Notify the first player it's their turn
+            io.to(firstPlayerId).emit('your-turn', {
+                playerId: firstPlayerId,
+                mustRollDice: true
+            });
+            
+            // Notify others they're waiting
+            for (let i = 1; i < room.turnOrder.length; i++) {
+                const pid = room.turnOrder[i];
+                io.to(pid).emit('waiting-for-turn', {
+                    currentPlayerId: firstPlayerId,
+                    yourPosition: i
+                });
+            }
+        } else {
+            // Notify next player to build
+            const nextPlayerId = room.initialBuildOrder[room.currentInitialBuildIndex].playerId;
+            
+            // Tell the ended player they're done
+            io.to(playerId).emit('initial-build-your-done', {
+                nextPlayerId: nextPlayerId
+            });
+            
+            // Tell next player it's their turn
+            io.to(nextPlayerId).emit('initial-build-your-turn', {
+                playerId: nextPlayerId,
+                order: room.initialBuildOrder
+            });
+            
+            // Update build phase overlay for remaining players
+            io.to(roomCode).emit('initial-build-next-player', {
+                currentPlayerId: nextPlayerId,
+                currentIndex: room.currentInitialBuildIndex
+            });
+            
+            // Tell all waiting players about update
+            for (let i = room.currentInitialBuildIndex + 1; i < room.initialBuildOrder.length; i++) {
+                const pid = room.initialBuildOrder[i].playerId;
+                io.to(pid).emit('initial-build-waiting', {
+                    currentPlayerId: nextPlayerId,
+                    yourPosition: i - room.currentInitialBuildIndex,
+                    order: room.initialBuildOrder
+                });
+            }
+        }
+    });
+
+    // Handle regular dice roll (2 dice, during regular turn)
+    socket.on('regular-dice-roll', ({ roomCode, playerId, die1, die2 }) => {
+        const room = rooms.get(roomCode);
+        if (!room || room.gamePhase !== 'regular-turn') return;
+        
+        // Verify it's this player's turn
+        const currentPlayerId = room.turnOrder[room.currentTurnIndex];
+        if (currentPlayerId !== playerId) {
+            socket.emit('action-error', { message: 'Зараз не ваш хід!' });
+            return;
+        }
+        
+        // Check if already rolled
+        if (room.turnState.diceRolled) {
+            socket.emit('action-error', { message: 'Ви вже кинули кубик!' });
+            return;
+        }
+        
+        // Validate dice values
+        if (die1 < 1 || die1 > 6 || die2 < 1 || die2 > 6) return;
+        
+        const total = die1 + die2;
+        
+        // Mark that dice has been rolled
+        room.turnState.diceRolled = true;
+        room.turnState.actionsLocked = false;
+        
+        // Broadcast dice result to ALL players (for resource collection)
+        io.to(roomCode).emit('regular-dice-rolled', {
+            playerId,
+            total,
+            die1,
+            die2,
+            canActNow: true // only the roller can act
+        });
+        
+        // Send resource collection data to all players
+        // Each client will calculate their own resources based on their settlements
+        io.to(roomCode).emit('collect-resources', {
+            diceTotal: total
+        });
+    });
+
+    // Handle end turn
+    socket.on('end-turn', ({ roomCode, playerId }) => {
+        const room = rooms.get(roomCode);
+        if (!room || room.gamePhase !== 'regular-turn') return;
+        
+        // Verify it's this player's turn
+        const currentPlayerId = room.turnOrder[room.currentTurnIndex];
+        if (currentPlayerId !== playerId) {
+            socket.emit('action-error', { message: 'Зараз не ваш хід!' });
+            return;
+        }
+        
+        // Reset turn state
+        room.turnState = {
+            diceRolled: false,
+            actionsLocked: true
+        };
+        
+        // Move to next player
+        room.currentTurnIndex = (room.currentTurnIndex + 1) % room.turnOrder.length;
+        
+        // Notify the player who ended their turn
+        io.to(playerId).emit('turn-ended', {
+            nextPlayerId: room.turnOrder[room.currentTurnIndex]
+        });
+        
+        // Notify the next player it's their turn
+        const nextPlayerId = room.turnOrder[room.currentTurnIndex];
+        io.to(nextPlayerId).emit('your-turn', {
+            playerId: nextPlayerId,
+            mustRollDice: true
+        });
+        
+        // Notify others who is playing now
+        for (let i = 0; i < room.turnOrder.length; i++) {
+            const pid = room.turnOrder[i];
+            if (pid !== nextPlayerId && pid !== playerId) {
+                io.to(pid).emit('waiting-for-turn', {
+                    currentPlayerId: nextPlayerId,
+                    yourPosition: i
+                });
+            }
+        }
+    });
+
+    // Sync a building action to all players (with validation)
     socket.on('sync-build', ({ roomCode, type, data }) => {
         const room = rooms.get(roomCode);
         if (!room) return;
         
-        // Store the building in room state
-        if (!room.buildings) {
-            room.buildings = { roads: [], settlements: [], cities: [] };
+        const player = room.players.find(p => p.id === socket.id);
+        if (!player) return;
+        
+        const key = data.edgeKey || data.vertexKey;
+        if (!key) return;
+        
+        // VALIDATION: Check if building spot is already taken
+        if (room.buildings.has(key)) {
+            socket.emit('action-error', { message: 'Це місце вже зайняте!' });
+            return;
         }
         
-        if (type === 'road') {
-            if (!room.buildings.roads.includes(data.edgeKey)) {
-                room.buildings.roads.push(data.edgeKey);
-            }
-        } else if (type === 'settlement') {
-            if (!room.buildings.settlements.some(s => s === data.vertexKey)) {
-                room.buildings.settlements.push(data.vertexKey);
-            }
-        } else if (type === 'city') {
-            // Remove from settlements and add to cities
-            room.buildings.settlements = room.buildings.settlements.filter(s => s !== data.vertexKey);
-            if (!room.buildings.cities.includes(data.vertexKey)) {
-                room.buildings.cities.push(data.vertexKey);
+        // VALIDATION: During regular turn phase, check if it's this player's turn
+        if (room.gamePhase === 'regular-turn') {
+            const currentPlayerId = room.turnOrder[room.currentTurnIndex];
+            if (currentPlayerId !== socket.id) {
+                socket.emit('action-error', { message: 'Зараз не ваш хід!' });
+                return;
             }
         }
         
-        // Broadcast to ALL OTHER players in the room (not the sender)
-        socket.to(roomCode).emit('game-action', { 
-            action: 'build', 
-            data: { type, ...data } 
+        // Check if dice has been rolled (only during regular turn, not initial-build)
+        if (room.gamePhase === 'regular-turn' && room.turnState && room.turnState.actionsLocked) {
+            socket.emit('action-error', { message: 'Спочатку киньте кубики!' });
+            return;
+        }
+        
+        // Store building with player info for validation
+        room.buildings.set(key, {
+            playerId: socket.id,
+            color: data.color || player.color,
+            type: type,
+            edgeKey: data.edgeKey,
+            vertexKey: data.vertexKey
+        });
+        
+        // Broadcast to all players in room (including sender for confirmation)
+        io.to(roomCode).emit('building-synced', {
+            type,
+            data: {
+                ...data,
+                playerId: socket.id,
+                color: data.color || player.color
+            },
+            buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
         });
     });
 
     // Game actions (generic forwarding)
     socket.on('game-action', ({ roomCode, action, data }) => {
         socket.to(roomCode).emit('game-action', { action, data });
-    });
-
-    // Disconnect
-    socket.on('disconnect', () => {
-        console.log('Player disconnected:', socket.id);
-        
-        // IMPORTANT: We do NOT delete rooms on disconnect anymore!
-        // The room stays alive so players can rejoin after page navigation.
-        // Just remove the player from the room's player list.
-        rooms.forEach((room, code) => {
-            const playerIndex = room.players.findIndex(p => p.id === socket.id);
-            if (playerIndex !== -1) {
-                room.players.splice(playerIndex, 1);
-                
-                // Notify remaining players that this player left (temporarily)
-                io.to(code).emit('player-left', {
-                    playerId: socket.id,
-                    players: room.players
-                });
-            }
-        });
-        
-        // Update room list
-        io.emit('rooms-list', getRoomsList());
     });
 
     // Leave room explicitly (player clicks "Вийти" button - also delete room if host)
@@ -299,6 +618,30 @@ io.on('connection', (socket) => {
                 io.emit('rooms-list', getRoomsList());
             }
         }
+    });
+
+    // Disconnect
+    socket.on('disconnect', () => {
+        console.log('Player disconnected:', socket.id);
+        
+        // IMPORTANT: We do NOT delete rooms on disconnect anymore!
+        // The room stays alive so players can rejoin after page navigation.
+        // Just remove the player from the room's player list.
+        rooms.forEach((room, code) => {
+            const playerIndex = room.players.findIndex(p => p.id === socket.id);
+            if (playerIndex !== -1) {
+                room.players.splice(playerIndex, 1);
+                
+                // Notify remaining players that this player left (temporarily)
+                io.to(code).emit('player-left', {
+                    playerId: socket.id,
+                    players: room.players
+                });
+            }
+        });
+        
+        // Update room list
+        io.emit('rooms-list', getRoomsList());
     });
 });
 
