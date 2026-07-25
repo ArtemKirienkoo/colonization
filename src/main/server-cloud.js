@@ -147,10 +147,34 @@ io.on('connection', (socket) => {
         if (room.gamePhase === 'dice-roll' && !room.diceRolls.has(socket.id)) {
             socket.emit('start-dice-phase', { players: room.players.map(p => ({ id: p.id, name: p.name })) });
         } else if (room.gamePhase === 'initial-build') {
-            // Якщо фаза будівництва - надсилаємо стан фази будівництва
             const currentPlayerId = room.initialBuildOrder[room.currentInitialBuildIndex]?.playerId;
-            const playerData = { currentPlayerId, order: room.initialBuildOrder, currentIndex: room.currentInitialBuildIndex };
-            socket.emit('game-state-sync', { gamePhase: room.gamePhase, ...playerData });
+            
+            // Надсилаємо синхронізацію стану
+            const playerData = { 
+                gamePhase: room.gamePhase, 
+                currentPlayerId: currentPlayerId, 
+                initialBuildOrder: room.initialBuildOrder, 
+                currentIndex: room.currentInitialBuildIndex 
+            };
+            socket.emit('game-state-sync', playerData);
+
+            // ===== ДОДАНО: ЯВНО НАДСИЛАЄМО ПОДІЇ ХОДУ =====
+            if (currentPlayerId === socket.id) {
+                // Якщо перезавантажився ТОЙ, хто зараз має ходити
+                socket.emit('initial-build-your-turn', { 
+                    playerId: socket.id, 
+                    order: room.initialBuildOrder 
+                });
+            } else if (currentPlayerId) {
+                // Якщо перезавантажився той, хто ЧЕКАЄ
+                const yourPosition = room.initialBuildOrder.findIndex(p => p.playerId === socket.id);
+                socket.emit('initial-build-waiting', { 
+                    currentPlayerId: currentPlayerId, 
+                    yourPosition: yourPosition,
+                    order: room.initialBuildOrder 
+                });
+            }
+            // ===== КІНЕЦЬ ДОДАНОЇ ЧАСТИНИ =====
         } else if (room.gamePhase === 'regular-turn') {
             // Звичайна гра
             const currentPlayerId = room.turnOrder[room.currentTurnIndex];

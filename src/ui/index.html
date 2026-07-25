@@ -2377,7 +2377,34 @@ function registerMultiplayerHandlers(client) {
     });
     client.onInitialBuildNextPlayer((data) => {
         console.log('Next player:', data);
-        onInitialBuildNextPlayer(data);
+        initialPhase.currentIndex = data.currentIndex || 0;
+        
+        const status = document.getElementById('buildPhaseStatus');
+        const endBtn = document.getElementById('initialBuildEndTurnBtn');
+        
+        // Блокуємо кнопку "Завершити" для всіх
+        if (endBtn) endBtn.style.display = 'none';
+        
+        // Перевіряємо, чи зараз мій хід
+        if (data.currentPlayerId === myPlayerId) {
+            initialPhase.canBuild = true;
+            setBuildMode('none');
+            if (status) {
+                status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
+                status.style.color = '#27ae60';
+            }
+            // Розблокуємо будівництво
+            // Якщо гравець раніше вже побудував щось, перевірка це врахує
+        } else {
+            initialPhase.canBuild = false;
+            setBuildMode('none');
+            if (status) {
+                const playerInfo = data.order ? data.order.find(p => p.playerId === data.currentPlayerId) : null;
+                const name = playerInfo ? 'Гравець ' + data.currentPlayerId.slice(0, 4) : 'Інший гравець';
+                status.textContent = `⏳ Чекаємо, поки ${name} побудує...`;
+                status.style.color = '#f1c40f';
+            }
+        }
     });
     client.onInitialBuildRound2Start((data) => {
         console.log('Round 2 started:', data);
@@ -2489,12 +2516,15 @@ function registerMultiplayerHandlers(client) {
             initialPhase.phase = 'initial-build';
             initialPhase.buildOrder = data.initialBuildOrder || [];
             initialPhase.currentIndex = data.currentIndex || 0;
+            
             const overlay = document.getElementById('buildPhaseOverlay');
             const info = document.getElementById('buildPhaseInfo');
             const orderDiv = document.getElementById('buildPhaseOrder');
             const status = document.getElementById('buildPhaseStatus');
+            const endBtn = document.getElementById('initialBuildEndTurnBtn');
+            
             if (overlay) overlay.style.display = 'flex';
-            if (info) info.textContent = '🏗️ Всі гравці будують ОДНОЧАСНО! Побудуйте 1 село та 2 дороги';
+            if (info) info.textContent = '🏗️ Початкове будівництво: потрібно 1 село + 2 дороги';
             if (orderDiv && data.initialBuildOrder) {
                 orderDiv.innerHTML = '';
                 data.initialBuildOrder.forEach((player, index) => {
@@ -2505,10 +2535,27 @@ function registerMultiplayerHandlers(client) {
                     orderDiv.appendChild(div);
                 });
             }
-            if (status) {
-                status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
-                status.style.color = '#27ae60';
+            if (endBtn) endBtn.style.display = 'none';
+
+            // ===== ДОДАНО ЛОГІКУ ПЕРЕВІРКИ =====
+            if (data.currentPlayerId === myPlayerId) {
+                // Якщо це мій хід після перезавантаження, розблокуємо можливість будувати
+                initialPhase.canBuild = true;
+                if (status) {
+                    status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
+                    status.style.color = '#27ae60';
+                }
+            } else {
+                initialPhase.canBuild = false;
+                setBuildMode('none');
+                if (status) {
+                    const playerInfo = data.initialBuildOrder ? data.initialBuildOrder.find(p => p.playerId === data.currentPlayerId) : null;
+                    const name = playerInfo ? 'Гравець ' + data.currentPlayerId.slice(0, 4) : 'Інший гравець';
+                    status.textContent = `⏳ Чекаємо, поки ${name} побудує...`;
+                    status.style.color = '#f1c40f';
+                }
             }
+            // ===== КІНЕЦЬ ДОДАНОЇ ЛОГІКИ =====
         }
     });
 }
