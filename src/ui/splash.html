@@ -1529,7 +1529,12 @@ document.getElementById('exitRoomBtn').addEventListener('click', () => {
             const corner = hexCorners(p.x, p.y, 1)[vertIdx];
             return Math.round(corner.x * 1000) + ',' + Math.round(corner.y * 1000);
         }
-
+        function hexToPixel(hex, size) {
+            return {
+                x: size * (Math.sqrt(3) * hex.q + Math.sqrt(3) / 2 * hex.r),
+                y: size * (3 / 2 * hex.r)
+            };
+        }
         function computeEdgesAndVertices(hexPositions, hexSize) {
             const edges = new Map();
             const vertices = new Map();
