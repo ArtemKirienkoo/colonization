@@ -401,6 +401,16 @@ class MultiplayerClient {
         this._safeOn('game-state-sync', callback);
     }
 
+    // Request game state sync from server
+    requestGameStateSync() {
+        if (this.socket && this.roomCode) {
+            this.socket.emit('request-game-state', {
+                roomCode: this.roomCode,
+                playerId: this.socket.id
+            });
+        }
+    }
+
     // ===== REGULAR TURN EMITTERS =====
 
     // Roll dice during regular turn (2 dice)

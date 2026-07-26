@@ -481,7 +481,11 @@ io.on('connection', (socket) => {
     socket.on('store-topology', ({ roomCode, topology }) => {
         const room = rooms.get(roomCode);
         if (room && room.host === socket.id) {
-            room.topology = topology;
+            // Convert arrays back to Maps for server-side validation
+            room.topology = {
+                edges: new Map(topology.edges || []),
+                vertices: new Map(topology.vertices || [])
+            };
         }
     });
 

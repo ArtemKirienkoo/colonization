@@ -2598,6 +2598,10 @@ function registerMultiplayerHandlers(client) {
         console.log('Building synced:', data);
         handleBuildingSynced(data);
     });
+    client.onSyncBuildings((data) => {
+        console.log('Sync buildings (full state):', data);
+        handleBuildingSynced({ buildings: data.buildings });
+    });
     client.onGameStateSync((data) => {
         console.log('Game state sync:', data);
         myPlayerId = getMyPlayerId();
@@ -3093,12 +3097,24 @@ function showYourTurn(data) {
         rollBtn.style.cursor = 'pointer';
     }
     
+    // Reset end turn button to normal state
+    const endTurnBtn = document.getElementById('endTurnBtn');
+    if (endTurnBtn && isMultiplayer) {
+        endTurnBtn.textContent = '✅ Завершити хід';
+        endTurnBtn.disabled = true;
+        endTurnBtn.style.display = 'none';
+        endTurnBtn.style.opacity = '1';
+        endTurnBtn.style.cursor = 'pointer';
+    }
+    
     // Show the "Your Turn" overlay
     const overlay = document.getElementById('yourTurnOverlay');
     overlay.style.display = 'flex';
     
     // Disable end turn button until after roll
-    document.getElementById('endTurnBtn').disabled = true;
+    if (endTurnBtn) {
+        endTurnBtn.disabled = true;
+    }
 }
 
 // Show "Waiting for Turn" overlay
@@ -3119,20 +3135,29 @@ function showWaitingForTurn(data) {
         rollBtn.style.cursor = 'not-allowed';
     }
     
-    // Disable end turn button while waiting
-    document.getElementById('endTurnBtn').disabled = true;
+    // Update end turn button to show waiting status in multiplayer
+    const endTurnBtn = document.getElementById('endTurnBtn');
+    if (endTurnBtn && isMultiplayer) {
+        endTurnBtn.textContent = '⏳ Очікуємо хід інших гравців';
+        endTurnBtn.style.display = 'inline-block';
+        endTurnBtn.disabled = true;
+        endTurnBtn.style.opacity = '0.7';
+        endTurnBtn.style.cursor = 'not-allowed';
+    }
     
     // Show waiting overlay with dots
     const overlay = document.getElementById('waitingTurnOverlay');
     const info = document.getElementById('waitingTurnInfo');
-    info.textContent = 'Зараз хід іншого гравця...';
+    const currentPlayerName = currentTurnPlayerId === myPlayerId ? 'ваш' : 'іншого гравця';
+    info.textContent = `Зараз хід ${currentPlayerName}...`;
     overlay.style.display = 'flex';
     
     // Animated dots
     let dots = 0;
     waitingDotsTimer = setInterval(() => {
         dots = (dots % 3) + 1;
-        document.getElementById('waitingDotsAnim').textContent = '.'.repeat(dots);
+        const dotsAnim = document.getElementById('waitingDotsAnim');
+        if (dotsAnim) dotsAnim.textContent = '.'.repeat(dots);
     }, 500);
 }
 
@@ -3218,11 +3243,23 @@ function handleEndTurn() {
     isMyTurn = false;
     hasRolledThisTurn = false;
     canPerformActions = false;
-    document.getElementById('endTurnBtn').disabled = true;
+    
+    // Update UI to show waiting state immediately
+    const endTurnBtn = document.getElementById('endTurnBtn');
+    if (endTurnBtn && isMultiplayer) {
+        endTurnBtn.textContent = '⏳ Очікуємо хід інших гравців';
+        endTurnBtn.disabled = true;
+        endTurnBtn.style.display = 'inline-block';
+        endTurnBtn.style.opacity = '0.7';
+        endTurnBtn.style.cursor = 'not-allowed';
+    }
+    
     setBuildMode('none');
     
     if (multiplayerClient && isMultiplayer) {
         multiplayerClient.endTurn();
+        // Request game state sync from server to get latest buildings
+        multiplayerClient.requestGameStateSync();
     }
 }
 
