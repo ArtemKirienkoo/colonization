@@ -21,6 +21,11 @@ class MultiplayerClient {
         }
     }
 
+    // Log all outgoing emits for debugging
+    _logEmit(event, data) {
+        console.log(`[MULTIPLAYER EMIT] ${event}:`, data);
+    }
+
     // Connect to server
     connect(serverUrl = 'http://localhost:3000') {
         if (typeof io === 'undefined') {
@@ -124,6 +129,7 @@ class MultiplayerClient {
         this.isHost = true;
 
         return new Promise((resolve, reject) => {
+            this._logEmit('create-room', { roomName, playerName: this.playerName, maxPlayers, color });
             this.socket.emit('create-room', { roomName, playerName: this.playerName, maxPlayers, color });
 
             const onRoomCreated = (data) => {
@@ -151,6 +157,7 @@ class MultiplayerClient {
         this.roomCode = roomCode.toUpperCase();
 
         return new Promise((resolve, reject) => {
+            this._logEmit('join-room', { roomCode: this.roomCode, playerName: this.playerName, color });
             this.socket.emit('join-room', { roomCode: this.roomCode, playerName: this.playerName, color });
 
             const onRoomJoined = (data) => {
@@ -186,12 +193,14 @@ class MultiplayerClient {
     // Start the game (host only)
     startGame() {
         if (!this.isHost) return;
+        this._logEmit('start-game', { roomCode: this.roomCode });
         this.socket.emit('start-game', { roomCode: this.roomCode });
     }
 
     // Store map state (host sends map to server)
     storeMap(mapData) {
         if (!this.isHost) return;
+        this._logEmit('store-map', { roomCode: this.roomCode, hasMapData: !!mapData });
         this.socket.emit('store-map', { roomCode: this.roomCode, mapData });
     }
 
@@ -206,6 +215,7 @@ class MultiplayerClient {
             console.warn('Не вдалося прочитати multiplayerPlayerId:', error);
         }
         console.log('[MultiplayerClient] rejoinRoom', { roomCode, isHost, oldPlayerId, socketId: this.socket?.id });
+        this._logEmit('rejoin-room', { roomCode, isHost, oldPlayerId });
         this.socket.emit('rejoin-room', { roomCode, isHost, oldPlayerId });
 
         // Fallback: request full game state in case any phase events were emitted
@@ -213,6 +223,7 @@ class MultiplayerClient {
         try {
             const oldPlayerId = sessionStorage.getItem('multiplayerPlayerId');
             console.log('[MultiplayerClient] request-game-state', { roomCode, socketId: this.socket?.id, oldPlayerId });
+            this._logEmit('request-game-state', { roomCode, oldPlayerId });
             this.socket.emit('request-game-state', { roomCode, oldPlayerId });
         } catch (e) {
             console.warn('[MultiplayerClient] request-game-state failed', e);
@@ -221,6 +232,7 @@ class MultiplayerClient {
 
     // Sync a building action to all players in the room (stores on server)
     syncBuild(type, data) {
+        this._logEmit('sync-build', { roomCode: this.roomCode, type, data });
         this.socket.emit('sync-build', {
             roomCode: this.roomCode,
             type,
@@ -230,6 +242,7 @@ class MultiplayerClient {
 
     // Send game action to other players
     sendGameAction(action, data) {
+        this._logEmit('game-action', { roomCode: this.roomCode, action, data });
         this.socket.emit('game-action', {
             roomCode: this.roomCode,
             action,
@@ -239,6 +252,7 @@ class MultiplayerClient {
 
     // Roll dice during initial phase
     rollDiceInitial(die1, die2) {
+        this._logEmit('dice-roll', { roomCode: this.roomCode, playerId: this.socket.id, die1, die2 });
         this.socket.emit('dice-roll', {
             roomCode: this.roomCode,
             playerId: this.socket.id,
@@ -249,6 +263,7 @@ class MultiplayerClient {
 
     // Notify server that initial build is complete
     completeInitialBuild() {
+        this._logEmit('initial-build-complete', { roomCode: this.roomCode, playerId: this.socket.id });
         this.socket.emit('initial-build-complete', {
             roomCode: this.roomCode,
             playerId: this.socket.id
@@ -257,6 +272,7 @@ class MultiplayerClient {
 
     // Change player color
     changeColor(playerId, color) {
+        this._logEmit('change-color', { roomCode: this.roomCode, playerId, color });
         this.socket.emit('change-color', {
             roomCode: this.roomCode,
             playerId,
@@ -341,6 +357,7 @@ class MultiplayerClient {
 
     // Notify server that initial build turn is complete (with counts)
     endInitialBuildTurn(settlements, roads) {
+        this._logEmit('initial-build-end-turn', { roomCode: this.roomCode, playerId: this.socket.id, settlements, roads });
         this.socket.emit('initial-build-end-turn', {
             roomCode: this.roomCode,
             playerId: this.socket.id,
@@ -404,6 +421,7 @@ class MultiplayerClient {
     // Request game state sync from server
     requestGameStateSync() {
         if (this.socket && this.roomCode) {
+            this._logEmit('request-game-state', { roomCode: this.roomCode, playerId: this.socket.id });
             this.socket.emit('request-game-state', {
                 roomCode: this.roomCode,
                 playerId: this.socket.id
@@ -415,6 +433,7 @@ class MultiplayerClient {
 
     // Roll dice during regular turn (2 dice)
     rollRegularDice(die1, die2) {
+        this._logEmit('regular-dice-roll', { roomCode: this.roomCode, playerId: this.socket.id, die1, die2 });
         this.socket.emit('regular-dice-roll', {
             roomCode: this.roomCode,
             playerId: this.socket.id,
@@ -425,6 +444,7 @@ class MultiplayerClient {
 
     // End current turn
     endTurn() {
+        this._logEmit('end-turn', { roomCode: this.roomCode, playerId: this.socket.id });
         this.socket.emit('end-turn', {
             roomCode: this.roomCode,
             playerId: this.socket.id
@@ -444,6 +464,7 @@ class MultiplayerClient {
     // Leave room explicitly
     leaveRoom() {
         if (this.roomCode) {
+            this._logEmit('leave-room', { roomCode: this.roomCode });
             this.socket.emit('leave-room', { roomCode: this.roomCode });
             this.roomCode = null;
             this.isHost = false;

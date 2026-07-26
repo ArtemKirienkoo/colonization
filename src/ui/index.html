@@ -2399,6 +2399,7 @@ let isMultiplayer = false;
 let isHost = false;
 let roomCode = null;
 let myPlayerId = null;
+let initialPhaseBuildings = new Map();
 
 function registerMultiplayerHandlers(client) {
     client.onPlayerJoined((data) => {
@@ -3077,13 +3078,16 @@ let waitingDotsTimer = null;
 
 // Show "Your Turn" overlay
 function showYourTurn(data) {
+    console.log('[UI] showYourTurn called with:', data, 'myPlayerId:', myPlayerId, 'isMultiplayer:', isMultiplayer);
+    
     isMyTurn = true;
     hasRolledThisTurn = false;
     canPerformActions = false;
     currentTurnPlayerId = data?.playerId || myPlayerId;
     
     // Hide waiting overlay if visible
-    document.getElementById('waitingTurnOverlay').style.display = 'none';
+    const waitingOverlay = document.getElementById('waitingTurnOverlay');
+    if (waitingOverlay) waitingOverlay.style.display = 'none';
     if (waitingDotsTimer) {
         clearInterval(waitingDotsTimer);
         waitingDotsTimer = null;
@@ -3095,9 +3099,10 @@ function showYourTurn(data) {
         rollBtn.disabled = false;
         rollBtn.style.opacity = '1';
         rollBtn.style.cursor = 'pointer';
+        console.log('[UI] Roll button enabled for player:', myPlayerId);
     }
     
-    // Reset end turn button to normal state
+    // Hide end turn button until after rolling
     const endTurnBtn = document.getElementById('endTurnBtn');
     if (endTurnBtn && isMultiplayer) {
         endTurnBtn.textContent = '✅ Завершити хід';
@@ -3105,27 +3110,29 @@ function showYourTurn(data) {
         endTurnBtn.style.display = 'none';
         endTurnBtn.style.opacity = '1';
         endTurnBtn.style.cursor = 'pointer';
+        console.log('[UI] End turn button hidden until roll');
     }
     
     // Show the "Your Turn" overlay
     const overlay = document.getElementById('yourTurnOverlay');
-    overlay.style.display = 'flex';
-    
-    // Disable end turn button until after roll
-    if (endTurnBtn) {
-        endTurnBtn.disabled = true;
+    if (overlay) {
+        overlay.style.display = 'flex';
+        console.log('[UI] Your Turn overlay shown');
     }
 }
 
 // Show "Waiting for Turn" overlay
 function showWaitingForTurn(data) {
+    console.log('[UI] showWaitingForTurn called with:', data, 'myPlayerId:', myPlayerId, 'isMultiplayer:', isMultiplayer);
+    
     isMyTurn = false;
     hasRolledThisTurn = false;
     canPerformActions = false;
     currentTurnPlayerId = data?.currentPlayerId || null;
     
     // Hide your turn overlay
-    document.getElementById('yourTurnOverlay').style.display = 'none';
+    const yourTurnOverlay = document.getElementById('yourTurnOverlay');
+    if (yourTurnOverlay) yourTurnOverlay.style.display = 'none';
     
     // Disable roll button while waiting
     const rollBtn = document.getElementById('rollBtn');
@@ -3133,6 +3140,7 @@ function showWaitingForTurn(data) {
         rollBtn.disabled = true;
         rollBtn.style.opacity = '0.5';
         rollBtn.style.cursor = 'not-allowed';
+        console.log('[UI] Roll button disabled - waiting for turn');
     }
     
     // Update end turn button to show waiting status in multiplayer
@@ -3143,14 +3151,17 @@ function showWaitingForTurn(data) {
         endTurnBtn.disabled = true;
         endTurnBtn.style.opacity = '0.7';
         endTurnBtn.style.cursor = 'not-allowed';
+        console.log('[UI] End turn button showing waiting status');
     }
     
     // Show waiting overlay with dots
     const overlay = document.getElementById('waitingTurnOverlay');
     const info = document.getElementById('waitingTurnInfo');
     const currentPlayerName = currentTurnPlayerId === myPlayerId ? 'ваш' : 'іншого гравця';
-    info.textContent = `Зараз хід ${currentPlayerName}...`;
-    overlay.style.display = 'flex';
+    if (info) info.textContent = `Зараз хід ${currentPlayerName}...`;
+    if (overlay) overlay.style.display = 'flex';
+    
+    console.log('[UI] Waiting overlay shown for player:', currentTurnPlayerId);
     
     // Animated dots
     let dots = 0;
@@ -3163,7 +3174,8 @@ function showWaitingForTurn(data) {
 
 // Handle regular dice roll (when it's my turn)
 function handleRegularDiceRoll() {
-    try { console.log('[DEBUG handleRegularDiceRoll] initialPhase=', initialPhase, 'isMyTurn=', isMyTurn, 'hasRolledThisTurn=', hasRolledThisTurn, 'canPerformActions=', canPerformActions, 'myPlayerId=', myPlayerId); } catch(e){}
+    console.log('[UI] handleRegularDiceRoll called, isMyTurn:', isMyTurn, 'hasRolledThisTurn:', hasRolledThisTurn, 'canPerformActions:', canPerformActions, 'myPlayerId:', myPlayerId);
+    
     if (initialPhase.active && initialPhase.phase === 'dice-roll') {
         showMessage('Спочатку киньте кубики для визначення черги!');
         return;
@@ -3173,6 +3185,7 @@ function handleRegularDiceRoll() {
         return;
     }
     if (!isMyTurn) {
+        console.log('[UI] Cannot roll - not my turn!');
         showMessage('Зараз не ваш хід!');
         return;
     }
@@ -3221,7 +3234,10 @@ function handleRegularDiceRoll() {
     
     // Send to server in multiplayer mode
     if (multiplayerClient && isMultiplayer) {
+        console.log('[UI] Sending dice roll to server:', die1, die2);
         multiplayerClient.rollRegularDice(die1, die2);
+    } else {
+        console.log('[UI] Single player mode - not sending to server');
     }
 }
 
@@ -3234,7 +3250,13 @@ function handleCollectResources(data) {
 
 // End current turn
 function handleEndTurn() {
-    if (!isMyTurn) return;
+    console.log('[UI] handleEndTurn called, isMyTurn:', isMyTurn, 'hasRolledThisTurn:', hasRolledThisTurn, 'myPlayerId:', myPlayerId);
+    
+    if (!isMyTurn) {
+        console.log('[UI] Cannot end turn - not my turn!');
+        showMessage('Зараз не ваш хід!');
+        return;
+    }
     if (!hasRolledThisTurn) {
         showMessage('Спочатку киньте кубики!');
         return;
@@ -3244,6 +3266,8 @@ function handleEndTurn() {
     hasRolledThisTurn = false;
     canPerformActions = false;
     
+    console.log('[UI] Turn ended, switching to waiting state');
+    
     // Update UI to show waiting state immediately
     const endTurnBtn = document.getElementById('endTurnBtn');
     if (endTurnBtn && isMultiplayer) {
@@ -3252,14 +3276,19 @@ function handleEndTurn() {
         endTurnBtn.style.display = 'inline-block';
         endTurnBtn.style.opacity = '0.7';
         endTurnBtn.style.cursor = 'not-allowed';
+        console.log('[UI] End turn button updated to waiting state');
     }
     
     setBuildMode('none');
     
     if (multiplayerClient && isMultiplayer) {
+        console.log('[UI] Sending end-turn to server');
         multiplayerClient.endTurn();
         // Request game state sync from server to get latest buildings
-        multiplayerClient.requestGameStateSync();
+        setTimeout(() => {
+            console.log('[UI] Requesting game state sync after end turn');
+            multiplayerClient.requestGameStateSync();
+        }, 500);
     }
 }
 
@@ -3511,3 +3540,4 @@ window.addEventListener('resize', () => {
 });
 </script>
 </body>
+</html>
