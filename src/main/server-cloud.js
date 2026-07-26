@@ -586,6 +586,12 @@ io.on('connection', (socket) => {
                     order: room.initialBuildOrder
                 });
             }
+            
+            // ===== ВИПРАВЛЕННЯ: Синхронізуємо будівлі з усіма гравцями =====
+            io.to(roomCode).emit('sync-buildings', {
+                buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
+            });
+            // ===== КІНЕЦЬ ВИПРАВЛЕННЯ =====
         }
     });
 
@@ -675,6 +681,12 @@ io.on('connection', (socket) => {
                 });
             }
         }
+        
+        // ===== ВИПРАВЛЕННЯ: Синхронізуємо будівлі після звичайного ходу =====
+        io.to(roomCode).emit('sync-buildings', {
+            buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
+        });
+        // ===== КІНЕЦЬ ВИПРАВЛЕННЯ =====
     });
     // ===== ДОПОМІЖНІ ФУНКЦІЇ ДЛЯ СЕРВЕРНОЇ ПЕРЕВІРКИ =====
     // Перевірка, чи належить ребро (дорога) гравцеві

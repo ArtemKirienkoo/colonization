@@ -537,22 +537,31 @@ io.on('connection', (socket) => {
             // Notify next player to build
             const nextPlayerId = room.initialBuildOrder[room.currentInitialBuildIndex].playerId;
             
-            // Tell the ended player they're done
-            io.to(playerId).emit('initial-build-your-done', {
-                nextPlayerId: nextPlayerId
-            });
+            // Send all current buildings so all players can see them
+            const buildingsData = Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}));
             
-            // Tell next player it's their turn
+            // Tell next player it's their turn (with buildings data)
             io.to(nextPlayerId).emit('initial-build-your-turn', {
                 playerId: nextPlayerId,
-                order: room.initialBuildOrder
+                order: room.initialBuildOrder,
+                buildings: buildingsData
             });
             
             // Update build phase overlay for remaining players
             io.to(roomCode).emit('initial-build-next-player', {
                 currentPlayerId: nextPlayerId,
-                currentIndex: room.currentInitialBuildIndex
+                currentIndex: room.currentInitialBuildIndex,
+                buildings: buildingsData
             });
+            
+            // Tell the ended player they're done (with buildings for sync)
+            io.to(playerId).emit('initial-build-your-done', {
+                nextPlayerId: nextPlayerId,
+                buildings: buildingsData
+            });
+            
+            // Broadcast buildings to ALL players so everyone sees them visually
+            io.to(roomCode).emit('sync-buildings', { buildings: buildingsData });
             
             // Tell all waiting players about update
             for (let i = room.currentInitialBuildIndex + 1; i < room.initialBuildOrder.length; i++) {
