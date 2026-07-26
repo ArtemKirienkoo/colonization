@@ -6,8 +6,9 @@
   "author": "Colonization Team",
   "scripts": {
     "start": "electron .",
-    "start:server": "node src/main/server.js",
-    "start:host": "node src/main/server.js && electron .",
+    "start:server": "node src/main/server-unified.js",
+    "start:host": "node src/main/server-unified.js && electron .",
+    "start:cloud": "CLOUD=true node src/main/server-unified.js",
     "build": "electron-builder build --win",
     "build:dir": "electron-builder build --win --dir",
     "pack": "electron-packager . Colonization --platform=win32 --arch=x64 --out=dist --overwrite --no-prune --ignore=dist"

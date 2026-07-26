@@ -1,1 +1,1 @@
-web: node src/main/server-cloud.js
+web: CLOUD=true node src/main/server-unified.js

@@ -19,7 +19,7 @@ let serverInfo = {
 
 // Start the multiplayer server
 function startServer() {
-    const { startServer: startMPServer, getPublicIp, getLocalIp } = require('./server.js');
+    const { startServer: startMPServer, getPublicIp, getLocalIp } = require('./server-unified.js');
     startMPServer();
     
     // Get server URLs after a longer delay to ensure server is fully ready

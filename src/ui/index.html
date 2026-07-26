@@ -2438,11 +2438,29 @@ function registerMultiplayerHandlers(client) {
         console.log('Next player:', data, ' myPlayerId=', myPlayerId, ' initialPhase.canBuild=', initialPhase.canBuild);
         initialPhase.currentIndex = data.currentIndex || 0;
         
+        // Оновлюємо порядок будування з даних сервера
+        if (data.order) {
+            initialPhase.buildOrder = data.order;
+        }
+        
         const status = document.getElementById('buildPhaseStatus');
         const endBtn = document.getElementById('initialBuildEndTurnBtn');
         
         // Блокуємо кнопку "Завершити" для всіх
         if (endBtn) endBtn.style.display = 'none';
+        
+        // Оновлюємо список порядку будування
+        const orderDiv = document.getElementById('buildPhaseOrder');
+        if (orderDiv && data.order) {
+            orderDiv.innerHTML = '';
+            data.order.forEach((player, index) => {
+                const isMe = player.playerId === myPlayerId;
+                const div = document.createElement('div');
+                div.style.cssText = `padding: 8px; background: ${isMe ? 'rgba(241,196,15,0.15)' : 'rgba(255,255,255,0.05)'}; border: 2px solid ${isMe ? '#f39c12' : 'rgba(255,255,255,0.1)'}; border-radius: 6px; font-size: 1em;`;
+                div.innerHTML = `<span style="color: ${isMe ? '#f1c40f' : '#fff'}; font-weight: ${isMe ? 'bold' : 'normal'};">${index + 1}. ${isMe ? 'Ви' : 'Гравець ' + player.playerId.slice(0, 4)}: ${player.total}</span>`;
+                orderDiv.appendChild(div);
+            });
+        }
         
         // Перевіряємо, чи зараз мій хід
         if (data.currentPlayerId === myPlayerId) {
@@ -2474,10 +2492,29 @@ function registerMultiplayerHandlers(client) {
     client.onInitialBuildYourTurn((data) => {
         console.log('Initial build - your turn:', data, ' myPlayerId=', myPlayerId);
         initialPhase.canBuild = true;
+        
+        // Оновлюємо порядок будування з даних сервера
+        if (data.order) {
+            initialPhase.buildOrder = data.order;
+        }
+        
         const status = document.getElementById('buildPhaseStatus');
         if (status) {
             status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
             status.style.color = '#27ae60';
+        }
+        
+        // Оновлюємо список порядку будування
+        const orderDiv = document.getElementById('buildPhaseOrder');
+        if (orderDiv && data.order) {
+            orderDiv.innerHTML = '';
+            data.order.forEach((player, index) => {
+                const isMe = player.playerId === myPlayerId;
+                const div = document.createElement('div');
+                div.style.cssText = `padding: 8px; background: ${isMe ? 'rgba(241,196,15,0.15)' : 'rgba(255,255,255,0.05)'}; border: 2px solid ${isMe ? '#f39c12' : 'rgba(255,255,255,0.1)'}; border-radius: 6px; font-size: 1em;`;
+                div.innerHTML = `<span style="color: ${isMe ? '#f1c40f' : '#fff'}; font-weight: ${isMe ? 'bold' : 'normal'};">${index + 1}. ${isMe ? 'Ви' : 'Гравець ' + player.playerId.slice(0, 4)}: ${player.total}</span>`;
+                orderDiv.appendChild(div);
+            });
         }
     });
     client.onInitialBuildWaiting((data) => {

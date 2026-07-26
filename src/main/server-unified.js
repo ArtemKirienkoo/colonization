@@ -1,4 +1,5 @@
-// Multiplayer Server for Colonization - Cloud Production Version
+// Multiplayer Server for Colonization - Unified Version
+// Supports both local and cloud deployment
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -13,6 +14,12 @@ const io = socketIo(server, {
     }
 });
 
+// Serve static files for browser testing (local mode only)
+const isCloud = process.env.CLOUD === 'true';
+if (!isCloud) {
+    app.use(express.static(path.join(__dirname, '..', 'ui')));
+}
+
 // Store active rooms
 const rooms = new Map();
 
@@ -26,6 +33,90 @@ function generateRoomCode() {
     return code;
 }
 
+// ===== HELPER FUNCTIONS FOR SERVER-SIDE VALIDATION =====
+// Check if edge (road) belongs to player
+function isMyServerRoad(edgeKey, playerId, room) {
+    const bld = room.buildings.get(edgeKey);
+    return bld && bld.playerId === playerId;
+}
+
+// Check if vertex (settlement/city) belongs to player
+function isMyServerVertex(vertexKey, playerId, room) {
+    const bld = room.buildings.get(vertexKey);
+    return bld && bld.playerId === playerId;
+}
+
+// Check if edge is connected to player's existing network (own settlements or roads)
+function isEdgeConnectedServer(edgeKey, playerId, room) {
+    if (!room.topology) return true; // Skip validation if no topology
+    
+    const edgeMap = new Map(room.topology.edges);
+    const edge = edgeMap.get(edgeKey);
+    if (!edge) return false;
+    const va = edge[1].va; const vb = edge[1].vb;
+    
+    // Find vertex keys by coordinates
+    const vertexMap = new Map(room.topology.vertices);
+    let vkA = null, vkB = null;
+    for (const [vk, vData] of vertexMap) {
+        if (vData.pos.x === va.x && vData.pos.y === va.y) vkA = vk;
+        if (vData.pos.x === vb.x && vData.pos.y === vb.y) vkB = vk;
+    }
+    
+    // If own settlement at either end of road - can build
+    if (vkA && isMyServerVertex(vkA, playerId, room)) return true;
+    if (vkB && isMyServerVertex(vkB, playerId, room)) return true;
+    
+    // If own road connects to this edge
+    for (const [ek2, bld] of room.buildings) {
+        if (bld.type !== 'road' || bld.playerId !== playerId) continue;
+        const edge2 = edgeMap.get(ek2);
+        if (!edge2) continue;
+        
+        // Shared vertex
+        if ((edge2[1].va.x === va.x && edge2[1].va.y === va.y) ||
+            (edge2[1].va.x === vb.x && edge2[1].va.y === vb.y) ||
+            (edge2[1].vb.x === va.x && edge2[1].vb.y === va.y) ||
+            (edge2[1].vb.x === vb.x && edge2[1].vb.y === vb.y)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Check if settlement can be placed (not within 2 edges of OTHER players' buildings)
+function canPlaceSettlementServer(vertexKey, playerId, room) {
+    if (!room.topology) return true; // Skip validation if no topology
+    
+    const vertexMap = new Map(room.topology.vertices);
+    const vData = vertexMap.get(vertexKey);
+    if (!vData) return false;
+    
+    // Find neighboring vertices (distance 1 edge)
+    const neighborKeys = [];
+    const edgeMap = new Map(room.topology.edges);
+    for (const [ek, edge] of edgeMap) {
+        if ((edge[1].va.x === vData.pos.x && edge[1].va.y === vData.pos.y) ||
+            (edge[1].vb.x === vData.pos.x && edge[1].vb.y === vData.pos.y)) {
+            const target = (edge[1].va.x === vData.pos.x && edge[1].va.y === vData.pos.y) ? edge[1].vb : edge[1].va;
+            for (const [vk2, v2] of vertexMap) {
+                if (v2.pos.x === target.x && v2.pos.y === target.y) neighborKeys.push(vk2);
+            }
+        }
+    }
+    
+    // Check all existing settlements/cities
+    for (const [vk2, bld] of room.buildings) {
+        if (bld.type === 'settlement' || bld.type === 'city') {
+            if (vk2 === vertexKey) return false; // Spot taken
+            // Distance 0 (same spot) or 1 (neighboring vertex)
+            if (neighborKeys.includes(vk2)) return false;
+        }
+    }
+    return true;
+}
+// ===== END HELPER FUNCTIONS =====
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
@@ -34,6 +125,7 @@ io.on('connection', (socket) => {
     socket.on('create-room', ({ roomName, playerName, maxPlayers, color }) => {
         const roomCode = generateRoomCode();
         const defaultColors = ['red', 'blue', 'yellow', 'green'];
+        
         const room = {
             code: roomCode,
             name: roomName || 'Кімната',
@@ -58,8 +150,8 @@ io.on('connection', (socket) => {
                 diceRolled: false, // has current player rolled?
                 actionsLocked: true // locked until dice rolled
             },
-            buildings: new Map(),
-            topology: null // edgeKey/vertexKey -> {playerId, color, type}
+            buildings: new Map(), // edgeKey/vertexKey -> {playerId, color, type}
+            topology: null // Cloud version topology support
         };
         
         rooms.set(roomCode, room);
@@ -123,14 +215,13 @@ io.on('connection', (socket) => {
         io.emit('rooms-list', getRoomsList());
     });
 
-    // Rejoin room after page navigation (when game starts)
-    // The room still exists because we DON'T delete it on disconnect during game
+    // Rejoin room after page navigation
     socket.on('rejoin-room', ({ roomCode, isHost, oldPlayerId }) => {
         console.log('[server] rejoin-room', { roomCode, isHost, oldPlayerId, socketId: socket.id });
         const room = rooms.get(roomCode);
         if (!room) return;
 
-        // If reconnecting from a previous socket, keep the same player record and update room state references
+        // Preserve the same player record on reconnect
         if (oldPlayerId) {
             const oldPlayerIndex = room.players.findIndex(p => p.id === oldPlayerId);
             if (oldPlayerIndex !== -1) {
@@ -173,20 +264,26 @@ io.on('connection', (socket) => {
         }
 
         if (isHost) room.host = socket.id;
+
         let existingPlayer = room.players.find(p => p.id === socket.id);
         if (!existingPlayer) {
-            room.players.push({ id: socket.id, name: 'Гравець', isHost: isHost });
+            room.players.push({
+                id: socket.id,
+                name: 'Гравець',
+                isHost: isHost,
+                color: 'red'
+            });
         }
+
         socket.join(roomCode);
-        
-        // Завжди надсилаємо карту та будівлі
+
+        // Always send map and buildings
         if (room.gameState) socket.emit('game-started', { mapSeed: room.gameState });
         if (room.buildings) {
             socket.emit('sync-buildings', { buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val})) });
         }
 
-        // ===== ЗМІНЕНО ТУТ =====
-        // Якщо фаза 'dice-roll' активна, надсилаємо стан кидків для відновлення після перезавантаження
+        // Send game state based on current phase
         if (room.gamePhase === 'dice-roll') {
             const diceRolls = Array.from(room.diceRolls.entries()).map(([playerId, total]) => ({ playerId, total }));
             socket.emit('start-dice-phase', {
@@ -196,40 +293,47 @@ io.on('connection', (socket) => {
         } else if (room.gamePhase === 'initial-build') {
             const currentPlayerId = room.initialBuildOrder[room.currentInitialBuildIndex]?.playerId;
             
-            // Надсилаємо синхронізацію стану
-            const playerData = { 
-                gamePhase: room.gamePhase, 
-                currentPlayerId: currentPlayerId, 
-                initialBuildOrder: room.initialBuildOrder, 
-                currentIndex: room.currentInitialBuildIndex 
-            };
-            socket.emit('game-state-sync', playerData);
+            // Send state sync
+            socket.emit('game-state-sync', {
+                gamePhase: room.gamePhase,
+                currentPlayerId: currentPlayerId,
+                initialBuildOrder: room.initialBuildOrder,
+                currentIndex: room.currentInitialBuildIndex,
+                buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
+            });
 
-            // ===== ДОДАНО: ЯВНО НАДСИЛАЄМО ПОДІЇ ХОДУ =====
+            // Explicitly send turn events
             if (currentPlayerId === socket.id) {
-                // Якщо перезавантажився ТОЙ, хто зараз має ходити
-                socket.emit('initial-build-your-turn', { 
-                    playerId: socket.id, 
-                    order: room.initialBuildOrder 
+                socket.emit('initial-build-your-turn', {
+                    playerId: socket.id,
+                    order: room.initialBuildOrder
                 });
             } else if (currentPlayerId) {
-                // Якщо перезавантажився той, хто ЧЕКАЄ
                 const yourPosition = room.initialBuildOrder.findIndex(p => p.playerId === socket.id);
-                socket.emit('initial-build-waiting', { 
-                    currentPlayerId: currentPlayerId, 
+                socket.emit('initial-build-waiting', {
+                    currentPlayerId: currentPlayerId,
                     yourPosition: yourPosition,
-                    order: room.initialBuildOrder 
+                    order: room.initialBuildOrder
                 });
             }
-            // ===== КІНЕЦЬ ДОДАНОЇ ЧАСТИНИ =====
         } else if (room.gamePhase === 'regular-turn') {
-            // Звичайна гра
             const currentPlayerId = room.turnOrder[room.currentTurnIndex];
-            socket.emit('game-state-sync', { gamePhase: room.gamePhase, currentTurnPlayerId: currentPlayerId, turnOrder: room.turnOrder });
+            socket.emit('game-state-sync', {
+                gamePhase: room.gamePhase,
+                currentTurnPlayerId: currentPlayerId,
+                turnOrder: room.turnOrder,
+                buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
+            });
             if (currentPlayerId === socket.id) {
-                socket.emit('your-turn', { playerId: currentPlayerId, mustRollDice: !room.turnState.diceRolled });
+                socket.emit('your-turn', {
+                    playerId: currentPlayerId,
+                    mustRollDice: !room.turnState.diceRolled
+                });
             } else {
-                socket.emit('waiting-for-turn', { currentPlayerId: currentPlayerId, yourPosition: room.turnOrder.indexOf(socket.id) });
+                socket.emit('waiting-for-turn', {
+                    currentPlayerId: currentPlayerId,
+                    yourPosition: room.turnOrder.indexOf(socket.id)
+                });
             }
         }
     });
@@ -294,13 +398,13 @@ io.on('connection', (socket) => {
             });
         } else if (room.gamePhase === 'initial-build') {
             const currentPlayerId = room.initialBuildOrder[room.currentInitialBuildIndex]?.playerId;
-            const playerData = {
+            socket.emit('game-state-sync', {
                 gamePhase: room.gamePhase,
                 currentPlayerId: currentPlayerId,
                 initialBuildOrder: room.initialBuildOrder,
-                currentIndex: room.currentInitialBuildIndex
-            };
-            socket.emit('game-state-sync', playerData);
+                currentIndex: room.currentInitialBuildIndex,
+                buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
+            });
 
             if (currentPlayerId === socket.id) {
                 socket.emit('initial-build-your-turn', {
@@ -317,11 +421,22 @@ io.on('connection', (socket) => {
             }
         } else if (room.gamePhase === 'regular-turn') {
             const currentPlayerId = room.turnOrder[room.currentTurnIndex];
-            socket.emit('game-state-sync', { gamePhase: room.gamePhase, currentTurnPlayerId: currentPlayerId, turnOrder: room.turnOrder });
+            socket.emit('game-state-sync', {
+                gamePhase: room.gamePhase,
+                currentTurnPlayerId: currentPlayerId,
+                turnOrder: room.turnOrder,
+                buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
+            });
             if (currentPlayerId === socket.id) {
-                socket.emit('your-turn', { playerId: currentPlayerId, mustRollDice: !room.turnState.diceRolled });
+                socket.emit('your-turn', {
+                    playerId: currentPlayerId,
+                    mustRollDice: !room.turnState.diceRolled
+                });
             } else {
-                socket.emit('waiting-for-turn', { currentPlayerId: currentPlayerId, yourPosition: room.turnOrder.indexOf(socket.id) });
+                socket.emit('waiting-for-turn', {
+                    currentPlayerId: currentPlayerId,
+                    yourPosition: room.turnOrder.indexOf(socket.id)
+                });
             }
         }
     });
@@ -334,17 +449,14 @@ io.on('connection', (socket) => {
         const player = room.players.find(p => p.id === playerId);
         if (!player) return;
 
-        // Check if the requested color is already taken by another player
         const usedColors = new Set(room.players.filter(p => p.id !== playerId).map(p => p.color).filter(c => c));
         if (usedColors.has(color)) {
             socket.emit('color-change-failed', { playerId, color, message: 'Цей колір вже зайнятий' });
             return;
         }
 
-        // Update the player's color
         player.color = color;
 
-        // Broadcast the updated player list to all players in the room
         io.to(roomCode).emit('color-changed', {
             playerId,
             color,
@@ -357,20 +469,22 @@ io.on('connection', (socket) => {
         socket.emit('rooms-list', getRoomsList());
     });
 
-    // Store map state (host sends map to server)
+    // Store map state
     socket.on('store-map', ({ roomCode, mapData }) => {
         const room = rooms.get(roomCode);
         if (room && room.host === socket.id) {
             room.gameState = mapData;
         }
     });
-    // Додати це після socket.on('store-map', ...)
+
+    // Store topology (cloud version feature)
     socket.on('store-topology', ({ roomCode, topology }) => {
         const room = rooms.get(roomCode);
         if (room && room.host === socket.id) {
-            room.topology = topology; // Зберігаємо топологію в кімнаті
+            room.topology = topology;
         }
     });
+
     // Start game
     socket.on('start-game', ({ roomCode }) => {
         const room = rooms.get(roomCode);
@@ -434,11 +548,9 @@ io.on('connection', (socket) => {
             rolls.sort((a, b) => b.total - a.total);
             
             // In case of tie, re-roll is needed
-            // Check for ties
             const totals = rolls.map(r => r.total);
             const uniqueTotals = new Set(totals);
             if (uniqueTotals.size < rolls.length) {
-                // There's a tie - need re-roll for tied players
                 const tiedPlayers = [];
                 for (let i = 0; i < rolls.length; i++) {
                     for (let j = i + 1; j < rolls.length; j++) {
@@ -560,22 +672,32 @@ io.on('connection', (socket) => {
             // Notify next player to build
             const nextPlayerId = room.initialBuildOrder[room.currentInitialBuildIndex].playerId;
             
-            // Tell the ended player they're done
-            io.to(playerId).emit('initial-build-your-done', {
-                nextPlayerId: nextPlayerId
-            });
+            // Send all current buildings so all players can see them
+            const buildingsData = Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}));
             
-            // Tell next player it's their turn
+            // Tell next player it's their turn (with buildings data)
             io.to(nextPlayerId).emit('initial-build-your-turn', {
                 playerId: nextPlayerId,
-                order: room.initialBuildOrder
+                order: room.initialBuildOrder,
+                buildings: buildingsData
             });
             
             // Update build phase overlay for remaining players
             io.to(roomCode).emit('initial-build-next-player', {
                 currentPlayerId: nextPlayerId,
-                currentIndex: room.currentInitialBuildIndex
+                currentIndex: room.currentInitialBuildIndex,
+                order: room.initialBuildOrder,
+                buildings: buildingsData
             });
+            
+            // Tell the ended player they're done (with buildings for sync)
+            io.to(playerId).emit('initial-build-your-done', {
+                nextPlayerId: nextPlayerId,
+                buildings: buildingsData
+            });
+            
+            // Broadcast buildings to ALL players so everyone sees them visually
+            io.to(roomCode).emit('sync-buildings', { buildings: buildingsData });
             
             // Tell all waiting players about update
             for (let i = room.currentInitialBuildIndex + 1; i < room.initialBuildOrder.length; i++) {
@@ -586,12 +708,6 @@ io.on('connection', (socket) => {
                     order: room.initialBuildOrder
                 });
             }
-            
-            // ===== ВИПРАВЛЕННЯ: Синхронізуємо будівлі з усіма гравцями =====
-            io.to(roomCode).emit('sync-buildings', {
-                buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
-            });
-            // ===== КІНЕЦЬ ВИПРАВЛЕННЯ =====
         }
     });
 
@@ -632,7 +748,6 @@ io.on('connection', (socket) => {
         });
         
         // Send resource collection data to all players
-        // Each client will calculate their own resources based on their settlements
         io.to(roomCode).emit('collect-resources', {
             diceTotal: total
         });
@@ -682,83 +797,12 @@ io.on('connection', (socket) => {
             }
         }
         
-        // ===== ВИПРАВЛЕННЯ: Синхронізуємо будівлі після звичайного ходу =====
+        // Sync buildings after regular turn
         io.to(roomCode).emit('sync-buildings', {
             buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
         });
-        // ===== КІНЕЦЬ ВИПРАВЛЕННЯ =====
     });
-    // ===== ДОПОМІЖНІ ФУНКЦІЇ ДЛЯ СЕРВЕРНОЇ ПЕРЕВІРКИ =====
-    // Перевірка, чи належить ребро (дорога) гравцеві
-    function isMyServerRoad(edgeKey, playerId, room) {
-        const bld = room.buildings.get(edgeKey);
-        return bld && bld.playerId === playerId;
-    }
-    // Перевірка, чи належить вершина (поселення/місто) гравцеві
-    function isMyServerVertex(vertexKey, playerId, room) {
-        const bld = room.buildings.get(vertexKey);
-        return bld && bld.playerId === playerId;
-    }
-    // Чи з'єднана дорога з існуючою мережею гравця (свої поселення або свої дороги)
-    function isEdgeConnectedServer(edgeKey, playerId, room) {
-        const edgeMap = new Map(room.topology.edges);
-        const edge = edgeMap.get(edgeKey);
-        if (!edge) return false;
-        const va = edge[1].va; const vb = edge[1].vb;
-        // Шукаємо вершини (координати) в будівлях
-        const vertexMap = new Map(room.topology.vertices);
-        let vkA = null, vkB = null;
-        for (const [vk, vData] of vertexMap) {
-            if (vData.pos.x === va.x && vData.pos.y === va.y) vkA = vk;
-            if (vData.pos.x === vb.x && vData.pos.y === vb.y) vkB = vk;
-        }
-        // Якщо своє поселення на одному з кінців дороги - можна будувати
-        if (vkA && isMyServerVertex(vkA, playerId, room)) return true;
-        if (vkB && isMyServerVertex(vkB, playerId, room)) return true;
-        // Якщо своя дорога з'єднується з цим ребром
-        for (const [ek2, bld] of room.buildings) {
-            if (bld.type !== 'road' || bld.playerId !== playerId) continue;
-            const edge2 = edgeMap.get(ek2);
-            if (!edge2) continue;
-            // Спільна вершина
-            if ((edge2[1].va.x === va.x && edge2[1].va.y === va.y) ||
-                (edge2[1].va.x === vb.x && edge2[1].va.y === vb.y) ||
-                (edge2[1].vb.x === va.x && edge2[1].vb.y === va.y) ||
-                (edge2[1].vb.x === vb.x && edge2[1].vb.y === vb.y)) {
-                return true;
-            }
-        }
-        return false;
-    }
-    // Чи можна поставити поселення (не ближче 2 ребер від ЧУЖИХ і СВОЇХ)
-    function canPlaceSettlementServer(vertexKey, playerId, room) {
-        const vertexMap = new Map(room.topology.vertices);
-        const vData = vertexMap.get(vertexKey);
-        if (!vData) return false;
-        // Шукаємо сусідні вершини (відстань 1 ребро)
-        const neighborKeys = [];
-        const edgeMap = new Map(room.topology.edges);
-        for (const [ek, edge] of edgeMap) {
-            if ((edge[1].va.x === vData.pos.x && edge[1].va.y === vData.pos.y) ||
-                (edge[1].vb.x === vData.pos.x && edge[1].vb.y === vData.pos.y)) {
-                // Знаходимо іншу точку ребра
-                const target = (edge[1].va.x === vData.pos.x && edge[1].va.y === vData.pos.y) ? edge[1].vb : edge[1].va;
-                for (const [vk2, v2] of vertexMap) {
-                    if (v2.pos.x === target.x && v2.pos.y === target.y) neighborKeys.push(vk2);
-                }
-            }
-        }
-        // Перевіряємо всі існуючі поселення/міста
-        for (const [vk2, bld] of room.buildings) {
-            if (bld.type === 'settlement' || bld.type === 'city') {
-                if (vk2 === vertexKey) return false; // Місце зайняте
-                // Відстань 0 (це саме місце) або 1 (сусідня вершина)
-                if (neighborKeys.includes(vk2)) return false;
-            }
-        }
-        return true;
-    }
-    // ===== КІНЕЦЬ ДОПОМІЖНИХ ФУНКЦІЙ =====
+
     // Sync a building action to all players (with validation)
     socket.on('sync-build', ({ roomCode, type, data }) => {
         const room = rooms.get(roomCode);
@@ -775,22 +819,23 @@ io.on('connection', (socket) => {
             socket.emit('action-error', { message: 'Це місце вже зайняте!' });
             return;
         }
-        // ===== ДОДАТИ ЦЮ ПЕРЕВІРКУ ВІДРАЗУ ПІСЛЯ ПОПЕРЕДНЬОГО IF =====
+        
+        // SERVER-SIDE VALIDATION: Check topology rules
         if (room.topology) {
             if (type === 'road') {
-                // Не будувати, якщо не з'єднано зі своєю мережею
+                // Don't build if not connected to player's network
                 if (!isEdgeConnectedServer(key, socket.id, room)) {
                     socket.emit('action-error', { message: 'Дорога не з\'єднана з вашою мережею!' });
                     return;
                 }
             } else if (type === 'settlement') {
-                // Не будувати, якщо поруч є інше поселення (відстань 2)
+                // Don't build if too close to other settlements
                 if (!canPlaceSettlementServer(key, socket.id, room)) {
                     socket.emit('action-error', { message: 'Не можна будувати поселення тут (відстань або чужі дороги)!' });
                     return;
                 }
             } else if (type === 'city') {
-                // Місто можна будувати тільки на своєму поселенні
+                // City can only be built on own settlement
                 const existing = room.buildings.get(key);
                 if (!existing || existing.playerId !== socket.id || existing.type !== 'settlement') {
                     socket.emit('action-error', { message: 'Не можна покращити це місто!' });
@@ -798,7 +843,8 @@ io.on('connection', (socket) => {
                 }
             }
         }
-
+        
+        // VALIDATION: During initial build, check limits
         if (room.gamePhase === 'initial-build') {
             const progress = room.initialBuildProgress.get(socket.id) || { settlements: 0, roads: 0 };
             if (type === 'settlement' && progress.settlements >= 1) {
@@ -810,7 +856,7 @@ io.on('connection', (socket) => {
                 return;
             }
         }
-        // ===== КІНЕЦЬ ВСТАВКИ =====
+        
         // VALIDATION: During initial build, only current builder can place
         if (room.gamePhase === 'initial-build') {
             const currentBuilderId = room.initialBuildOrder[room.currentInitialBuildIndex].playerId;
@@ -843,6 +889,7 @@ io.on('connection', (socket) => {
             vertexKey: data.vertexKey
         });
 
+        // Update initial build progress
         if (room.gamePhase === 'initial-build') {
             const progress = room.initialBuildProgress.get(socket.id) || { settlements: 0, roads: 0 };
             if (type === 'settlement') progress.settlements++;
@@ -862,12 +909,12 @@ io.on('connection', (socket) => {
         });
     });
 
-    // Game actions (generic forwarding)
+    // Handle game actions
     socket.on('game-action', ({ roomCode, action, data }) => {
         socket.to(roomCode).emit('game-action', { action, data });
     });
 
-    // Leave room explicitly (player clicks "Вийти" button - also delete room if host)
+    // Leave room explicitly
     socket.on('leave-room', ({ roomCode }) => {
         const room = rooms.get(roomCode);
         if (room) {
@@ -887,6 +934,11 @@ io.on('connection', (socket) => {
                         playerId: socket.id,
                         players: room.players
                     });
+                    
+                    // If room is empty, delete it
+                    if (room.players.length === 0) {
+                        rooms.delete(roomCode);
+                    }
                 }
                 
                 // Update room list
@@ -898,13 +950,15 @@ io.on('connection', (socket) => {
     // Disconnect
     socket.on('disconnect', () => {
         console.log('Player disconnected:', socket.id);
-        
+
+        // Remove player from rooms
         rooms.forEach((room, code) => {
             const playerIndex = room.players.findIndex(p => p.id === socket.id);
             if (playerIndex === -1) return;
             const player = room.players[playerIndex];
             
             if (!room.gamePhase) {
+                // Game not started yet - remove player completely
                 room.players.splice(playerIndex, 1);
                 if (room.host === socket.id && room.players.length > 0) {
                     room.host = room.players[0].id;
@@ -919,6 +973,7 @@ io.on('connection', (socket) => {
                     players: room.players
                 });
             } else {
+                // Game started - mark as disconnected but keep in room
                 player.disconnected = true;
                 socket.to(code).emit('player-disconnected', {
                     playerId: socket.id
@@ -926,6 +981,7 @@ io.on('connection', (socket) => {
             }
         });
         
+        // Update room list
         io.emit('rooms-list', getRoomsList());
     });
 });
@@ -940,10 +996,59 @@ function getRoomsList() {
     }));
 }
 
-// Start server
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Cloud multiplayer server running on port ${PORT}`);
-});
+// ===== LOCAL SERVER FUNCTIONS =====
+let serverStarted = false;
+let publicIp = null;
 
-module.exports = { io, rooms, getRoomsList };
+// Get public IP address
+async function getPublicIp() {
+    try {
+        const response = await fetch('https://api.ipify.org?format=json');
+        const data = await response.json();
+        publicIp = data.ip;
+        console.log(`Public IP: ${publicIp}`);
+        return publicIp;
+    } catch (error) {
+        console.error('Failed to get public IP:', error);
+        return null;
+    }
+}
+
+// Get local IP address
+function getLocalIp() {
+    const interfaces = require('os').networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+        for (const iface of interfaces[name]) {
+            if (iface.family === 'IPv4' && !iface.internal) {
+                return iface.address;
+            }
+        }
+    }
+    return 'localhost';
+}
+
+function startServer() {
+    if (serverStarted) return;
+    serverStarted = true;
+    server.listen(process.env.PORT || 3000, '0.0.0.0', () => {
+        const localIp = getLocalIp();
+        console.log(`Multiplayer server running on port ${process.env.PORT || 3000}`);
+        console.log(`Local URL: http://${localIp}:${process.env.PORT || 3000}`);
+        console.log(`Localhost URL: http://localhost:${process.env.PORT || 3000}`);
+        getPublicIp().then(ip => {
+            if (ip) {
+                console.log(`Public URL: http://${ip}:${process.env.PORT || 3000}`);
+            }
+        });
+    });
+}
+
+// Auto-start based on environment
+if (!isCloud && require.main === module) {
+    startServer();
+} else if (isCloud) {
+    // Cloud mode - server already listening
+    console.log(`Cloud multiplayer server running on port ${process.env.PORT || 3000}`);
+}
+
+module.exports = { io, rooms, startServer, getPublicIp, getLocalIp, getRoomsList };
