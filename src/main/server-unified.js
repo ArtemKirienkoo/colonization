@@ -933,8 +933,42 @@ io.on('connection', (socket) => {
     });
 
     // Handle game actions
-    socket.on('game-action', ({ roomCode, action, data }) => {
-        socket.to(roomCode).emit('game-action', { action, data });
+    // Додайте/оновіть обробник дій у server-unified.js:
+    socket.on('game-action', (data) => {
+        const { roomCode, action, payload } = data;
+        const room = rooms.get(roomCode);
+        if (!room) return;
+
+        if (action === 'end-turn') {
+            // Перехід ходу до наступного гравця
+            const playerIds = Object.keys(room.players);
+            const currentIndex = playerIds.indexOf(room.gameState.currentPlayerId);
+            const nextIndex = (currentIndex + 1) % playerIds.length;
+            
+            room.gameState.currentPlayerId = playerIds[nextIndex];
+
+            // Повідомляємо ВСІМ гравцям про зміну ходу
+            io.to(roomCode).emit('game-state-update', {
+                type: 'turn-changed',
+                currentPlayerId: room.gameState.currentPlayerId,
+                gameState: room.gameState
+            });
+        } 
+        else if (action === 'build') {
+            // Зберігаємо побудований об'єкт
+            if (payload.type === 'road') {
+                room.gameState.roads.push(payload.data);
+            } else if (payload.type === 'settlement' || payload.type === 'city') {
+                room.gameState.buildings.push(payload.data);
+            }
+
+            // Розсилаємо ВСІМ гравцям оновлений стан будівництва
+            io.to(roomCode).emit('game-state-update', {
+                type: 'build-sync',
+                buildData: payload,
+                gameState: room.gameState
+            });
+        }
     });
 
     // Leave room explicitly

@@ -24,6 +24,10 @@ class MultiplayerClient {
             this.socket.on('connect', () => {
                 this.connected = true;
                 console.log('Connected to server:', this.socket.id);
+                
+                // Налаштовуємо слухачі подій ПІСЛЯ створення сокета
+                this.setupSocketListeners();
+                
                 resolve();
             });
 
@@ -31,6 +35,57 @@ class MultiplayerClient {
                 console.error('Connection error:', error);
                 reject(error);
             });
+        });
+    }
+
+    // Налаштування обробників подій для синхронізації
+    setupSocketListeners() {
+        if (!this.socket) return;
+
+        this.socket.on('game-state-update', (data) => {
+            if (data.type === 'turn-changed') {
+                if (window.gameState) {
+                    window.gameState.currentPlayerId = data.currentPlayerId;
+                }
+                
+                window.isMyTurn = (data.currentPlayerId === this.socket.id);
+                
+                const endTurnBtn = document.getElementById('endTurnBtn');
+                if (endTurnBtn) {
+                    endTurnBtn.disabled = !window.isMyTurn;
+                }
+                
+                console.log(`Зараз хід гравця: ${data.currentPlayerId}. Мій хід: ${window.isMyTurn}`);
+            } 
+            else if (data.type === 'build-sync') {
+                const { type, data: itemData } = data.buildData;
+                
+                if (window.gameState) {
+                    if (type === 'road') {
+                        if (window.gameState.roads instanceof Set) {
+                            window.gameState.roads.add(itemData.edgeKey);
+                        } else if (Array.isArray(window.gameState.roads)) {
+                            window.gameState.roads.push(itemData.edgeKey);
+                        }
+                    } else if (type === 'settlement' || type === 'city') {
+                        if (window.gameState.settlements instanceof Map) {
+                            window.gameState.settlements.set(itemData.vertexKey, {
+                                type: type,
+                                playerId: itemData.playerId
+                            });
+                        } else {
+                            window.gameState.settlements[itemData.vertexKey] = {
+                                type: type,
+                                playerId: itemData.playerId
+                            };
+                        }
+                    }
+                }
+
+                if (typeof renderMap === 'function') {
+                    renderMap();
+                }
+            }
         });
     }
 
@@ -126,11 +181,12 @@ class MultiplayerClient {
     }
 
     // Send game action to other players
-    sendGameAction(action, data) {
+    sendGameAction(action, payload) {
+        if (!this.socket || !this.roomCode) return;
         this.socket.emit('game-action', {
             roomCode: this.roomCode,
             action,
-            data
+            payload
         });
     }
 
