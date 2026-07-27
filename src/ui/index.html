@@ -757,9 +757,12 @@ body.is-paused canvas {
                         <button class="roll-btn" id="rollBtn">🎲 Кинути</button>
                         <button class="trade-btn" id="tradeBtn">🔄 Обмін</button>
                     </div>
-                    <div class="dice-btns" style="margin-top: 4px;">
-                        <button class="roll-btn" id="endTurnBtn" style="background: linear-gradient(135deg, #27ae60, #229954) !important;">✅ Завершити хід</button>
-                    </div>
+<div class="dice-btns" style="margin-top: 4px;">
+    <button class="roll-btn" id="endTurnBtn" style="background: linear-gradient(135deg, #27ae60, #229954) !important;">✅ Завершити хід</button>
+</div>
+<div class="dice-btns" style="margin-top: 2px;">
+    <button id="showBuildPhaseBtn" style="display: none; padding: 4px 10px; font-size: 0.75em; background: linear-gradient(135deg, #2980b9, #2471a3) !important;">🏗️ Фаза будівництва</button>
+</div>
                 </div>
                 <div class="medals">
                     <div class="medal" id="medal-army">
@@ -2399,6 +2402,7 @@ let isMultiplayer = false;
 let isHost = false;
 let roomCode = null;
 let myPlayerId = null;
+let mySocketId = null;
 let initialPhaseBuildings = new Map();
 
 function registerMultiplayerHandlers(client) {
@@ -2434,6 +2438,12 @@ function registerMultiplayerHandlers(client) {
     client.onInitialBuildStart((data) => {
         console.log('Initial build started:', data, ' myPlayerId=', myPlayerId);
         onInitialBuildStart(data);
+        
+        // Якщо це мій хід - закриваємо оверлей, щоб мати доступ до канвасу
+        if (data.currentPlayerId === myPlayerId) {
+            const overlay = document.getElementById('buildPhaseOverlay');
+            if (overlay) overlay.style.display = 'none';
+        }
     });
     client.onInitialBuildNextPlayer((data) => {
         console.log('Next player:', data, ' myPlayerId=', myPlayerId, ' initialPhase.canBuild=', initialPhase.canBuild);
@@ -2498,6 +2508,10 @@ function registerMultiplayerHandlers(client) {
         if (data.order) {
             initialPhase.buildOrder = data.order;
         }
+        
+        // ЗАКРИВАЄМО оверлей, щоб мати доступ до канвасу!
+        const overlay = document.getElementById('buildPhaseOverlay');
+        if (overlay) overlay.style.display = 'none';
         
         const status = document.getElementById('buildPhaseStatus');
         if (status) {
@@ -2588,12 +2602,23 @@ function registerMultiplayerHandlers(client) {
         console.log('Dice tie:', data);
         showMessage(data.message || 'Нічия! Перекиньте кубики');
         initialPhase.myRoll = null;
+        initialPhase.diceRolls.clear();
         const rollBtn = document.getElementById('rollDiceInitialBtn');
         if (rollBtn) {
             rollBtn.disabled = false;
             rollBtn.style.opacity = '1';
             rollBtn.style.cursor = 'pointer';
         }
+        // Reset dice display
+        const die1El = document.getElementById('initialDie1');
+        const die2El = document.getElementById('initialDie2');
+        if (die1El && die2El) {
+            die1El.textContent = '⚀';
+            die2El.textContent = '⚀';
+        }
+        // Clear results
+        const results = document.getElementById('dicePhaseResults');
+        if (results) results.innerHTML = '';
     });
     client.onBuildingSynced((data) => {
         console.log('Building synced:', data);
@@ -3225,8 +3250,10 @@ function handleRegularDiceRoll() {
             showResourceNotification(collectResources(total));
         }
         
-        // Show end turn button
-        document.getElementById('endTurnBtn').style.display = 'inline-block';
+        // Show end turn button (enable it - it was disabled in showYourTurn)
+        const endTurnBtn = document.getElementById('endTurnBtn');
+        endTurnBtn.style.display = 'inline-block';
+        endTurnBtn.disabled = false;
         
         // Close the "Your Turn" overlay since we've rolled
         document.getElementById('yourTurnOverlay').style.display = 'none';
@@ -3262,10 +3289,6 @@ function handleEndTurn() {
         return;
     }
     
-    isMyTurn = false;
-    hasRolledThisTurn = false;
-    canPerformActions = false;
-    
     console.log('[UI] Turn ended, switching to waiting state');
     
     // Update UI to show waiting state immediately
@@ -3289,6 +3312,9 @@ function handleEndTurn() {
             console.log('[UI] Requesting game state sync after end turn');
             multiplayerClient.requestGameStateSync();
         }, 500);
+    } else {
+        // Single player mode - just show waiting message
+        showMessage('Хід завершено');
     }
 }
 
@@ -3303,23 +3329,43 @@ function handleBuildingSynced(data) {
         gameState.roads.clear();
         gameState.settlements.clear();
         
+        // Також оновлюємо initialPhaseBuildings з даних сервера
+        if (initialPhase.active && initialPhase.phase === 'initial-build') {
+            initialPhaseBuildings = new Map();
+        }
+        
         data.buildings.forEach(bld => {
-            if (bld.type === 'road' && bld.edgeKey) {
-                gameState.roads.set(bld.edgeKey, {
+            if (bld.type === 'road' && (bld.edgeKey || bld.key)) {
+                const edgeKey = bld.edgeKey || bld.key;
+                gameState.roads.set(edgeKey, {
                     color: bld.color,
                     playerId: bld.playerId
                 });
-            } else if (bld.type === 'settlement' && bld.vertexKey) {
-                gameState.settlements.set(bld.vertexKey, {
+                // Оновлюємо initialPhaseBuildings
+                if (initialPhase.active && initialPhase.phase === 'initial-build') {
+                    const progress = initialPhaseBuildings.get(bld.playerId) || { settlements: 0, roads: 0 };
+                    progress.roads++;
+                    initialPhaseBuildings.set(bld.playerId, progress);
+                }
+            } else if (bld.type === 'settlement' && (bld.vertexKey || bld.key)) {
+                const vertexKey = bld.vertexKey || bld.key;
+                gameState.settlements.set(vertexKey, {
                     type: 'settlement',
-                    vk: bld.vertexKey,
+                    vk: vertexKey,
                     color: bld.color,
                     playerId: bld.playerId
                 });
-            } else if (bld.type === 'city' && bld.vertexKey) {
-                gameState.settlements.set(bld.vertexKey, {
+                // Оновлюємо initialPhaseBuildings
+                if (initialPhase.active && initialPhase.phase === 'initial-build') {
+                    const progress = initialPhaseBuildings.get(bld.playerId) || { settlements: 0, roads: 0 };
+                    progress.settlements++;
+                    initialPhaseBuildings.set(bld.playerId, progress);
+                }
+            } else if (bld.type === 'city' && (bld.vertexKey || bld.key)) {
+                const vertexKey = bld.vertexKey || bld.key;
+                gameState.settlements.set(vertexKey, {
                     type: 'city',
-                    vk: bld.vertexKey,
+                    vk: vertexKey,
                     color: bld.color,
                     playerId: bld.playerId
                 });
@@ -3336,6 +3382,13 @@ function handleBuildingSynced(data) {
                 color: bldData.color,
                 playerId: bldData.playerId
             });
+            if (initialPhase.active && initialPhase.phase === 'initial-build') {
+                if (!initialPhaseBuildings.has(bldData.playerId)) {
+                    initialPhaseBuildings.set(bldData.playerId, { settlements: 0, roads: 0 });
+                }
+                const progress = initialPhaseBuildings.get(bldData.playerId);
+                progress.roads++;
+            }
         } else if (data.type === 'settlement' && bldData.vertexKey) {
             gameState.settlements.set(bldData.vertexKey, {
                 type: 'settlement',
@@ -3343,6 +3396,13 @@ function handleBuildingSynced(data) {
                 color: bldData.color,
                 playerId: bldData.playerId
             });
+            if (initialPhase.active && initialPhase.phase === 'initial-build') {
+                if (!initialPhaseBuildings.has(bldData.playerId)) {
+                    initialPhaseBuildings.set(bldData.playerId, { settlements: 0, roads: 0 });
+                }
+                const progress = initialPhaseBuildings.get(bldData.playerId);
+                progress.settlements++;
+            }
         } else if (data.type === 'city' && bldData.vertexKey) {
             gameState.settlements.set(bldData.vertexKey, {
                 type: 'city',
@@ -3446,9 +3506,9 @@ document.getElementById('initialBuildEndTurnBtn').addEventListener('click', () =
     audioManager.playClickSound();
     const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
     if (myBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && myBuildings.roads >= INITIAL_ROAD_LIMIT) {
-        // Send to server that we're done
+        // Send to server that we're done (server tracks progress, no need to send counts)
         if (multiplayerClient && isMultiplayer) {
-            multiplayerClient.endInitialBuildTurn(myBuildings.settlements, myBuildings.roads);
+            multiplayerClient.endInitialBuildTurn();
         }
         // Reset buildings for this player
         initialPhaseBuildings.set(myPlayerId, { settlements: 0, roads: 0 });
@@ -3470,7 +3530,7 @@ document.getElementById('closeBuildPhaseBtn').addEventListener('click', () => {
     const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
     if (isMultiplayer && initialPhase.active && initialPhase.phase === 'initial-build' && myBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && myBuildings.roads >= INITIAL_ROAD_LIMIT) {
         if (multiplayerClient && isMultiplayer) {
-            multiplayerClient.endInitialBuildTurn(myBuildings.settlements, myBuildings.roads);
+            multiplayerClient.endInitialBuildTurn();
         }
         initialPhase.canBuild = false;
         const status = document.getElementById('buildPhaseStatus');
@@ -3500,9 +3560,9 @@ document.getElementById('endTurnBtn').addEventListener('click', () => {
     if (initialPhase.active && initialPhase.phase === 'initial-build') {
         const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
         if (myBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && myBuildings.roads >= INITIAL_ROAD_LIMIT) {
-            // Send to server that we're done
+            // Send to server that we're done (server tracks progress)
             if (multiplayerClient && isMultiplayer) {
-                multiplayerClient.endInitialBuildTurn(myBuildings.settlements, myBuildings.roads);
+                multiplayerClient.endInitialBuildTurn();
             }
             // Reset buildings for this player
             initialPhaseBuildings.set(myPlayerId, { settlements: 0, roads: 0 });

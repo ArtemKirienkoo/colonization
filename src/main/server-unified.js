@@ -117,6 +117,18 @@ function canPlaceSettlementServer(vertexKey, playerId, room) {
 }
 // ===== END HELPER FUNCTIONS =====
 
+// Helper: get buildings array for sending to clients
+function getBuildingsArray(room) {
+    return Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}));
+}
+
+// Helper: sync buildings to all players in room
+function syncBuildingsToRoom(roomCode, room) {
+    const buildingsData = getBuildingsArray(room);
+    io.to(roomCode).emit('sync-buildings', { buildings: buildingsData });
+    return buildingsData;
+}
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
@@ -280,7 +292,7 @@ io.on('connection', (socket) => {
         // Always send map and buildings
         if (room.gameState) socket.emit('game-started', { mapSeed: room.gameState });
         if (room.buildings) {
-            socket.emit('sync-buildings', { buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val})) });
+            socket.emit('sync-buildings', { buildings: getBuildingsArray(room) });
         }
 
         // Send game state based on current phase
@@ -299,7 +311,7 @@ io.on('connection', (socket) => {
                 currentPlayerId: currentPlayerId,
                 initialBuildOrder: room.initialBuildOrder,
                 currentIndex: room.currentInitialBuildIndex,
-                buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
+                buildings: getBuildingsArray(room)
             });
 
             // Explicitly send turn events
@@ -322,7 +334,7 @@ io.on('connection', (socket) => {
                 gamePhase: room.gamePhase,
                 currentTurnPlayerId: currentPlayerId,
                 turnOrder: room.turnOrder,
-                buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
+                buildings: getBuildingsArray(room)
             });
             if (currentPlayerId === socket.id) {
                 socket.emit('your-turn', {
@@ -387,7 +399,7 @@ io.on('connection', (socket) => {
         // Send map and buildings always
         if (room.gameState) socket.emit('game-started', { mapSeed: room.gameState });
         if (room.buildings) {
-            socket.emit('sync-buildings', { buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val})) });
+            socket.emit('sync-buildings', { buildings: getBuildingsArray(room) });
         }
 
         if (room.gamePhase === 'dice-roll') {
@@ -403,7 +415,7 @@ io.on('connection', (socket) => {
                 currentPlayerId: currentPlayerId,
                 initialBuildOrder: room.initialBuildOrder,
                 currentIndex: room.currentInitialBuildIndex,
-                buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
+                buildings: getBuildingsArray(room)
             });
 
             if (currentPlayerId === socket.id) {
@@ -425,7 +437,7 @@ io.on('connection', (socket) => {
                 gamePhase: room.gamePhase,
                 currentTurnPlayerId: currentPlayerId,
                 turnOrder: room.turnOrder,
-                buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
+                buildings: getBuildingsArray(room)
             });
             if (currentPlayerId === socket.id) {
                 socket.emit('your-turn', {
@@ -616,7 +628,7 @@ io.on('connection', (socket) => {
     });
     
     // Handle initial build - player ends their turn (1 settlement + 2 roads per player, one by one)
-    socket.on('initial-build-end-turn', ({ roomCode, playerId, settlements, roads }) => {
+    socket.on('initial-build-end-turn', ({ roomCode, playerId }) => {
         const room = rooms.get(roomCode);
         if (!room || room.gamePhase !== 'initial-build') return;
         
@@ -627,14 +639,14 @@ io.on('connection', (socket) => {
             return;
         }
         
-        // Validate that the player has built the required items
-        if (settlements < 1 || roads < 2) {
+        // Use SERVER-SIDE progress instead of trusting client data
+        const progress = room.initialBuildProgress.get(playerId) || { settlements: 0, roads: 0 };
+        
+        // Validate that the player has built the required items (using server data)
+        if (progress.settlements < 1 || progress.roads < 2) {
             socket.emit('action-error', { message: 'Ви повинні побудувати 1 село та 2 дороги!' });
             return;
         }
-        
-        // Store this player's progress
-        room.initialBuildProgress.set(playerId, { settlements, roads });
         
         // Move to next player
         room.currentInitialBuildIndex++;
@@ -650,6 +662,9 @@ io.on('connection', (socket) => {
                 diceRolled: false,
                 actionsLocked: true
             };
+            
+            // Sync buildings to ALL players before starting regular game
+            syncBuildingsToRoom(roomCode, room);
             
             // Notify all players that regular gameplay starts
             const firstPlayerId = room.turnOrder[0];
@@ -677,7 +692,7 @@ io.on('connection', (socket) => {
             const nextPlayerId = room.initialBuildOrder[room.currentInitialBuildIndex].playerId;
             
             // Send all current buildings so all players can see them
-            const buildingsData = Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}));
+            const buildingsData = getBuildingsArray(room);
             
             // Tell next player it's their turn (with buildings data)
             io.to(nextPlayerId).emit('initial-build-your-turn', {
@@ -701,7 +716,7 @@ io.on('connection', (socket) => {
             });
             
             // Broadcast buildings to ALL players so everyone sees them visually
-            io.to(roomCode).emit('sync-buildings', { buildings: buildingsData });
+            syncBuildingsToRoom(roomCode, room);
             
             // Tell all waiting players about update
             for (let i = room.currentInitialBuildIndex + 1; i < room.initialBuildOrder.length; i++) {
@@ -755,6 +770,9 @@ io.on('connection', (socket) => {
         io.to(roomCode).emit('collect-resources', {
             diceTotal: total
         });
+        
+        // Sync buildings after dice roll (in case robber moved, etc.)
+        syncBuildingsToRoom(roomCode, room);
     });
 
     // Handle end turn
@@ -778,6 +796,9 @@ io.on('connection', (socket) => {
         // Move to next player
         room.currentTurnIndex = (room.currentTurnIndex + 1) % room.turnOrder.length;
         
+        // Sync buildings to ALL players before notifying next turn
+        syncBuildingsToRoom(roomCode, room);
+        
         // Notify the player who ended their turn
         io.to(playerId).emit('turn-ended', {
             nextPlayerId: room.turnOrder[room.currentTurnIndex]
@@ -800,11 +821,6 @@ io.on('connection', (socket) => {
                 });
             }
         }
-        
-        // Sync buildings after regular turn
-        io.to(roomCode).emit('sync-buildings', {
-            buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
-        });
     });
 
     // Sync a building action to all players (with validation)
@@ -909,8 +925,11 @@ io.on('connection', (socket) => {
                 playerId: socket.id,
                 color: data.color || player.color
             },
-            buildings: Array.from(room.buildings.entries()).map(([key, val]) => ({key, ...val}))
+            buildings: getBuildingsArray(room)
         });
+        
+        // Also sync buildings to ALL players so everyone sees the update
+        syncBuildingsToRoom(roomCode, room);
     });
 
     // Handle game actions

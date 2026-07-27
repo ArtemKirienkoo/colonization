@@ -355,14 +355,12 @@ class MultiplayerClient {
         this._safeOn('initial-build-your-done', callback);
     }
 
-    // Notify server that initial build turn is complete (with counts)
-    endInitialBuildTurn(settlements, roads) {
-        this._logEmit('initial-build-end-turn', { roomCode: this.roomCode, playerId: this.socket.id, settlements, roads });
+    // Notify server that initial build turn is complete (server tracks progress)
+    endInitialBuildTurn() {
+        this._logEmit('initial-build-end-turn', { roomCode: this.roomCode, playerId: this.socket.id });
         this.socket.emit('initial-build-end-turn', {
             roomCode: this.roomCode,
-            playerId: this.socket.id,
-            settlements,
-            roads
+            playerId: this.socket.id
         });
     }
 
