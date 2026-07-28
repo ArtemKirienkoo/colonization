@@ -936,17 +936,61 @@ function createDevDeck() {
     for (let i = 0; i < 2; i++) d.push({ type:'plenty', id:'plenty_'+i });
     for (let i = 0; i < 2; i++) d.push({ type:'monopoly', id:'monopoly_'+i });
     for (let i = 0; i < 2; i++) d.push({ type:'roads', id:'roads_'+i });
-    d.push({ type:'vp_market', id:'vp_market' },{ type:'vp_library', id:'vp_library' },{ type:'vp_cathedral', id:'vp_cathedral' },{ type:'vp_townhall', id:'vp_townhall' },{ type:'vp_university', id:'vp_university' });
+    d.push({ type:'vp_market', id:'vp_market' },
+    { type:'vp_library', id:'vp_library' },
+    { type:'vp_cathedral', id:'vp_cathedral' },
+    { type:'vp_townhall', id:'vp_townhall' },
+    { type:'vp_university', id:'vp_university' });
     return shuffleArray(d);
 }
-function getDevCardInfo(type) { const p = type.split('_')[0]; if (p === 'vp') return DEV_CARD_TYPES[type] || DEV_CARD_TYPES.vp_market; return DEV_CARD_TYPES[p] || DEV_CARD_TYPES.knight; }
-function hexAdd(a,b) { return { q:a.q+b.q, r:a.r+b.r, s:a.s+b.s }; }
-function hexNeighbors(hex) { const d = [{q:1,r:0,s:-1},{q:1,r:-1,s:0},{q:0,r:-1,s:1},{q:-1,r:0,s:1},{q:-1,r:1,s:0},{q:0,r:1,s:-1}]; return d.map(x => hexAdd(hex, x)); }
-function hexToPixel(hex, s) { return { x: s * (Math.sqrt(3)*hex.q + Math.sqrt(3)/2*hex.r), y: s * (3/2*hex.r) }; }
-function hexCorners(cx, cy, s) { const c = []; for (let i = 0; i < 6; i++) { const a = Math.PI/180*(60*i-30); c.push({ x: cx + s*Math.cos(a), y: cy + s*Math.sin(a) }); } return c; }
-function hexKey(h) { return h.q+','+h.r+','+h.s; }
-function edgeKey(hex, ei) { const dir = (6-ei)%6, h2 = hexNeighbors(hex)[dir], k1 = hexKey(hex), k2 = hexKey(h2); return k1<k2 ? k1+'|'+k2 : k2+'|'+k1; }
-function vertexKey(hex, vi) { const p = hexToPixel(hex,1), c = hexCorners(p.x,p.y,1)[vi]; return Math.round(c.x*1000)+','+Math.round(c.y*1000); }
+function getDevCardInfo(type) { 
+    const p = type.split('_')[0];
+    if (p === 'vp') return DEV_CARD_TYPES[type] || DEV_CARD_TYPES.vp_market;
+    return DEV_CARD_TYPES[p] || DEV_CARD_TYPES.knight;
+}
+function hexAdd(a,b) { 
+    return { q:a.q+b.q, 
+        r:a.r+b.r, 
+        s:a.s+b.s }; 
+}
+function hexNeighbors(hex) { 
+    const d = [{q:1,r:0,s:-1},
+        {q:1,r:-1,s:0},
+        {q:0,r:-1,s:1},
+        {q:-1,r:0,s:1},
+        {q:-1,r:1,s:0},
+        {q:0,r:1,s:-1}]; 
+    return d.map(x => hexAdd(hex, x)); 
+}
+function hexToPixel(hex, s) { 
+    return { x: s * (Math.sqrt(3)*hex.q + Math.sqrt(3)/2*hex.r), 
+            y: s * (3/2*hex.r) 
+    }; 
+}
+function hexCorners(cx, cy, s) { 
+    const c = []; 
+    for (let i = 0; i < 6; i++) { 
+        const a = Math.PI/180*(60*i-30); 
+        c.push({ x: cx + s*Math.cos(a), 
+            y: cy + s*Math.sin(a) });
+    } 
+    return c; 
+}
+function hexKey(h) { 
+    return h.q+','+h.r+','+h.s; 
+}
+function edgeKey(hex, ei) { 
+    const dir = (6-ei)%6, 
+    h2 = hexNeighbors(hex)[dir],
+    k1 = hexKey(hex), 
+    k2 = hexKey(h2); 
+    return k1<k2 ? k1+'|'+k2 : k2+'|'+k1; 
+}
+function vertexKey(hex, vi) { 
+    const p = hexToPixel(hex,1), 
+    c = hexCorners(p.x,p.y,1)[vi]; 
+    return Math.round(c.x*1000)+','+Math.round(c.y*1000); 
+}
 function computeEdgesAndVertices(hexPositions, hexSize) {
     const edges = new Map(), vertices = new Map(), hexSet = new Map();
     hexPositions.forEach(h => hexSet.set(hexKey(h), h));
@@ -966,7 +1010,13 @@ function computeEdgesAndVertices(hexPositions, hexSize) {
     }
     return { edges, vertices };
 }
-function shuffleArray(arr) { for (let i = arr.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [arr[i],arr[j]] = [arr[j],arr[i]]; } return arr; }
+function shuffleArray(arr) { 
+    for (let i = arr.length-1; i > 0; i--) { 
+        const j = Math.floor(Math.random()*(i+1)); 
+        [arr[i],arr[j]] = [arr[j],arr[i]]; 
+    } 
+    return arr; 
+}
 
 // ===== AUDIO MANAGER =====
 class AudioManager {
@@ -1040,12 +1090,28 @@ class AudioManager {
         oscillator.stop(this.audioContext.currentTime + duration);
     }
 
-    playHoverSound() { this.playTone(800, 0.05, 'sine', 0.1); }
-    playClickSound() { this.playTone(600, 0.08, 'square', 0.15); setTimeout(() => this.playTone(800, 0.06, 'square', 0.1), 50); }
-    playBuildSound() { this.playTone(200, 0.15, 'triangle', 0.2); setTimeout(() => this.playTone(300, 0.1, 'triangle', 0.15), 100); }
-    playCardSound() { this.playTone(400, 0.1, 'sine', 0.2); setTimeout(() => this.playTone(600, 0.15, 'sine', 0.15), 80); }
-    playDiceSound() { this.playTone(150, 0.2, 'square', 0.25); }
-    playResourceSound() { this.playTone(500, 0.08, 'sine', 0.15); setTimeout(() => this.playTone(700, 0.1, 'sine', 0.12), 60); }
+    playHoverSound() { 
+        this.playTone(800, 0.05, 'sine', 0.1); 
+    }
+    playClickSound() { 
+        this.playTone(600, 0.08, 'square', 0.15); 
+        setTimeout(() => this.playTone(800, 0.06, 'square', 0.1), 50); 
+    }
+    playBuildSound() { 
+        this.playTone(200, 0.15, 'triangle', 0.2); 
+        setTimeout(() => this.playTone(300, 0.1, 'triangle', 0.15), 100); 
+    }
+    playCardSound() { 
+        this.playTone(400, 0.1, 'sine', 0.2); 
+        setTimeout(() => this.playTone(600, 0.15, 'sine', 0.15), 80); 
+    }
+    playDiceSound() { 
+        this.playTone(150, 0.2, 'square', 0.25); 
+    }
+    playResourceSound() { 
+        this.playTone(500, 0.08, 'sine', 0.15); 
+        setTimeout(() => this.playTone(700, 0.1, 'sine', 0.12), 60); 
+    }
 
     startBackgroundMusic() {
         if (!this.initialized || this.musicPlaying) return;
@@ -1145,16 +1211,36 @@ audioManager.init();
 // Get canvas reference early for use in functions
 const canvas = document.getElementById('mapCanvas');
 
-let gameState = { roads: new Map(), settlements: new Map(), resourceCards: { wood:0, brick:0, geese:0, water:0, stone:0 }, devDeck: createDevDeck(), devHand: [], roadBuildingMode: 0, cardInProgress: false };
+let gameState = { roads: new Map(), 
+    settlements: new Map(), 
+    resourceCards: { wood:0, brick:0, geese:0, water:0, stone:0 }, 
+    devDeck: createDevDeck(), 
+    devHand: [], 
+    roadBuildingMode: 0, 
+    cardInProgress: false 
+};
 // Restore player color from sessionStorage (set in splash.html multiplayer lobby)
 let myPlayerColor = sessionStorage.getItem('myPlayerColor') || null; // 'red', 'blue', 'yellow', 'green'
-let buildMode = 'none', hoverEdge = null, hoverVertex = null, isRolling = false, isPaused = false;
+let buildMode = 'none', 
+    hoverEdge = null, 
+    hoverVertex = null, 
+    isRolling = false, 
+    isPaused = false;
 let settingsPreviousState = null; // 'pause' або 'menu'
-const INITIAL_SETTLEMENT_LIMIT = 1, INITIAL_ROAD_LIMIT = 2;
-const MAX_SETTLEMENTS = 5, MAX_CITIES = 4, MAX_ROADS = 15;
-const VP_SETTLEMENT = 1, VP_CITY = 2;
-const LONGEST_ROAD_THRESHOLD = 5, LARGEST_ARMY_THRESHOLD = 3;
-let mapData = null, mapHexSize = 0, mapOffset = { ox:0, oy:0 }, edgeGeom = null, vertexGeom = null, allHexes = [];
+const INITIAL_SETTLEMENT_LIMIT = 1, 
+    INITIAL_ROAD_LIMIT = 2;
+const MAX_SETTLEMENTS = 5, 
+    MAX_CITIES = 4, MAX_ROADS = 15;
+const VP_SETTLEMENT = 1, 
+    VP_CITY = 2;
+const LONGEST_ROAD_THRESHOLD = 5, 
+    LARGEST_ARMY_THRESHOLD = 3;
+let mapData = null, 
+    mapHexSize = 0, 
+    mapOffset = { ox:0, oy:0 }, 
+    edgeGeom = null, 
+    vertexGeom = null, 
+    allHexes = [];
 
 // Initial phase state
 let initialPhase = {
@@ -1183,11 +1269,33 @@ function countBuildings() {
     }
     return { settlements: s, cities: c, roads: r }; 
 }
-function canBuildPiece(t) { const c = countBuildings(); switch(t) { case 'road': return c.roads < MAX_ROADS; case 'settlement': return c.settlements < MAX_SETTLEMENTS; case 'city': return c.cities < MAX_CITIES; default: return false; } }
-function computeBaseVP() { const c = countBuildings(); return c.settlements*VP_SETTLEMENT + c.cities*VP_CITY; }
-function computeDevCardVP() { let v=0; for (const card of gameState.devHand) { const info = getDevCardInfo(card.type); if (card.type.startsWith('vp_') && !card.used) v += info.vp||1; } return v; }
-function countKnights() { return gameState.devHand.filter(c => c.type === 'knight' && !c.used).length; }
-function hasLargestArmy() { return countKnights() >= LARGEST_ARMY_THRESHOLD; }
+function canBuildPiece(t) { 
+    const c = countBuildings(); 
+    switch(t) { 
+        case 'road': return c.roads < MAX_ROADS; 
+        case 'settlement': return c.settlements < MAX_SETTLEMENTS; 
+        case 'city': return c.cities < MAX_CITIES; 
+        default: return false; 
+    } 
+}
+function computeBaseVP() { 
+    const c = countBuildings(); 
+    return c.settlements*VP_SETTLEMENT + c.cities*VP_CITY; 
+}
+function computeDevCardVP() { 
+    let v=0; 
+    for (const card of gameState.devHand) { 
+        const info = getDevCardInfo(card.type); 
+        if (card.type.startsWith('vp_') && !card.used) v += info.vp||1; 
+    } 
+    return v; 
+}
+function countKnights() { 
+    return gameState.devHand.filter(c => c.type === 'knight' && !c.used).length; 
+}
+function hasLargestArmy() { 
+    return countKnights() >= LARGEST_ARMY_THRESHOLD; 
+}
 function computeLongestRoadLength() {
     if (!gameState.roads || gameState.roads.size === 0 || !edgeGeom || !edgeGeom.edges) return 0;
     const getCoordKey = (pos) => `${Math.round(pos.x * 1000)},${Math.round(pos.y * 1000)}`;
@@ -1250,8 +1358,15 @@ function computeLongestRoadLength() {
     }
     return longestSegment;
 }
-function hasLongestRoad() { return computeLongestRoadLength() >= LONGEST_ROAD_THRESHOLD; }
-function computeVictoryPoints() { let v = computeBaseVP()+computeDevCardVP(); if (hasLargestArmy()) v+=2; if (hasLongestRoad()) v+=2; return v; }
+function hasLongestRoad() { 
+    return computeLongestRoadLength() >= LONGEST_ROAD_THRESHOLD; 
+}
+function computeVictoryPoints() { 
+    let v = computeBaseVP()+computeDevCardVP(); 
+    if (hasLargestArmy()) v+=2; 
+    if (hasLongestRoad()) v+=2; 
+    return v; 
+}
 
 function updateBuildStats() {
     const c = countBuildings();
@@ -1280,7 +1395,15 @@ function updateBuildStats() {
     document.getElementById('medal-army').classList.toggle('active-army', hasLargestArmy());
     document.getElementById('medal-road').classList.toggle('active-road', hasLongestRoad());
 }
-function updateResourceCardsDisplay() { const e = id => document.getElementById(id); e('res-wood').textContent = gameState.resourceCards.wood; e('res-brick').textContent = gameState.resourceCards.brick; e('res-geese').textContent = gameState.resourceCards.geese; e('res-water').textContent = gameState.resourceCards.water; e('res-stone').textContent = gameState.resourceCards.stone; updateDevHandDisplay(); }
+function updateResourceCardsDisplay() { 
+    const e = id => document.getElementById(id);
+    e('res-wood').textContent = gameState.resourceCards.wood; 
+    e('res-brick').textContent = gameState.resourceCards.brick; 
+    e('res-geese').textContent = gameState.resourceCards.geese; 
+    e('res-water').textContent = gameState.resourceCards.water; 
+    e('res-stone').textContent = gameState.resourceCards.stone; 
+    updateDevHandDisplay(); 
+}
 function updateDevHandDisplay() {
     const hand = document.getElementById('devHand'); hand.innerHTML = '';
     document.getElementById('dev-count').textContent = '('+gameState.devHand.length+')';
@@ -1301,7 +1424,10 @@ function updateAllUI() { updateResourceCardsDisplay(); updateBuildStats(); updat
 
 function buildSettlementGraph() {
     const graph = new Map(), p2v = new Map();
-    for (const [vk, vert] of vertexGeom) { const pk = Math.round(vert.pos.x*1000)+','+Math.round(vert.pos.y*1000); p2v.set(pk, vk); }
+    for (const [vk, vert] of vertexGeom) { 
+        const pk = Math.round(vert.pos.x*1000)+','+Math.round(vert.pos.y*1000); 
+        p2v.set(pk, vk); 
+    }
     for (const [ek] of gameState.roads) {
         const edge = edgeGeom.edges.get(ek); if (!edge) continue;
         const va = Math.round(edge.va.x*1000)+','+Math.round(edge.va.y*1000);
@@ -1317,7 +1443,10 @@ function buildFullVertexGraph() {
     // Build a graph of ALL possible connections between adjacent vertices on land hexes
     // (not just placed roads) — used for distance checking during initial phase
     const graph = new Map(), p2v = new Map();
-    for (const [vk, vert] of vertexGeom) { const pk = Math.round(vert.pos.x*1000)+','+Math.round(vert.pos.y*1000); p2v.set(pk, vk); }
+    for (const [vk, vert] of vertexGeom) { 
+        const pk = Math.round(vert.pos.x*1000)+','+Math.round(vert.pos.y*1000); 
+        p2v.set(pk, vk); 
+    }
     const landHexes = new Set();
     if (mapData) [mapData.center,...mapData.ring1,...mapData.ring2].forEach(h => landHexes.add(hexKey(h)));
     for (const [ek, edge] of edgeGeom.edges) {
@@ -1333,13 +1462,27 @@ function buildFullVertexGraph() {
     return graph;
 }
 function roadPathLength(f, t, graph) {
-    if (f===t) return 0; const visited = new Set([f]), q = [{ vk:f, dist:0 }];
-    while (q.length > 0) { const { vk, dist } = q.shift(); const n = graph.get(vk); if (!n) continue; for (const x of n) { if (x===t) return dist+1; if (!visited.has(x)) { visited.add(x); q.push({ vk:x, dist:dist+1 }); } } }
+    if (f===t) return 0; 
+    const visited = new Set([f]), q = [{ vk:f, dist:0 }];
+    while (q.length > 0) { 
+        const { vk, dist } = q.shift(); 
+        const n = graph.get(vk); 
+        if (!n) continue; 
+        for (const x of n) { 
+            if (x===t) return dist+1; 
+            if (!visited.has(x)) { 
+                visited.add(x); 
+                q.push({ vk:x, dist:dist+1 }); 
+            } 
+        }
+    }
     return -1;
 }
 function isVertexOnLand(vk) {
-    const vert = vertexGeom.get(vk); if (!vert) return false;
-    const ls = new Set(); if (mapData) [mapData.center,...mapData.ring1,...mapData.ring2].forEach(h => ls.add(hexKey(h)));
+    const vert = vertexGeom.get(vk); 
+    if (!vert) return false;
+    const ls = new Set(); 
+    if (mapData) [mapData.center,...mapData.ring1,...mapData.ring2].forEach(h => ls.add(hexKey(h)));
     return vert.hexes.some(h => ls.has(hexKey(h)));
 }
 function canPlaceSettlement(vk) {
@@ -1372,12 +1515,18 @@ function canPlaceSettlement(vk) {
     
     // Regular gameplay: check distance from ALL settlements (uses full hex topology, not roads)
     if (gameState.settlements.size === 0) return true;
-    for (const [evk] of gameState.settlements) { const len = roadPathLength(evk, vk, fullGraph); if (len>=0 && len<2) return false; }
+    for (const [evk] of gameState.settlements) { 
+        const len = roadPathLength(evk, vk, fullGraph); 
+        if (len>=0 && len<2) return false; 
+    }
     if(isVertexOnOpponentRoad(vk)) return false;
     
     // Also check that the vertex is connected to MY road network (can't build isolated settlements)
     const p2v = new Map();
-    for (const [vk2, vert] of vertexGeom) { const pk = Math.round(vert.pos.x*1000)+','+Math.round(vert.pos.y*1000); p2v.set(pk, vk2); }
+    for (const [vk2, vert] of vertexGeom) { 
+        const pk = Math.round(vert.pos.x*1000)+','+Math.round(vert.pos.y*1000); 
+        p2v.set(pk, vk2); 
+    }
     const vert = vertexGeom.get(vk);
     if (!vert) return false;
     const vkPos = Math.round(vert.pos.x*1000)+','+Math.round(vert.pos.y*1000);
@@ -1392,39 +1541,164 @@ function canPlaceSettlement(vk) {
     }
     return false;
 }
-function hasResourcesForBuilding(t) { const c = gameState.resourceCards; switch(t) { case 'road': return c.wood>=1&&c.brick>=1; case 'settlement': return c.wood>=1&&c.brick>=1&&c.geese>=1&&c.water>=1; case 'city': return c.stone>=3&&c.water>=2; default: return false; } }
-function deductResources(t) { const c = gameState.resourceCards; switch(t) { case 'road': c.wood--;c.brick--;break; case 'settlement': c.wood--;c.brick--;c.geese--;c.water--;break; case 'city': c.stone-=3;c.water-=2;break; } updateResourceCardsDisplay();updateDevHandDisplay(); }
+function hasResourcesForBuilding(t) { 
+    const c = gameState.resourceCards; 
+    switch(t) { 
+        case 'road': return c.wood>=1&&c.brick>=1; 
+        case 'settlement': return c.wood>=1&&c.brick>=1&&c.geese>=1&&c.water>=1; 
+        case 'city': return c.stone>=3&&c.water>=2;
+        default: return false; 
+} }
 
-function generateHexRing(r) { if (r===0) return [{q:0,r:0,s:0}]; const h = [], dirs = [{q:0,r:-1,s:1},{q:-1,r:0,s:1},{q:-1,r:1,s:0},{q:0,r:1,s:-1},{q:1,r:0,s:-1},{q:1,r:-1,s:0}]; let c = {q:r,r:0,s:-r}; for (let d=0;d<6;d++) for (let s=0;s<r;s++) { h.push({q:c.q,r:c.r,s:c.s}); c = hexAdd(c, dirs[d]); } return h; }
+function deductResources(t) { 
+    const c = gameState.resourceCards; 
+    switch(t) { 
+        case 'road': c.wood--;
+            c.brick--;
+        break; 
+        case 'settlement': c.wood--;
+            c.brick--;
+            c.geese--;
+            c.water--;
+        break; 
+        case 'city': c.stone-=3;
+            c.water-=2;
+        break; 
+    } 
+    updateResourceCardsDisplay();
+    updateDevHandDisplay(); 
+}
+
+function generateHexRing(r) { 
+    if (r===0) return [{q:0,r:0,s:0}]; 
+    const h = [], 
+    dirs = [{q:0,r:-1,s:1},
+            {q:-1,r:0,s:1},
+            {q:-1,r:1,s:0},
+            {q:0,r:1,s:-1},
+            {q:1,r:0,s:-1},
+            {q:1,r:-1,s:0}]; 
+    let c = {q:r,r:0,s:-r}; 
+    for (let d=0;d<6;d++) 
+    for (let s=0;s<r;s++) { 
+        h.push({q:c.q,r:c.r,s:c.s}); 
+        c = hexAdd(c, dirs[d]); 
+    } 
+    return h; 
+}
 function generateResources(hexPositions) {
-    let pool = []; RESOURCE_TYPES.forEach((t,i) => { for (let j=0;j<RESOURCE_DISTRIBUTION[i];j++) pool.push(t); });
+    let pool = []; 
+    RESOURCE_TYPES.forEach((t,i) => { 
+        for (let j=0;j<RESOURCE_DISTRIBUTION[i];j++) 
+        pool.push(t); 
+    }
+);
     const hl = [...hexPositions], ps = new Set(hl.map(hexKey));
     hl.sort((a,b) => hexNeighbors(b).filter(n => ps.has(hexKey(n))).length - hexNeighbors(a).filter(n => ps.has(hexKey(n))).length);
-    for (let at=0;at<2000;at++) { const as = new Map(), rm = shuffleArray([...pool]); let ok = true;
-        for (let i=0;i<hl.length;i++) { const h = hl[i], u = hexNeighbors(h).map(hexKey).map(k => as.get(k)).filter(t => t); let pl = false; for (let r=0;r<rm.length;r++) { if (rm[r]===null) continue; if (!u.includes(rm[r])) { as.set(hexKey(h), rm[r]); rm[r]=null; pl=true; break; } } if (!pl) { ok=false; break; } }
-        if (ok) return as; shuffleArray(pool);
+    for (let at=0;at<2000;at++) { 
+        const as = new Map(), rm = shuffleArray([...pool]); 
+        let ok = true;
+        for (let i=0;i<hl.length;i++) { 
+            const h = hl[i], u = hexNeighbors(h).map(hexKey).map(k => as.get(k)).filter(t => t); 
+            let pl = false; 
+            for (let r=0;r<rm.length;r++) { 
+                if (rm[r]===null) continue; 
+                if (!u.includes(rm[r])) { 
+                    as.set(hexKey(h), rm[r]); 
+                    rm[r]=null; pl=true; 
+                    break; 
+                } 
+            } 
+            if (!pl) { 
+                ok=false; 
+                break;
+            } 
+        }
+        if (ok) return as; 
+        shuffleArray(pool);
     }
-    const fb = new Map(), fbp = shuffleArray([...pool]); hl.forEach((h,i) => fb.set(hexKey(h), fbp[i])); return fb;
+    const fb = new Map(), fbp = shuffleArray([...pool]); 
+    hl.forEach((h,i) => fb.set(hexKey(h), fbp[i])); 
+    return fb;
 }
 function generateNumbers(hexPositions, resourceMap) {
     const np = [2,3,3,4,4,5,5,6,6,8,8,9,9,10,10,11,11,12], hl = [...hexPositions], ps = new Set(hl.map(hexKey));
     hl.sort((a,b) => hexNeighbors(b).filter(n => ps.has(hexKey(n))).length - hexNeighbors(a).filter(n => ps.has(hexKey(n))).length);
-    for (let at=0;at<4000;at++) { const as = new Map(), uc = {}, rm = shuffleArray([...np]); let ok = true;
-        for (let i=0;i<hl.length;i++) { const h = hl[i], k = hexKey(h), rt = resourceMap.get(k), un = hexNeighbors(h).map(hexKey).map(x => as.get(x)).filter(n => n!==undefined); let pl = false; for (let r=0;r<rm.length;r++) { if (rm[r]===null) continue; const n = rm[r]; if (un.includes(n)) continue; const co = n+':'+rt; if (uc[co]) continue; as.set(k,n); uc[co]=true; rm[r]=null; pl=true; break; } if (!pl) { ok=false; break; } }
+    for (let at=0;at<4000;at++) { 
+        const as = new Map(), uc = {}, rm = shuffleArray([...np]); 
+        let ok = true;
+        for (let i=0;i<hl.length;i++) { 
+            const h = hl[i], k = hexKey(h), rt = resourceMap.get(k), un = hexNeighbors(h).map(hexKey).map(x => as.get(x)).filter(n => n!==undefined); 
+            let pl = false; 
+            for (let r=0;r<rm.length;r++) { 
+                if (rm[r]===null) continue; 
+                const n = rm[r]; 
+                if (un.includes(n)) continue; 
+                const co = n+':'+rt; 
+                if (uc[co]) continue; 
+                as.set(k,n); 
+                uc[co]=true; 
+                rm[r]=null; 
+                pl=true; 
+                break; 
+            } 
+            if (!pl) { 
+                ok=false; 
+                break; 
+            } 
+        }
         if (ok) return as;
     }
-    const fb = new Map(), fbn = shuffleArray([...np]); hl.forEach((h,i) => fb.set(hexKey(h), fbn[i])); return fb;
+    const fb = new Map(), fbn = shuffleArray([...np]); 
+    hl.forEach((h,i) => fb.set(hexKey(h), fbn[i])); 
+    return fb;
 }
 function generateOcean(radius, landHexes) {
     const hexes = generateHexRing(radius), ls = new Set(landHexes.map(hexKey));
-    function getLE(h) { const n = hexNeighbors(h), e = []; for (let i=0;i<6;i++) if (ls.has(hexKey(n[i]))) e.push((6-i)%6); return e; }
-    function getPC(le) { const t = []; for (let c=0;c<6;c++) { const e1=(c-1+6)%6,e2=c; t[c]=le.includes(e1)||le.includes(e2); } for (let c=0;c<6;c++) { const c2=(c+1)%6; if (t[c]&&t[c2]) return [c,c2]; } return null; }
+    function getLE(h) { 
+        const n = hexNeighbors(h), e = []; 
+        for (let i=0;i<6;i++) if (ls.has(hexKey(n[i]))) e.push((6-i)%6); 
+        return e; 
+    }
+    function getPC(le) { 
+        const t = []; 
+        for (let c=0;c<6;c++) { 
+            const e1=(c-1+6)%6,e2=c; 
+            t[c]=le.includes(e1)||le.includes(e2); 
+        } 
+        for (let c=0;c<6;c++) { 
+            const c2=(c+1)%6; 
+            if (t[c]&&t[c2]) return [c,c2];
+        } 
+        return null; 
+    }
     const off = Math.floor(Math.random()*hexes.length), ord = hexes.map((_,i) => hexes[(i+off)%hexes.length]);
-    const tp = Math.ceil(ord.length/2), sr = shuffleArray(['wood','brick','geese','water','stone']); let si=0,pc=0; const m = new Map();
-    for (let i=0;i<ord.length;i++) { const h = ord[i], k = hexKey(h); if (i%2===0) { const le = getLE(h), pcor = getPC(le); if (!pcor) { m.set(k,{type:'ocean',resource:null,landEdges:[],portCorners:null}); continue; } let t = (pc%2===0)?'port3':'port2'; if (pc===tp-1) t='port2'; const r = (t==='port2')?sr[si++%sr.length]:null; m.set(k,{type:t,resource:r,landEdges:le,portCorners:pcor}); pc++; } else m.set(k,{type:'ocean',resource:null,landEdges:[],portCorners:null}); }
+    const tp = Math.ceil(ord.length/2), sr = shuffleArray(['wood','brick','geese','water','stone']); 
+    let si=0,pc=0; 
+    const m = new Map();
+    for (let i=0;i<ord.length;i++) { 
+        const h = ord[i], k = hexKey(h); 
+        if (i%2===0) { 
+            const le = getLE(h), pcor = getPC(le); 
+            if (!pcor) { 
+                m.set(k,{type:'ocean',resource:null,landEdges:[],portCorners:null}); 
+                continue; 
+            } 
+            let t = (pc%2===0)?'port3':'port2'; 
+            if (pc===tp-1) t='port2'; 
+            const r = (t==='port2')?sr[si++%sr.length]:null; 
+            m.set(k,{type:t,resource:r,landEdges:le,portCorners:pcor}); 
+            pc++; 
+        } else m.set(k,{type:'ocean',resource:null,landEdges:[],portCorners:null}); 
+    }
     return m;
 }
-function generateMap() { const c={q:0,r:0,s:0}, r1=generateHexRing(1), r2=generateHexRing(2), r3=generateHexRing(3), lh=[...r1,...r2], r=generateResources(lh); r.set(hexKey(c),'desert'); const n=generateNumbers(lh,r), o=generateOcean(3,lh); return {center:c,ring1:r1,ring2:r2,ring3:r3,resources:r,numbers:n,ocean:o}; }
+function generateMap() { 
+    const c={q:0,r:0,s:0}, r1=generateHexRing(1), r2=generateHexRing(2), r3=generateHexRing(3), lh=[...r1,...r2], r=generateResources(lh); 
+    r.set(hexKey(c),'desert'); 
+    const n=generateNumbers(lh,r), o=generateOcean(3,lh); 
+    return {center:c,ring1:r1,ring2:r2,ring3:r3,resources:r,numbers:n,ocean:o}; 
+}
 
 // Color mapping for players
 const PLAYER_COLORS = {
@@ -1439,39 +1713,431 @@ function getPlayerColor(colorName) {
 }
 
 // Rendering
-function drawHexPath(ctx,cx,cy,s) { const c=hexCorners(cx,cy,s); ctx.beginPath(); ctx.moveTo(c[0].x,c[0].y); for(let i=1;i<6;i++) ctx.lineTo(c[i].x,c[i].y); ctx.closePath(); }
+function drawHexPath(ctx,cx,cy,s) { 
+    const c=hexCorners(cx,cy,s); 
+    ctx.beginPath(); 
+    ctx.moveTo(c[0].x,c[0].y); 
+    for(let i=1;i<6;i++) ctx.lineTo(c[i].x,c[i].y); 
+    ctx.closePath(); 
+}
 function drawTexture(ctx,cx,cy,s,t) {
-    const sz=s*0.15; ctx.save(); ctx.beginPath(); const c=hexCorners(cx,cy,s*0.6); ctx.moveTo(c[0].x,c[0].y); for(let i=1;i<6;i++) ctx.lineTo(c[i].x,c[i].y); ctx.clip(); ctx.globalAlpha=0.12;
+    const sz=s*0.15; 
+    ctx.save(); 
+    ctx.beginPath(); 
+    const c=hexCorners(cx,cy,s*0.6); 
+    ctx.moveTo(c[0].x,c[0].y); 
+    for(let i=1;i<6;i++) ctx.lineTo(c[i].x,c[i].y); 
+    ctx.clip(); 
+    ctx.globalAlpha=0.12;
     switch(t) {
-        case'wood':ctx.fillStyle='#1a5c28';for(let i=0;i<12;i++){const ax=cx+(Math.random()-0.5)*s*0.9,ay=cy+(Math.random()-0.5)*s*0.9;ctx.beginPath();ctx.arc(ax,ay,sz*0.5,0,Math.PI*2);ctx.fill();}break;
-        case'brick':ctx.fillStyle='#a04a20';for(let r=0;r<4;r++)for(let c=0;c<3;c++){const bx=cx-s*0.6+c*s*0.4+(r%2)*s*0.2,by=cy-s*0.5+r*s*0.25;ctx.fillRect(bx,by,s*0.3,s*0.15);}break;
-        case'geese':ctx.fillStyle='#4a8a2a';for(let i=0;i<15;i++){const gx=cx+(Math.random()-0.5)*s*0.9,gy=cy+(Math.random()-0.5)*s*0.9;ctx.beginPath();ctx.moveTo(gx,gy+sz*0.4);ctx.lineTo(gx-sz*0.3,gy-sz*0.3);ctx.lineTo(gx+sz*0.3,gy-sz*0.3);ctx.closePath();ctx.fill();}break;
-        case'water':ctx.strokeStyle='#2a6d9e';ctx.lineWidth=2;for(let i=0;i<6;i++){const wy=cy-s*0.4+i*s*0.16;ctx.beginPath();for(let x=-s*0.6;x<s*0.6;x+=4)ctx.lineTo(cx+x,wy+Math.sin(x*0.15)*4);ctx.stroke();}break;
-        case'stone':ctx.fillStyle='#5a5c60';for(let i=0;i<6;i++){const rx=cx+(Math.random()-0.5)*s*0.8,ry=cy+(Math.random()-0.5)*s*0.8,rw=sz*(0.5+Math.random()*0.8),rh=sz*(0.5+Math.random()*0.8);ctx.beginPath();ctx.ellipse(rx,ry,rw,rh,Math.random()*Math.PI,0,Math.PI*2);ctx.fill();}break;
+        case'wood':ctx.fillStyle='#1a5c28';
+        for(let i=0;i<12;i++){
+            const ax=cx+(Math.random()-0.5)*s*0.9,ay=cy+(Math.random()-0.5)*s*0.9;
+            ctx.beginPath();
+            ctx.arc(ax,ay,sz*0.5,0,Math.PI*2);
+            ctx.fill();
+        }
+        break;
+        case'brick':ctx.fillStyle='#a04a20';
+        for(let r=0;r<4;r++)for(let c=0;c<3;c++){
+            const bx=cx-s*0.6+c*s*0.4+(r%2)*s*0.2,by=cy-s*0.5+r*s*0.25;
+            ctx.fillRect(bx,by,s*0.3,s*0.15);
+        }
+        break;
+        case'geese':ctx.fillStyle='#4a8a2a';
+        for(let i=0;i<15;i++){
+            const gx=cx+(Math.random()-0.5)*s*0.9,gy=cy+(Math.random()-0.5)*s*0.9;
+            ctx.beginPath();ctx.moveTo(gx,gy+sz*0.4);
+            ctx.lineTo(gx-sz*0.3,gy-sz*0.3);
+            ctx.lineTo(gx+sz*0.3,gy-sz*0.3);ctx.closePath();ctx.fill();
+        }
+        break;
+        case'water':ctx.strokeStyle='#2a6d9e';
+        ctx.lineWidth=2;for(let i=0;i<6;i++){
+            const wy=cy-s*0.4+i*s*0.16;ctx.beginPath();
+            for(let x=-s*0.6;x<s*0.6;x+=4)ctx.lineTo(cx+x,wy+Math.sin(x*0.15)*4);
+            ctx.stroke();
+        }
+        break;
+        case'stone':ctx.fillStyle='#5a5c60';
+        for(let i=0;i<6;i++){
+            const rx=cx+(Math.random()-0.5)*s*0.8,
+                ry=cy+(Math.random()-0.5)*s*0.8,
+                rw=sz*(0.5+Math.random()*0.8),
+                rh=sz*(0.5+Math.random()*0.8);
+            ctx.beginPath();
+            ctx.ellipse(rx,ry,rw,rh,Math.random()*Math.PI,0,Math.PI*2);
+            ctx.fill();
+        }
+        break;
     }
     ctx.restore();
 }
-function markPortCorners(ctx,cx,cy,hs,pc,pc2){const c=hexCorners(cx,cy,hs),r=hs*0.12;if(!pc)return;for(const ci of pc){ctx.beginPath();ctx.arc(c[ci].x,c[ci].y,r,0,Math.PI*2);ctx.fillStyle=pc2;ctx.fill();ctx.strokeStyle='rgba(0,0,0,0.5)';ctx.lineWidth=1.5;ctx.stroke();}}
+function markPortCorners(ctx,cx,cy,hs,pc,pc2){
+    const c=hexCorners(cx,cy,hs),r=hs*0.12;
+    if(!pc)return;
+    for(const ci of pc){
+        ctx.beginPath();
+        ctx.arc(c[ci].x,c[ci].y,r,0,Math.PI*2);
+        ctx.fillStyle=pc2;
+        ctx.fill();
+        ctx.strokeStyle='rgba(0,0,0,0.5)';
+        ctx.lineWidth=1.5;
+        ctx.stroke();
+    }
+}
 
 function renderMap(data, canvas, hexSize) {
     scaleCanvasContext();
     mapData = data; 
     mapHexSize = hexSize;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    const all = [data.center,...data.ring1,...data.ring2,...data.ring3]; allHexes = all;
+    const all = [data.center,...data.ring1,...data.ring2,...data.ring3]; 
+    allHexes = all;
     let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
-    for(const h of all){const p=hexToPixel(h,hexSize);if(p.x<minX)minX=p.x;if(p.x>maxX)maxX=p.x;if(p.y<minY)minY=p.y;if(p.y>maxY)maxY=p.y;}
+    for(const h of all){
+        const p=hexToPixel(h,hexSize);
+        if(p.x<minX)minX=p.x;
+        if(p.x>maxX)maxX=p.x;
+        if(p.y<minY)minY=p.y;
+        if(p.y>maxY)maxY=p.y;
+    }
     const ox = -minX+hexSize*2, oy = -minY+hexSize*2.5;
     mapOffset = {ox,oy};
-    ctx.fillStyle='#0d1b2a'; ctx.fillRect(0,0,canvas.width,canvas.height);
-    edgeGeom = computeEdgesAndVertices(all, hexSize); vertexGeom = edgeGeom.vertices;
-    for(const h of data.ring3){const p=hexToPixel(h,hexSize),cx=p.x+ox,cy=p.y+oy,info=data.ocean.get(hexKey(h));drawHexPath(ctx,cx,cy,hexSize);if(info.type==='ocean'){ctx.fillStyle='#152a40';ctx.fill();ctx.strokeStyle='#0d1b2a';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle='rgba(255,255,255,0.04)';for(let w=0;w<3;w++){ctx.beginPath();ctx.arc(cx+(w-1)*9,cy+5,5,0,Math.PI*2);ctx.fill();}}else{ctx.fillStyle='#152a40';ctx.fill();}}
-    for(const h of data.ring3){const p=hexToPixel(h,hexSize),cx=p.x+ox,cy=p.y+oy,info=data.ocean.get(hexKey(h));if(info.type!=='port3'&&info.type!=='port2')continue;drawHexPath(ctx,cx,cy,hexSize);if(info.type==='port3'){ctx.strokeStyle='#f1c40f';ctx.lineWidth=3;ctx.stroke();markPortCorners(ctx,cx,cy,hexSize,info.portCorners,'#f1c40f');ctx.fillStyle='#f1c40f';ctx.font='bold '+(hexSize*0.3)+'px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('3:1',cx,cy-5);ctx.font=(hexSize*0.32)+'px sans-serif';ctx.fillText('?',cx,cy+hexSize*0.25);}else{ctx.strokeStyle='#e67e22';ctx.lineWidth=3;ctx.stroke();markPortCorners(ctx,cx,cy,hexSize,info.portCorners,'#e67e22');ctx.fillStyle='#e67e22';ctx.font='bold '+(hexSize*0.3)+'px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('2:1',cx,cy-5);ctx.font=(hexSize*0.32)+'px sans-serif';ctx.fillText(RESOURCES[info.resource].icon,cx,cy+hexSize*0.25);}}
-    const ls = new Set(); [data.center,...data.ring1,...data.ring2].forEach(h => ls.add(hexKey(h)));
-    for(const h of all){const k=hexKey(h);if(!ls.has(k))continue;const p=hexToPixel(h,hexSize),cx=p.x+ox,cy=p.y+oy;const rt=data.resources.get(k),num=data.numbers.get(k),res=RESOURCES[rt];drawHexPath(ctx,cx,cy,hexSize);ctx.fillStyle=res.border;ctx.fill();ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=2;ctx.stroke();drawHexPath(ctx,cx,cy,hexSize*0.88);ctx.fillStyle=res.fill;ctx.fill();if(rt!=='desert')drawTexture(ctx,cx,cy,hexSize,rt);drawHexPath(ctx,cx,cy,hexSize*0.82);ctx.strokeStyle='rgba(255,255,255,0.15)';ctx.lineWidth=1;ctx.stroke();ctx.font=(hexSize*0.42)+'px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';if(num){ctx.fillText(res.icon,cx,cy-hexSize*0.24);const tr=hexSize*0.24,tcx=cx,tcy=cy+hexSize*0.35;ctx.beginPath();ctx.arc(tcx+1.5,tcy+1.5,tr,0,Math.PI*2);ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fill();ctx.beginPath();ctx.arc(tcx,tcy,tr,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle='#333';ctx.lineWidth=2.5;ctx.stroke();ctx.fillStyle='#333';ctx.font='bold '+(hexSize*0.34)+'px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(num.toString(),tcx,tcy);const dots=Math.floor((6-Math.abs(7-num))/2)+1;if(dots>0){const dr=2,dsp=5,dy=tcy+tr*0.7,sx=tcx-(dots-1)*dsp/2;ctx.fillStyle='rgba(0,0,0,0.3)';for(let d=0;d<dots;d++){ctx.beginPath();ctx.arc(sx+d*dsp,dy,dr,0,Math.PI*2);ctx.fill();}}}else{const rs=hexSize*0.3,hw=rs*1.35,hh=rs*0.95,rr=hexSize*0.07;ctx.beginPath();ctx.moveTo(cx-hw+rr,cy-hh);ctx.lineTo(cx+hw-rr,cy-hh);ctx.quadraticCurveTo(cx+hw,cy-hh,cx+hw,cy-hh+rr);ctx.lineTo(cx+hw,cy+hh-rr);ctx.quadraticCurveTo(cx+hw,cy+hh,cx+hw-rr,cy+hh);ctx.lineTo(cx-hw+rr,cy+hh);ctx.quadraticCurveTo(cx-hw,cy+hh,cx-hw,cy+hh-rr);ctx.lineTo(cx-hw,cy-hh+rr);ctx.quadraticCurveTo(cx-hw,cy-hh,cx-hw+rr,cy-hh);ctx.closePath();ctx.fillStyle='#8b5cf6';ctx.fill();ctx.strokeStyle='#6d28d9';ctx.lineWidth=2;ctx.stroke();const s=hexSize*0.38,scx=cx,scy=cy+2;ctx.fillStyle='#1a1a1a';ctx.beginPath();ctx.ellipse(scx-s*0.05,scy+s*0.08,s*0.25,s*0.14,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.moveTo(scx+s*0.1,scy-s*0.05);ctx.lineTo(scx+s*0.35,scy-s*0.1);ctx.lineTo(scx+s*0.4,scy-s*0.32);ctx.lineTo(scx+s*0.22,scy-s*0.38);ctx.closePath();ctx.fill();ctx.fillStyle='#0a0a0a';ctx.beginPath();ctx.arc(scx-s*0.02,scy-s*0.2,s*0.18,0,Math.PI*2);ctx.fill();ctx.fillStyle='#444';ctx.beginPath();ctx.arc(scx,scy-s*0.4,s*0.1,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#777';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(scx+s*0.3,scy-s*0.2);ctx.lineTo(scx+s*0.6,scy-s*0.7);ctx.stroke();ctx.fillStyle='#aaa';ctx.beginPath();ctx.moveTo(scx+s*0.6,scy-s*0.75);ctx.lineTo(scx+s*0.54,scy-s*0.62);ctx.lineTo(scx+s*0.66,scy-s*0.62);ctx.closePath();ctx.fill();ctx.fillStyle='#fff';ctx.font='bold '+(hexSize*0.2)+'px sans-serif';ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('ROBBER',cx,cy+hh+3);}}
-    ctx.lineCap='butt';for(const [ek,roadData] of gameState.roads){const edge=edgeGeom.edges.get(ek);if(!edge)continue;const ax=edge.va.x+ox,ay=edge.va.y+oy,bx=edge.vb.x+ox,by=edge.vb.y+oy;const playerColor = roadData.color ? getPlayerColor(roadData.color) : null;const baseColor = playerColor || {primary:'#6B4226',secondary:'#C4904A',dark:'#3c1e0a',light:'#8B6914'};ctx.lineWidth=hexSize*0.35;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.strokeStyle=baseColor.primary;ctx.stroke();ctx.lineWidth=hexSize*0.26;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.strokeStyle=baseColor.secondary;ctx.stroke();const hw=hexSize*0.16,dx=bx-ax,dy=by-ay,len=Math.sqrt(dx*dx+dy*dy),nx=-dy/len,ny=dx/len;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(ax+nx*hw,ay+ny*hw);ctx.lineTo(bx+nx*hw,by+ny*hw);ctx.strokeStyle=playerColor ? baseColor.dark : 'rgba(60,30,10,0.25)';ctx.stroke();ctx.beginPath();ctx.moveTo(ax-nx*hw,ay-ny*hw);ctx.lineTo(bx-nx*hw,by-ny*hw);ctx.strokeStyle=playerColor ? baseColor.dark : 'rgba(60,30,10,0.25)';ctx.stroke();ctx.setLineDash([3,6]);ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.strokeStyle=playerColor ? baseColor.light : 'rgba(232,200,128,0.5)';ctx.stroke();ctx.setLineDash([]);const ro=hw*0.35;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(ax+nx*ro,ay+ny*ro);ctx.lineTo(bx+nx*ro,by+ny*ro);ctx.strokeStyle=playerColor ? baseColor.dark : 'rgba(40,20,5,0.2)';ctx.stroke();ctx.beginPath();ctx.moveTo(ax-nx*ro,ay-ny*ro);ctx.lineTo(bx-nx*ro,by-ny*ro);ctx.strokeStyle=playerColor ? baseColor.dark : 'rgba(40,20,5,0.2)';ctx.stroke();}
-    for(const [vk,bld] of gameState.settlements){const vert=vertexGeom.get(vk);if(!vert)continue;const vx=vert.pos.x+ox,vy=vert.pos.y+oy;const playerColor = bld.color ? getPlayerColor(bld.color) : null;if(bld.type==='settlement'){const s=hexSize*0.32;ctx.fillStyle='rgba(0,0,0,0.25)';ctx.beginPath();ctx.ellipse(vx+2,vy+s*0.55,s*0.85,s*0.15,0,0,Math.PI*2);ctx.fill();const wallColor = playerColor ? playerColor.secondary : '#D4A574';const roofColor = playerColor ? playerColor.primary : '#A0522D';const strokeColor = playerColor ? playerColor.dark : '#8B6914';ctx.fillStyle=wallColor;ctx.beginPath();ctx.roundRect(vx-s*0.55,vy-s*0.2,s*1.1,s*0.6,2);ctx.fill();ctx.strokeStyle=strokeColor;ctx.lineWidth=1.5;ctx.beginPath();ctx.roundRect(vx-s*0.55,vy-s*0.2,s*1.1,s*0.6,2);ctx.stroke();ctx.fillStyle=roofColor;ctx.beginPath();ctx.moveTo(vx-s*0.72,vy-s*0.2);ctx.lineTo(vx,vy-s*0.72);ctx.lineTo(vx+s*0.72,vy-s*0.2);ctx.closePath();ctx.fill();ctx.strokeStyle=strokeColor;ctx.lineWidth=1.5;ctx.stroke();ctx.strokeStyle='rgba(80,40,10,0.2)';ctx.lineWidth=0.5;for(let i=1;i<4;i++){const t=i/4,lx=vx-s*0.72+t*s*0.72,rx=vx+s*0.72-t*s*0.72,ly=vy-s*0.2+t*(vy-s*0.72-(vy-s*0.2));ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(rx,ly);ctx.stroke();}ctx.fillStyle=strokeColor;const dw=s*0.22,dh=s*0.32;ctx.beginPath();ctx.roundRect(vx-dw/2,vy+s*0.05,dw,dh,1);ctx.fill();ctx.fillStyle='#FFD700';ctx.beginPath();ctx.roundRect(vx-s*0.35,vy-s*0.05,s*0.2,s*0.15,1);ctx.fill();}else{const s=hexSize*0.4;ctx.fillStyle='rgba(0,0,0,0.25)';ctx.beginPath();ctx.ellipse(vx+2,vy+s*0.65,s*0.9,s*0.15,0,0,Math.PI*2);ctx.fill();const wallColor = playerColor ? playerColor.secondary : '#8B9DC3';const roofColor = playerColor ? playerColor.primary : '#7B8DB3';const strokeColor = playerColor ? playerColor.dark : '#5A6E8E';ctx.fillStyle=wallColor;ctx.beginPath();ctx.roundRect(vx-s*0.6,vy-s*0.25,s*1.2,s*0.7,2);ctx.fill();ctx.strokeStyle=strokeColor;ctx.lineWidth=1.5;ctx.beginPath();ctx.roundRect(vx-s*0.6,vy-s*0.25,s*1.2,s*0.7,2);ctx.stroke();ctx.strokeStyle='rgba(70,90,120,0.2)';ctx.lineWidth=0.5;for(let r=1;r<=3;r++){const ry=vy-s*0.25+r*(s*0.7/4);ctx.beginPath();ctx.moveTo(vx-s*0.58,ry);ctx.lineTo(vx+s*0.58,ry);ctx.stroke();}ctx.fillStyle=roofColor;ctx.beginPath();ctx.moveTo(vx-s*0.32,vy-s*0.25);ctx.lineTo(vx-s*0.38,vy-s*0.8);ctx.lineTo(vx+s*0.38,vy-s*0.8);ctx.lineTo(vx+s*0.32,vy-s*0.25);ctx.closePath();ctx.fill();ctx.strokeStyle=strokeColor;ctx.lineWidth=1.5;ctx.stroke();for(let i=-1;i<=1;i+=1){const cx=vx+i*s*0.16;ctx.fillStyle=playerColor ? playerColor.dark : '#6B7DA3';ctx.fillRect(cx-s*0.06,vy-s*0.85,s*0.12,s*0.1);ctx.strokeStyle=strokeColor;ctx.lineWidth=1;ctx.strokeRect(cx-s*0.06,vy-s*0.85,s*0.12,s*0.1);}ctx.fillStyle='#FFD700';const ww=s*0.12,wh=s*0.14;for(let i=-1;i<=1;i++){ctx.fillRect(vx+i*s*0.24-ww/2,vy-s*0.55,ww,wh);ctx.strokeStyle='#8B6914';ctx.lineWidth=0.5;ctx.strokeRect(vx+i*s*0.24-ww/2,vy-s*0.55,ww,wh);}ctx.fillStyle=playerColor ? playerColor.dark : '#4A3A1A';ctx.beginPath();ctx.roundRect(vx-s*0.14,vy+s*0.05,s*0.28,s*0.4,2);ctx.fill();ctx.strokeStyle=strokeColor;ctx.lineWidth=1;ctx.beginPath();ctx.roundRect(vx-s*0.14,vy+s*0.05,s*0.28,s*0.4,2);ctx.stroke();}}
-    for(const h of all){const p=hexToPixel(h,hexSize);drawHexPath(ctx,p.x+ox,p.y+oy,hexSize);ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=1;ctx.stroke();}
+    ctx.fillStyle='#0d1b2a'; 
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    edgeGeom = computeEdgesAndVertices(all, hexSize); 
+    vertexGeom = edgeGeom.vertices;
+    for(const h of data.ring3){
+        const p=hexToPixel(h,hexSize),cx=p.x+ox,cy=p.y+oy,info=data.ocean.get(hexKey(h));
+        drawHexPath(ctx,cx,cy,hexSize);
+        if(info.type==='ocean'){
+            ctx.fillStyle='#152a40';
+            ctx.fill();
+            ctx.strokeStyle='#0d1b2a';
+            ctx.lineWidth=2;
+            ctx.stroke();
+            ctx.fillStyle='rgba(255,255,255,0.04)';
+            for(let w=0;w<3;w++){
+                ctx.beginPath();
+                ctx.arc(cx+(w-1)*9,cy+5,5,0,Math.PI*2);
+                ctx.fill();
+            }
+        }else{
+            ctx.fillStyle='#152a40';
+            ctx.fill();
+        }
+    }
+    for(const h of data.ring3){
+        const p=hexToPixel(h,hexSize),cx=p.x+ox,cy=p.y+oy,info=data.ocean.get(hexKey(h));
+        if(info.type!=='port3'&&info.type!=='port2')continue;
+        drawHexPath(ctx,cx,cy,hexSize);
+        if(info.type==='port3'){
+            ctx.strokeStyle='#f1c40f';
+            ctx.lineWidth=3;
+            ctx.stroke();
+            markPortCorners(ctx,cx,cy,hexSize,info.portCorners,'#f1c40f');
+            ctx.fillStyle='#f1c40f';
+            ctx.font='bold '+(hexSize*0.3)+'px sans-serif';
+            ctx.textAlign='center';
+            ctx.textBaseline='middle';
+            ctx.fillText('3:1',cx,cy-5);
+            ctx.font=(hexSize*0.32)+'px sans-serif';
+            ctx.fillText('?',cx,cy+hexSize*0.25);
+        }else{
+            ctx.strokeStyle='#e67e22';
+            ctx.lineWidth=3;ctx.stroke();
+            markPortCorners(ctx,cx,cy,hexSize,info.portCorners,'#e67e22');
+            ctx.fillStyle='#e67e22';
+            ctx.font='bold '+(hexSize*0.3)+'px sans-serif';
+            ctx.textAlign='center';
+            ctx.textBaseline='middle';
+            ctx.fillText('2:1',cx,cy-5);
+            ctx.font=(hexSize*0.32)+'px sans-serif';
+            ctx.fillText(RESOURCES[info.resource].icon,cx,cy+hexSize*0.25);
+        }
+    }
+    const ls = new Set(); 
+    [data.center,...data.ring1,...data.ring2].forEach(h => ls.add(hexKey(h)));
+    for(const h of all){
+        const k=hexKey(h);
+        if(!ls.has(k))continue;
+        const p=hexToPixel(h,hexSize),cx=p.x+ox,cy=p.y+oy;
+        const rt=data.resources.get(k),num=data.numbers.get(k),res=RESOURCES[rt];
+        drawHexPath(ctx,cx,cy,hexSize);
+        ctx.fillStyle=res.border;
+        ctx.fill();
+        ctx.strokeStyle='rgba(0,0,0,0.3)';
+        ctx.lineWidth=2;
+        ctx.stroke();
+        drawHexPath(ctx,cx,cy,hexSize*0.88);
+        ctx.fillStyle=res.fill;
+        ctx.fill();
+        if(rt!=='desert')drawTexture(ctx,cx,cy,hexSize,rt);
+        drawHexPath(ctx,cx,cy,hexSize*0.82);
+        ctx.strokeStyle='rgba(255,255,255,0.15)';
+        ctx.lineWidth=1;ctx.stroke();
+        ctx.font=(hexSize*0.42)+'px sans-serif';
+        ctx.textAlign='center';
+        ctx.textBaseline='middle';
+        if(num){
+            ctx.fillText(res.icon,cx,cy-hexSize*0.24);
+            const tr=hexSize*0.24,tcx=cx,tcy=cy+hexSize*0.35;
+            ctx.beginPath();
+            ctx.arc(tcx+1.5,tcy+1.5,tr,0,Math.PI*2);
+            ctx.fillStyle='rgba(0,0,0,0.3)';
+            ctx.fill();
+            ctx.beginPath();ctx.arc(tcx,tcy,tr,0,Math.PI*2);
+            ctx.fillStyle='#fff';
+            ctx.fill();
+            ctx.strokeStyle='#333';
+            ctx.lineWidth=2.5;
+            ctx.stroke();
+            ctx.fillStyle='#333';
+            ctx.font='bold '+(hexSize*0.34)+'px sans-serif';
+            ctx.textAlign='center';
+            ctx.textBaseline='middle';
+            ctx.fillText(num.toString(),tcx,tcy);
+            const dots=Math.floor((6-Math.abs(7-num))/2)+1;
+            if(dots>0){
+                const dr=2,dsp=5,dy=tcy+tr*0.7,sx=tcx-(dots-1)*dsp/2;
+                ctx.fillStyle='rgba(0,0,0,0.3)';
+                for(let d=0;d<dots;d++){ctx.beginPath();
+                    ctx.arc(sx+d*dsp,dy,dr,0,Math.PI*2);
+                    ctx.fill();
+                }
+            }
+        }else{
+            const rs=hexSize*0.3,hw=rs*1.35,hh=rs*0.95,rr=hexSize*0.07;
+            ctx.beginPath();
+            ctx.moveTo(cx-hw+rr,cy-hh);
+            ctx.lineTo(cx+hw-rr,cy-hh);
+            ctx.quadraticCurveTo(cx+hw,cy-hh,cx+hw,cy-hh+rr);
+            ctx.lineTo(cx+hw,cy+hh-rr);
+            ctx.quadraticCurveTo(cx+hw,cy+hh,cx+hw-rr,cy+hh);
+            ctx.lineTo(cx-hw+rr,cy+hh);
+            ctx.quadraticCurveTo(cx-hw,cy+hh,cx-hw,cy+hh-rr);
+            ctx.lineTo(cx-hw,cy-hh+rr);
+            ctx.quadraticCurveTo(cx-hw,cy-hh,cx-hw+rr,cy-hh);
+            ctx.closePath();
+            ctx.fillStyle='#8b5cf6';
+            ctx.fill();
+            ctx.strokeStyle='#6d28d9';
+            ctx.lineWidth=2;
+            ctx.stroke();
+            const s=hexSize*0.38,scx=cx,scy=cy+2;
+            ctx.fillStyle='#1a1a1a';
+            ctx.beginPath();
+            ctx.ellipse(scx-s*0.05,scy+s*0.08,s*0.25,s*0.14,0,0,Math.PI*2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(scx+s*0.1,scy-s*0.05);
+            ctx.lineTo(scx+s*0.35,scy-s*0.1);
+            ctx.lineTo(scx+s*0.4,scy-s*0.32);
+            ctx.lineTo(scx+s*0.22,scy-s*0.38);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle='#0a0a0a';
+            ctx.beginPath();
+            ctx.arc(scx-s*0.02,scy-s*0.2,s*0.18,0,Math.PI*2);
+            ctx.fill();
+            ctx.fillStyle='#444';
+            ctx.beginPath();
+            ctx.arc(scx,scy-s*0.4,s*0.1,0,Math.PI*2);
+            ctx.fill();
+            ctx.strokeStyle='#777';
+            ctx.lineWidth=1.5;
+            ctx.beginPath();
+            ctx.moveTo(scx+s*0.3,scy-s*0.2);
+            ctx.lineTo(scx+s*0.6,scy-s*0.7);
+            ctx.stroke();
+            ctx.fillStyle='#aaa';
+            ctx.beginPath();
+            ctx.moveTo(scx+s*0.6,scy-s*0.75);
+            ctx.lineTo(scx+s*0.54,scy-s*0.62);
+            ctx.lineTo(scx+s*0.66,scy-s*0.62);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle='#fff';
+            ctx.font='bold '+(hexSize*0.2)+'px sans-serif';
+            ctx.textAlign='center';
+            ctx.textBaseline='top';
+            ctx.fillText('ROBBER',cx,cy+hh+3);
+        }
+    }
+    ctx.lineCap='butt';
+    for(const [ek,roadData] of gameState.roads){
+        const edge=edgeGeom.edges.get(ek);
+        if(!edge)continue;
+        const ax=edge.va.x+ox,ay=edge.va.y+oy,bx=edge.vb.x+ox,by=edge.vb.y+oy;
+        const playerColor = roadData.color ? getPlayerColor(roadData.color) : null;
+        const baseColor = playerColor || {primary:'#6B4226',secondary:'#C4904A',dark:'#3c1e0a',light:'#8B6914'};
+        ctx.lineWidth=hexSize*0.35;
+        ctx.beginPath();
+        ctx.moveTo(ax,ay);
+        ctx.lineTo(bx,by);
+        ctx.strokeStyle=baseColor.primary;
+        ctx.stroke();
+        ctx.lineWidth=hexSize*0.26;
+        ctx.beginPath();
+        ctx.moveTo(ax,ay);
+        ctx.lineTo(bx,by);
+        ctx.strokeStyle=baseColor.secondary;
+        ctx.stroke();
+        const hw=hexSize*0.16,dx=bx-ax,dy=by-ay,len=Math.sqrt(dx*dx+dy*dy),nx=-dy/len,ny=dx/len;
+        ctx.lineWidth=1.5;
+        ctx.beginPath();
+        ctx.moveTo(ax+nx*hw,ay+ny*hw);
+        ctx.lineTo(bx+nx*hw,by+ny*hw);
+        ctx.strokeStyle=playerColor ? baseColor.dark : 'rgba(60,30,10,0.25)';
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(ax-nx*hw,ay-ny*hw);
+        ctx.lineTo(bx-nx*hw,by-ny*hw);
+        ctx.strokeStyle=playerColor ? baseColor.dark : 'rgba(60,30,10,0.25)';
+        ctx.stroke();
+        ctx.setLineDash([3,6]);
+        ctx.lineWidth=1.5;
+        ctx.beginPath();
+        ctx.moveTo(ax,ay);
+        ctx.lineTo(bx,by);
+        ctx.strokeStyle=playerColor ? baseColor.light : 'rgba(232,200,128,0.5)';
+        ctx.stroke();
+        ctx.setLineDash([]);const ro=hw*0.35;
+        ctx.lineWidth=1;
+        ctx.beginPath();
+        ctx.moveTo(ax+nx*ro,ay+ny*ro);
+        ctx.lineTo(bx+nx*ro,by+ny*ro);
+        ctx.strokeStyle=playerColor ? baseColor.dark : 'rgba(40,20,5,0.2)';
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(ax-nx*ro,ay-ny*ro);
+        ctx.lineTo(bx-nx*ro,by-ny*ro);
+        ctx.strokeStyle=playerColor ? baseColor.dark : 'rgba(40,20,5,0.2)';
+        ctx.stroke();
+    }
+    for(const [vk,bld] of gameState.settlements){
+        const vert=vertexGeom.get(vk);
+        if(!vert)continue;
+        const vx=vert.pos.x+ox,vy=vert.pos.y+oy;
+        const playerColor = bld.color ? getPlayerColor(bld.color) : null;
+        if(bld.type==='settlement'){const s=hexSize*0.32;
+            ctx.fillStyle='rgba(0,0,0,0.25)';
+            ctx.beginPath();
+            ctx.ellipse(vx+2,vy+s*0.55,s*0.85,s*0.15,0,0,Math.PI*2);
+            ctx.fill();
+            const wallColor = playerColor ? playerColor.secondary : '#D4A574';
+            const roofColor = playerColor ? playerColor.primary : '#A0522D';
+            const strokeColor = playerColor ? playerColor.dark : '#8B6914';
+            ctx.fillStyle=wallColor;
+            ctx.beginPath();
+            ctx.roundRect(vx-s*0.55,vy-s*0.2,s*1.1,s*0.6,2);
+            ctx.fill();
+            ctx.strokeStyle=strokeColor;
+            ctx.lineWidth=1.5;
+            ctx.beginPath();
+            ctx.roundRect(vx-s*0.55,vy-s*0.2,s*1.1,s*0.6,2);
+            ctx.stroke();ctx.fillStyle=roofColor;ctx.beginPath();
+            ctx.moveTo(vx-s*0.72,vy-s*0.2);
+            ctx.lineTo(vx,vy-s*0.72);
+            ctx.lineTo(vx+s*0.72,vy-s*0.2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle=strokeColor;
+            ctx.lineWidth=1.5;
+            ctx.stroke();
+            ctx.strokeStyle='rgba(80,40,10,0.2)';
+            ctx.lineWidth=0.5;
+            for(let i=1;i<4;i++){
+                const t=i/4,
+                lx=vx-s*0.72+t*s*0.72,
+                rx=vx+s*0.72-t*s*0.72,
+                ly=vy-s*0.2+t*(vy-s*0.72-(vy-s*0.2));
+                ctx.beginPath();
+                ctx.moveTo(lx,ly);
+                ctx.lineTo(rx,ly);
+                ctx.stroke();
+            }
+            ctx.fillStyle=strokeColor;
+            const dw=s*0.22,dh=s*0.32;
+            ctx.beginPath();
+            ctx.roundRect(vx-dw/2,vy+s*0.05,dw,dh,1);
+            ctx.fill();ctx.fillStyle='#FFD700';
+            ctx.beginPath();
+            ctx.roundRect(vx-s*0.35,vy-s*0.05,s*0.2,s*0.15,1);
+            ctx.fill();
+        }else{
+            const s=hexSize*0.4;
+            ctx.fillStyle='rgba(0,0,0,0.25)';
+            ctx.beginPath();
+            ctx.ellipse(vx+2,vy+s*0.65,s*0.9,s*0.15,0,0,Math.PI*2);
+            ctx.fill();
+            const wallColor = playerColor ? playerColor.secondary : '#8B9DC3';
+            const roofColor = playerColor ? playerColor.primary : '#7B8DB3';
+            const strokeColor = playerColor ? playerColor.dark : '#5A6E8E';
+            ctx.fillStyle=wallColor;
+            ctx.beginPath();
+            ctx.roundRect(vx-s*0.6,vy-s*0.25,s*1.2,s*0.7,2);
+            ctx.fill();
+            ctx.strokeStyle=strokeColor;
+            ctx.lineWidth=1.5;
+            ctx.beginPath();
+            ctx.roundRect(vx-s*0.6,vy-s*0.25,s*1.2,s*0.7,2);
+            ctx.stroke();
+            ctx.strokeStyle='rgba(70,90,120,0.2)';
+            ctx.lineWidth=0.5;
+            for(let r=1;r<=3;r++){
+                const ry=vy-s*0.25+r*(s*0.7/4);
+                ctx.beginPath();
+                ctx.moveTo(vx-s*0.58,ry);
+                ctx.lineTo(vx+s*0.58,ry);
+                ctx.stroke();
+            }
+            ctx.fillStyle=roofColor;
+            ctx.beginPath();
+            ctx.moveTo(vx-s*0.32,vy-s*0.25);
+            ctx.lineTo(vx-s*0.38,vy-s*0.8);
+            ctx.lineTo(vx+s*0.38,vy-s*0.8);
+            ctx.lineTo(vx+s*0.32,vy-s*0.25);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle=strokeColor;
+            ctx.lineWidth=1.5;
+            ctx.stroke();
+            for(let i=-1;i<=1;i+=1){
+                const cx=vx+i*s*0.16;
+                ctx.fillStyle=playerColor ? playerColor.dark : '#6B7DA3';
+                ctx.fillRect(cx-s*0.06,vy-s*0.85,s*0.12,s*0.1);
+                ctx.strokeStyle=strokeColor;
+                ctx.lineWidth=1;
+                ctx.strokeRect(cx-s*0.06,vy-s*0.85,s*0.12,s*0.1);
+            }
+            ctx.fillStyle='#FFD700';
+            const ww=s*0.12,wh=s*0.14;
+            for(let i=-1;i<=1;i++){
+                ctx.fillRect(vx+i*s*0.24-ww/2,vy-s*0.55,ww,wh);
+                ctx.strokeStyle='#8B6914';
+                ctx.lineWidth=0.5;
+                ctx.strokeRect(vx+i*s*0.24-ww/2,vy-s*0.55,ww,wh);
+            }
+            ctx.fillStyle=playerColor ? playerColor.dark : '#4A3A1A';
+            ctx.beginPath();
+            ctx.roundRect(vx-s*0.14,vy+s*0.05,s*0.28,s*0.4,2);
+            ctx.fill();
+            ctx.strokeStyle=strokeColor;
+            ctx.lineWidth=1;
+            ctx.beginPath();
+            ctx.roundRect(vx-s*0.14,vy+s*0.05,s*0.28,s*0.4,2);
+            ctx.stroke();
+        }
+    }
+    for(const h of all){
+        const p=hexToPixel(h,hexSize);
+        drawHexPath(ctx,p.x+ox,p.y+oy,hexSize);
+        ctx.strokeStyle='rgba(255,255,255,0.04)';
+        ctx.lineWidth=1;
+        ctx.stroke();
+    }
     cacheCanvas(ctx);
 }
 let cachedCanvasData = null;
@@ -1519,14 +2185,63 @@ function clearHoverAndRedraw(ctx, ox, oy, hs) {
 canvas.addEventListener('mousemove', (e) => {
     if (isPaused) return;
     const m = buildMode!=='none'?buildMode:(gameState.roadBuildingMode>0?'road':'none');
-    if(m==='none'){if(hoverEdge!==null||hoverVertex!==null){hoverEdge=null;hoverVertex=null;renderMap(mapData,canvas,mapHexSize);}return;}
+    if(m==='none'){
+        if(hoverEdge!==null||hoverVertex!==null){
+            hoverEdge=null;
+            hoverVertex=null;
+            renderMap(mapData,canvas,mapHexSize);
+        }
+        return;
+    }
     const r=canvas.getBoundingClientRect(),sx=canvas.width/r.width,sy=canvas.height/r.height,mx=(e.clientX-r.left)*sx,my=(e.clientY-r.top)*sy,ox=mapOffset.ox,oy=mapOffset.oy;
     let nhe=null,nhv=null;
-    if(m==='road'){let md=Infinity;for(const[ek,edge]of edgeGeom.edges){if(!isEdgeValidForRoad(ek))continue;if(buildMode==='road'&&!isEdgeConnected(ek)&&gameState.roadBuildingMode===0)continue;if(gameState.roads.has(ek))continue;const d=Math.sqrt((mx-(edge.cx+ox))**2+(my-(edge.cy+oy))**2);if(d<md&&d<mapHexSize*0.7){md=d;nhe=ek;}}}else{let md=Infinity;for(const[vk,vert]of vertexGeom){if(m==='settlement'&&!canPlaceSettlement(vk))continue;if(m==='city'){const ex=gameState.settlements.get(vk);if(!ex||ex.type!=='settlement'||(isMultiplayer&&ex.playerId!==myPlayerId))continue;}const d=Math.sqrt((mx-(vert.pos.x+ox))**2+(my-(vert.pos.y+oy))**2);if(d<md&&d<mapHexSize*0.7){md=d;nhv=vk;}}}
-    if(nhe!==hoverEdge||nhv!==hoverVertex){hoverEdge=nhe;hoverVertex=nhv;const ctx=canvas.getContext('2d');clearHoverAndRedraw(ctx,mapOffset.ox,mapOffset.oy,mapHexSize);}
+    if(m==='road'){
+        let md=Infinity;
+        for(const[ek,edge]of edgeGeom.edges){
+            if(!isEdgeValidForRoad(ek))continue;
+            if(buildMode==='road'&&!isEdgeConnected(ek)&&gameState.roadBuildingMode===0)continue;
+            if(gameState.roads.has(ek))continue;
+            const d=Math.sqrt((mx-(edge.cx+ox))**2+(my-(edge.cy+oy))**2);
+            if(d<md&&d<mapHexSize*0.7){
+                md=d;
+                nhe=ek;
+            }
+        }
+    }else{
+        let md=Infinity;
+        for(const[vk,vert]of vertexGeom){
+            if(m==='settlement'&&!canPlaceSettlement(vk))continue;
+            if(m==='city'){
+                const ex=gameState.settlements.get(vk);
+                if(!ex||ex.type!=='settlement'||(isMultiplayer&&ex.playerId!==myPlayerId))continue;
+            }
+            const d=Math.sqrt((mx-(vert.pos.x+ox))**2+(my-(vert.pos.y+oy))**2);
+            if(d<md&&d<mapHexSize*0.7){
+                md=d;nhv=vk;
+
+            }
+        }
+    }
+    if(nhe!==hoverEdge||nhv!==hoverVertex){
+        hoverEdge=nhe;
+        hoverVertex=nhv;
+        const ctx=canvas.getContext('2d');
+        clearHoverAndRedraw(ctx,mapOffset.ox,mapOffset.oy,mapHexSize);
+    }
 });
-function isEdgeValidForRoad(ek){const e=edgeGeom.edges.get(ek);if(!e)return false;const ls=new Set();if(mapData)[mapData.center,...mapData.ring1,...mapData.ring2].forEach(h=>ls.add(hexKey(h)));return ls.has(hexKey(e.hex1))||ls.has(hexKey(e.hex2));}
-function isEdgeConnected(ek){const e=edgeGeom.edges.get(ek);if(!e)return false;const p2v=new Map();for(const[vk,vert]of vertexGeom){const pk=Math.round(vert.pos.x*1000)+','+Math.round(vert.pos.y*1000);p2v.set(pk,vk);}const va=Math.round(e.va.x*1000)+','+Math.round(e.va.y*1000),vb=Math.round(e.vb.x*1000)+','+Math.round(e.vb.y*1000),a=p2v.get(va),b=p2v.get(vb);
+function isEdgeValidForRoad(ek){
+    const e=edgeGeom.edges.get(ek);
+    if(!e)return false;const ls=new Set();
+    if(mapData)[mapData.center,...mapData.ring1,...mapData.ring2].forEach(h=>ls.add(hexKey(h)));
+    return ls.has(hexKey(e.hex1))||ls.has(hexKey(e.hex2));
+}
+function isEdgeConnected(ek){
+    const e=edgeGeom.edges.get(ek);
+    if(!e)return false;const p2v=new Map();
+    for(const[vk,vert]of vertexGeom){
+        const pk=Math.round(vert.pos.x*1000)+','+Math.round(vert.pos.y*1000);p2v.set(pk,vk);
+    }
+    const va=Math.round(e.va.x*1000)+','+Math.round(e.va.y*1000),vb=Math.round(e.vb.x*1000)+','+Math.round(e.vb.y*1000),a=p2v.get(va),b=p2v.get(vb);
     
     // During initial phase, only check connection to MY settlements
     if (initialPhase.active && initialPhase.phase === 'initial-build') {
@@ -1549,10 +2264,22 @@ function isEdgeConnected(ek){const e=edgeGeom.edges.get(ek);if(!e)return false;c
     
     // Regular gameplay: check MY settlements and MY roads ONLY!
     if((a&&gameState.settlements.has(a)&&gameState.settlements.get(a).playerId===myPlayerId)||(b&&gameState.settlements.has(b)&&gameState.settlements.get(b).playerId===myPlayerId))return true;
-    for(const [ek2,roadData] of gameState.roads){if(ek2===ek)continue;if(roadData.playerId!==myPlayerId)continue;const e2=edgeGeom.edges.get(ek2);if(!e2)continue;const e2va=Math.round(e2.va.x*1000)+','+Math.round(e2.va.y*1000),e2vb=Math.round(e2.vb.x*1000)+','+Math.round(e2.vb.y*1000);if(va===e2va||va===e2vb||vb===e2va||vb===e2vb)return true;}return false;}
+    for(const [ek2,roadData] of gameState.roads){
+        if(ek2===ek)continue;
+        if(roadData.playerId!==myPlayerId)continue;
+        const e2=edgeGeom.edges.get(ek2);
+        if(!e2)continue;
+        const e2va=Math.round(e2.va.x*1000)+','+Math.round(e2.va.y*1000),e2vb=Math.round(e2.vb.x*1000)+','+Math.round(e2.vb.y*1000);
+        if(va===e2va||va===e2vb||vb===e2va||vb===e2vb)return true;
+    }
+    return false;
+}
 canvas.addEventListener('click', (e) => {
     if (isPaused) return;
-    try { console.log('[DEBUG canvas click] buildMode=', buildMode, 'initialPhase=', initialPhase, 'initialPhase.canBuild=', initialPhase.canBuild, 'isMyTurn=', isMyTurn, 'canPerformActions=', canPerformActions, 'myPlayerId=', myPlayerId); } catch(e){}
+    try { console.log('[DEBUG canvas click] buildMode=', buildMode, 'initialPhase=', initialPhase, 'initialPhase.canBuild=', initialPhase.canBuild, 'isMyTurn=', isMyTurn, 'canPerformActions=', canPerformActions, 'myPlayerId=', myPlayerId);
+    } catch(e){
+
+    }
     const m = buildMode!=='none'?buildMode:(gameState.roadBuildingMode>0?'road':'none'); 
     if(m==='none') return;
     
@@ -1744,12 +2471,35 @@ canvas.addEventListener('click', (e) => {
 function showMessage(msg){
     try {
         console.log('[DEBUG showMessage] msg=', msg, ' isMyTurn=', isMyTurn, 'canPerformActions=', canPerformActions, 'initialPhase=', initialPhase, 'myPlayerId=', myPlayerId);
-    } catch (e) { console.warn('Debug log failed', e); }
-    const te=document.getElementById('total'),ot=te.textContent;te.textContent=msg;te.style.color='#e74c3c';setTimeout(()=>{te.textContent=ot;te.style.color='#f1c40f';},2000);
+    } catch (e) { 
+        console.warn('Debug log failed', e); 
+    }
+    const te=document.getElementById('total'),ot=te.textContent;te.textContent=msg;
+    te.style.color='#e74c3c';setTimeout(()=>{
+        te.textContent=ot;
+        te.style.color='#f1c40f';
+    },2000);
 }
 
-function setBuildMode(mode){if(gameState.roadBuildingMode>0){showMessage('🛤️ Спочатку завершіть карту "Дороги"!');return;}document.querySelectorAll('.build-btn').forEach(b=>b.classList.remove('active'));buildMode=mode;if(mode!=='none'){const btn=document.querySelector(`.build-btn[data-mode="${mode}"]`);if(btn)btn.classList.add('active');canvas.classList.add('crosshair');}else canvas.classList.remove('crosshair');hoverEdge=null;hoverVertex=null;if(mapData)renderMap(mapData,canvas,mapHexSize);}
-document.querySelectorAll('.build-btn').forEach(b=>{b.addEventListener('click',()=>{audioManager.playBuildSound();setBuildMode(b.dataset.mode);});});
+function setBuildMode(mode){
+    if(gameState.roadBuildingMode>0){showMessage('🛤️ Спочатку завершіть карту "Дороги"!');
+        return;
+    }
+    document.querySelectorAll('.build-btn').forEach(b=>b.classList.remove('active'));
+    buildMode=mode;
+    if(mode!=='none'){
+        const btn=document.querySelector(`.build-btn[data-mode="${mode}"]`);
+        if(btn)btn.classList.add('active');
+        canvas.classList.add('crosshair');
+    }else canvas.classList.remove('crosshair');
+    hoverEdge=null;hoverVertex=null;
+    if(mapData)renderMap(mapData,canvas,mapHexSize);
+}
+document.querySelectorAll('.build-btn').forEach(b=>{
+    b.addEventListener('click',()=>{
+        audioManager.playBuildSound();setBuildMode(b.dataset.mode);
+    });
+});
 function isInitialPhaseComplete() {
     if (isMultiplayer) {
         // У мультиплеєрі перевіряємо свої будівлі через gameState
@@ -1802,7 +2552,8 @@ function collectResources(diceTotal, forPlayerId){
     const targetId = forPlayerId || (isMultiplayer ? myPlayerId : null);
     for(const[vk,b]of gameState.settlements){
         if(targetId && b.playerId !== targetId) continue;
-        const v=vertexGeom.get(vk);if(!v)continue;
+        const v=vertexGeom.get(vk);
+        if(!v)continue;
         const m=b.type==='city'?2:1;
         for(const h of v.hexes){
             const hk=hexKey(h),n=mapData.numbers.get(hk),rt=mapData.resources.get(hk);
@@ -1834,14 +2585,133 @@ function isVertexOnOpponentRoad(vk){
     }
     return false;
 }
-function showResourceNotification(collected){if(collected.length===0)return;audioManager.playResourceSound();updateResourceCardsDisplay();updateDevHandDisplay();const n=document.createElement('div');n.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(26,26,46,0.95);border:2px solid #f39c12;border-radius:12px;padding:18px 25px;color:#fff;font-family:\'Segoe UI\',Tahoma,Geneva,Verdana,sans-serif;font-size:1em;z-index:1000;box-shadow:0 0 30px rgba(243,156,18,0.5);text-align:center;';let c='<div style="color:#f1c40f;margin-bottom:8px;font-weight:bold;">🎉 Отримано ресурси!</div><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">';const g={};for(const i of collected){if(!g[i.type])g[i.type]={icon:i.icon,name:i.name,count:0};g[i.type].count++;}for(const d of Object.values(g))c+='<div style="display:flex;align-items:center;gap:6px;padding:4px 8px;background:rgba(255,255,255,0.1);border-radius:6px;"><span style="font-size:1.3em;">'+d.icon+'</span><span>'+d.name+' ×'+d.count+'</span></div>';c+='</div>';n.innerHTML=c;document.body.appendChild(n);setTimeout(()=>{n.style.transition='opacity 0.5s';n.style.opacity='0';setTimeout(()=>n.remove(),500);},2000);}
+function showResourceNotification(collected){
+    if(collected.length===0)return;
+    audioManager.playResourceSound();
+    updateResourceCardsDisplay();
+    updateDevHandDisplay();
+    const n=document.createElement('div');
+    n.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(26,26,46,0.95);border:2px solid #f39c12;border-radius:12px;padding:18px 25px;color:#fff;font-family:\'Segoe UI\',Tahoma,Geneva,Verdana,sans-serif;font-size:1em;z-index:1000;box-shadow:0 0 30px rgba(243,156,18,0.5);text-align:center;';
+    let c='<div style="color:#f1c40f;margin-bottom:8px;font-weight:bold;">🎉 Отримано ресурси!</div><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">';
+        const g={};
+        for(const i of collected){
+            if(!g[i.type])g[i.type]={
+                icon:i.icon,name:i.name,count:0
+            };
+            g[i.type].count++;
+        }
+        for(const d of Object.values(g))c+='<div style="display:flex;align-items:center;gap:6px;padding:4px 8px;background:rgba(255,255,255,0.1);border-radius:6px;"><span style="font-size:1.3em;">'+d.icon+'</span><span>'+d.name+' ×'+d.count+'</span></div>';
+        c+='</div>';
+        n.innerHTML=c;
+        document.body.appendChild(n);
+        setTimeout(()=>{n.style.transition='opacity 0.5s';
+        n.style.opacity='0';
+        setTimeout(()=>n.remove(),500);
+    },2000);
+}
 
-function buyDevCard(){if(gameState.roadBuildingMode>0||gameState.cardInProgress){showMessage('Спочатку завершіть поточну дію!');return;}if(isMultiplayer&&!canPerformMultiplayerActions()){showMessage(isMyTurn&&!canPerformActions?'Спочатку киньте кубики!':'Зараз не ваш хід!');return;}const c=gameState.resourceCards;if(c.stone<1||c.geese<1||c.water<1){showMessage('Недостатньо ресурсів!');return;}if(gameState.devDeck.length===0){showMessage('Колода порожня!');return;}audioManager.playCardSound();c.stone--;c.geese--;c.water--;const card=gameState.devDeck.pop();card.used=false;gameState.devHand.push(card);if(card.type==='knight'){showMessage('⚔️ Рицар! Клікніть, щоб використати');}else{showMessage('Отримано: '+getDevCardInfo(card.type).icon+' '+getDevCardInfo(card.type).name);}updateAllUI();renderMap(mapData,canvas,mapHexSize);}
-function confirmActivateDevCard(index){if(gameState.roadBuildingMode>0||gameState.cardInProgress){showMessage('Спочатку завершіть поточну дію!');return;}const card=gameState.devHand[index];if(card.used)return;const info=getDevCardInfo(card.type);if(card.type.startsWith('vp_')){const overlay=document.createElement('div');overlay.className='confirm-overlay';overlay.innerHTML='<div class="confirm-box"><h3>📜 '+info.name+'</h3><p style="font-size:2em;color:#f1c40f;font-weight:bold;">+1 ПО</p><div class="confirm-btns"><button class="btn-yes" id="vpOk">✅ ОК</button></div></div>';document.body.appendChild(overlay);document.getElementById('vpOk').addEventListener('click',()=>overlay.remove());overlay.addEventListener('click',(e)=>{if(e.target===overlay)overlay.remove();});return;}const overlay=document.createElement('div');overlay.className='confirm-overlay';overlay.innerHTML='<div class="confirm-box"><h3>'+info.icon+' '+info.name+'</h3><p>Використати цю карту?</p><div class="confirm-btns"><button class="btn-yes" id="confirmYes">✅ Так</button><button class="btn-no" id="confirmNo">❌ Ні</button></div></div>';document.body.appendChild(overlay);document.getElementById('confirmYes').addEventListener('click',()=>{overlay.remove();activateDevCard(index);});document.getElementById('confirmNo').addEventListener('click',()=>overlay.remove());overlay.addEventListener('click',(e)=>{if(e.target===overlay)overlay.remove();});}
-function activateDevCard(index){const card=gameState.devHand[index];if(card.used)return;const bt=card.type.split('_')[0];switch(bt){case'knight':showMessage('⚔️ Рицар (функціонал вимкнено)');break;case'plenty':activateYearOfPlenty(index);break;case'monopoly':showMessage('👑 Монополія (функціонал в розробці)');break;case'roads':activateRoadBuilding(index);break;default:if(card.type.startsWith('vp_')){showMessage('📜 Карта перемоги (функціонал вимкнено)');}else{showMessage('Карта (в розробці)');}}}
+function buyDevCard(){
+    if(gameState.roadBuildingMode>0||gameState.cardInProgress){
+        showMessage('Спочатку завершіть поточну дію!');
+        return;
+    }
+    if(isMultiplayer&&!canPerformMultiplayerActions()){
+        showMessage(isMyTurn&&!canPerformActions?'Спочатку киньте кубики!':'Зараз не ваш хід!');
+        return;
+    }
+    const c=gameState.resourceCards;
+    if(c.stone<1||c.geese<1||c.water<1){
+        showMessage('Недостатньо ресурсів!');
+        return;
+    }
+    if(gameState.devDeck.length===0){
+        showMessage('Колода порожня!');
+        return;
+    }
+    audioManager.playCardSound();
+    c.stone--;
+    c.geese--;
+    c.water--;
+    const card=gameState.devDeck.pop();
+    card.used=false;
+    gameState.devHand.push(card);
+    if(card.type==='knight'){
+        showMessage('⚔️ Рицар! Клікніть, щоб використати');
+    }else{
+        showMessage('Отримано: '+getDevCardInfo(card.type).icon+' '+getDevCardInfo(card.type).name);
+    }
+    updateAllUI();
+    renderMap(mapData,canvas,mapHexSize);
+}
+function confirmActivateDevCard(index){
+    if(gameState.roadBuildingMode>0||gameState.cardInProgress){
+        showMessage('Спочатку завершіть поточну дію!');
+        return;
+    }
+    const card=gameState.devHand[index];
+    if(card.used)return;
+    const info=getDevCardInfo(card.type);
+    if(card.type.startsWith('vp_')){
+        const overlay=document.createElement('div');
+        overlay.className='confirm-overlay';
+        overlay.innerHTML='<div class="confirm-box"><h3>📜 '+info.name+'</h3><p style="font-size:2em;color:#f1c40f;font-weight:bold;">+1 ПО</p><div class="confirm-btns"><button class="btn-yes" id="vpOk">✅ ОК</button></div></div>';
+        document.body.appendChild(overlay);
+        document.getElementById('vpOk').addEventListener('click',()=>overlay.remove());
+        overlay.addEventListener('click',(e)=>{
+            if(e.target===overlay)overlay.remove();
+        });
+        return;
+    }
+    const overlay=document.createElement('div');
+    overlay.className='confirm-overlay';
+    overlay.innerHTML='<div class="confirm-box"><h3>'+info.icon+' '+info.name+'</h3><p>Використати цю карту?</p><div class="confirm-btns"><button class="btn-yes" id="confirmYes">✅ Так</button><button class="btn-no" id="confirmNo">❌ Ні</button></div></div>';
+    document.body.appendChild(overlay);
+    document.getElementById('confirmYes').addEventListener('click',()=>{
+        overlay.remove();
+        activateDevCard(index);
+    });
+    document.getElementById('confirmNo').addEventListener('click',()=>overlay.remove());
+    overlay.addEventListener('click',(e)=>{
+        if(e.target===overlay)overlay.remove();
+    });
+}
+function activateDevCard(index){
+    const card=gameState.devHand[index];
+    if(card.used)return;
+    const bt=card.type.split('_')[0];
+    switch(bt){
+        case'knight':
+            showMessage('⚔️ Рицар (функціонал вимкнено)');
+            break;
+        case'plenty':
+            activateYearOfPlenty(index);
+            break;
+        case'monopoly':
+            showMessage('👑 Монополія (функціонал в розробці)');
+            break;
+        case'roads':
+            activateRoadBuilding(index);
+            break;
+        default:
+            if(card.type.startsWith('vp_')){
+                showMessage('📜 Карта перемоги (функціонал вимкнено)');
+            }else{
+                showMessage('Карта (в розробці)');
+            }
+    }
+}
 
 // Road Building Card
-function activateRoadBuilding(index){const card=gameState.devHand[index];if(card.used)return;card.used=true;gameState.cardInProgress=true;gameState.roadBuildingMode=2;buildMode='road';document.querySelectorAll('.build-btn').forEach(b=>b.classList.remove('active'));const rbBtn=document.querySelector('.build-btn[data-mode="road"]');if(rbBtn)rbBtn.classList.add('active');canvas.classList.add('crosshair');hoverEdge=null;hoverVertex=null;showMessage('🛤️ Побудуйте 2 дороги (безкоштовно)');updateAllUI();renderMap(mapData,canvas,mapHexSize);}
+function activateRoadBuilding(index){
+    const card=gameState.devHand[index];
+    if(card.used)return;
+    card.used=true;
+    gameState.cardInProgress=true;
+    gameState.roadBuildingMode=2;
+    buildMode='road';
+    document.querySelectorAll('.build-btn').forEach(b=>b.classList.remove('active'));
+}
+
 function activateYearOfPlenty(index){
     const card=gameState.devHand[index];
     if(card.used) return;
@@ -2683,6 +3553,8 @@ function registerMultiplayerHandlers(client) {
                     status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
                     status.style.color = '#27ae60';
                 }
+                // Показуємо кнопку "Продовжити" для активного гравця
+                if (endBtn) endBtn.style.display = 'inline-block';
             } else {
                 initialPhase.canBuild = false;
                 setBuildMode('none');
@@ -2692,6 +3564,9 @@ function registerMultiplayerHandlers(client) {
                     status.textContent = `⏳ Чекаємо, поки ${name} побудує...`;
                     status.style.color = '#f1c40f';
                 }
+                // Показуємо кнопку "ОК" для гравців, що очікують
+                const okBtn = document.getElementById('initialBuildOkBtn');
+                if (okBtn) okBtn.style.display = 'inline-block';
             }
             // ===== КІНЕЦЬ ДОДАНОЇ ЛОГІКИ =====
         }
@@ -3065,6 +3940,9 @@ function onInitialBuildStart(data) {
         status.style.color = '#27ae60';
         // Enable building by setting the phase
         initialPhase.canBuild = true;
+        // Hide OK button when it's my turn
+        const okBtn = document.getElementById('initialBuildOkBtn');
+        if (okBtn) okBtn.style.display = 'none';
     } else {
         const playerInfo = data.order ? data.order.find(p => p.playerId === currentId) : null;
         const name = playerInfo ? 'Гравець ' + currentId.slice(0, 4) : 'Інший гравець';
@@ -3072,12 +3950,37 @@ function onInitialBuildStart(data) {
         status.style.color = '#f1c40f';
         initialPhase.canBuild = false;
         setBuildMode('none');
+        // Show OK button for waiting players so they can close the overlay
+        const okBtn = document.getElementById('initialBuildOkBtn');
+        if (okBtn) okBtn.style.display = 'inline-block';
     }
 }
 
 // Handle next player in build phase (1 round only)
 function onInitialBuildNextPlayer(data) {
     initialPhase.currentIndex++;
+    
+    // Update OK button visibility based on whose turn it is
+    const currentId = data.currentPlayerId;
+    const okBtn = document.getElementById('initialBuildOkBtn');
+    const endBtn = document.getElementById('initialBuildEndTurnBtn');
+    
+    // Hide both buttons first
+    if (okBtn) okBtn.style.display = 'none';
+    if (endBtn) endBtn.style.display = 'none';
+    
+    if (currentId === myPlayerId) {
+        // It's my turn - show "Продовжити" button, allow building
+        initialPhase.canBuild = true;
+        setBuildMode('none');
+        if (endBtn) endBtn.style.display = 'inline-block';
+    } else {
+        // It's not my turn - show OK button so they can close the overlay
+        if (okBtn) okBtn.style.display = 'inline-block';
+        initialPhase.canBuild = false;
+        setBuildMode('none');
+    }
+    
     updateBuildPhaseStatus(data.currentPlayerId);
 }
 
