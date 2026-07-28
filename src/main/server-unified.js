@@ -53,11 +53,19 @@ function isEdgeConnectedServer(edgeKey, playerId, room) {
     const edge = edgeMap.get(edgeKey);
     if (!edge) return false;
     
-    // ТУТ БУЛА ПОМИЛКА: edge[1].va -> виправляємо на edge.va
     const va = edge.va;
     const vb = edge.vb;
-    
-    // ... далі за кодом, де перевіряються власні поселення:
+
+    // ========== ДОДАЙТЕ ЦЕЙ БЛОК ==========
+    // Знаходимо ключі вершин за їх координатами
+    const vertexMap = new Map(room.topology.vertices);
+    let vkA = null, vkB = null;
+    for (const [vk, vData] of vertexMap) {
+        if (vData.pos.x === va.x && vData.pos.y === va.y) vkA = vk;
+        if (vData.pos.x === vb.x && vData.pos.y === vb.y) vkB = vk;
+    }
+    // ======================================
+
     if (vkA && isMyServerVertex(vkA, playerId, room)) return true;
     if (vkB && isMyServerVertex(vkB, playerId, room)) return true;
     
@@ -66,7 +74,6 @@ function isEdgeConnectedServer(edgeKey, playerId, room) {
         const edge2 = edgeMap.get(ek2);
         if (!edge2) continue;
         
-        // ТУТ ТАКОЖ: edge2[1].va -> edge2.va
         if ((edge2.va.x === va.x && edge2.va.y === va.y) ||
             (edge2.va.x === vb.x && edge2.va.y === vb.y) ||
             (edge2.vb.x === va.x && edge2.vb.y === va.y) ||
