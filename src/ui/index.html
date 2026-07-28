@@ -2393,6 +2393,7 @@ loadVolumeSettings();
 audioManager.startBackgroundMusic();
 
 // ===== MULTIPLAYER INTEGRATION =====
+// ===== MULTIPLAYER INTEGRATION =====
 let multiplayerClient = null;
 let mpClient = null;
 let isMultiplayer = false;
@@ -2402,17 +2403,16 @@ let myPlayerId = null;
 let mySocketId = null;
 let initialPhaseBuildings = new Map();
 
+// Змінні стану звичайних ходів
+let isMyTurn = false;
+let hasRolledThisTurn = false;
+let canPerformActions = false;
+let turnOrder = [];
+let currentTurnPlayerId = null;
+let waitingDotsTimer = null;
+
 function registerMultiplayerHandlers(client) {
-    client.onPlayerJoined((data) => {
-        console.log('Player joined:', data);
-        updatePlayersList(data.players);
-    });
-    client.onPlayerLeft((data) => {
-        console.log('Player left:', data);
-        updatePlayersList(data.players);
-    });
     client.onGameStarted((data) => {
-        console.log('Game started with map seed:', data);
         if (data && data.mapSeed) {
             const deserialized = deserializeMap(data.mapSeed);
             if (deserialized) {
@@ -2424,42 +2424,51 @@ function registerMultiplayerHandlers(client) {
             }
         }
     });
+
+    // ============================================================
+    // КРОК 2: КИДАННЯ КУБИКІВ (ОНОВЛЕНЕ ВІКНО)
+    // ============================================================
     client.onStartDicePhase((data) => {
-    console.log('Отримано start-dice-phase:', data, ' myPlayerId=', myPlayerId, ' initialPhase=', initialPhase);
-    startDicePhase(data);
+        startDicePhase(data);
     });
+
     client.onPlayerDiceRolled((data) => {
-        console.log('Player rolled:', data, ' myPlayerId=', myPlayerId, ' diceRolls=', initialPhase.diceRolls);
         onPlayerDiceRolled(data);
     });
-    client.onInitialBuildStart((data) => {
-        console.log('Initial build started:', data, ' myPlayerId=', myPlayerId);
-        onInitialBuildStart(data);
-        
-        // Якщо це мій хід - закриваємо оверлей, щоб мати доступ до канвасу
-        if (data.currentPlayerId === myPlayerId) {
-            const overlay = document.getElementById('buildPhaseOverlay');
-            if (overlay) overlay.style.display = 'none';
-        }
+
+    client.onDiceTie((data) => {
+        showMessage(data.message || 'Нічия! Перекиньте кубики');
+        initialPhase.myRoll = null;
+        initialPhase.diceRolls.clear();
+        const rollBtn = document.getElementById('rollDiceInitialBtn');
+        if (rollBtn) { rollBtn.disabled = false; rollBtn.style.opacity = '1'; rollBtn.style.cursor = 'pointer'; }
+        const die1El = document.getElementById('initialDie1');
+        const die2El = document.getElementById('initialDie2');
+        if (die1El && die2El) { die1El.textContent = '⚀'; die2El.textContent = '⚀'; }
+        const results = document.getElementById('dicePhaseResults');
+        if (results) results.innerHTML = '';
     });
-    client.onInitialBuildNextPlayer((data) => {
-        console.log('Next player:', data, ' myPlayerId=', myPlayerId, ' initialPhase.canBuild=', initialPhase.canBuild);
-        initialPhase.currentIndex = data.currentIndex || 0;
-        
-        // Оновлюємо порядок будування з даних сервера
-        if (data.order) {
-            initialPhase.buildOrder = data.order;
-        }
-        
+
+    // ============================================================
+    // КРОКИ 4-6: ПОЧАТКОВЕ БУДІВНИЦТВО
+    // ============================================================
+    client.onInitialBuildStart((data) => {
+        initialPhase.active = true;
+        initialPhase.phase = 'initial-build';
+        initialPhase.buildOrder = data.order || [];
+        initialPhase.currentIndex = 0;
+        initialPhaseBuildings = new Map();
+        for (const p of data.order) initialPhaseBuildings.set(p.playerId, { settlements: 0, roads: 0 });
+
+        const overlay = document.getElementById('buildPhaseOverlay');
+        const info = document.getElementById('buildPhaseInfo');
+        const orderDiv = document.getElementById('buildPhaseOrder');
         const status = document.getElementById('buildPhaseStatus');
         const endBtn = document.getElementById('initialBuildEndTurnBtn');
-        
-        // Блокуємо кнопку "Завершити" для всіх
-        if (endBtn) endBtn.style.display = 'none';
-        
-        // Оновлюємо список порядку будування
-        const orderDiv = document.getElementById('buildPhaseOrder');
-        if (orderDiv && data.order) {
+        overlay.style.display = 'flex';
+        info.textContent = '🏗️ Початкове будівництво: 1 село + 2 дороги';
+
+        if (data.order) {
             orderDiv.innerHTML = '';
             data.order.forEach((player, index) => {
                 const isMe = player.playerId === myPlayerId;
@@ -2469,62 +2478,34 @@ function registerMultiplayerHandlers(client) {
                 orderDiv.appendChild(div);
             });
         }
-        
-        // Перевіряємо, чи зараз мій хід
+        if (endBtn) endBtn.style.display = 'none';
+
         if (data.currentPlayerId === myPlayerId) {
+            status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги (кольорові)';
+            status.style.color = '#27ae60';
             initialPhase.canBuild = true;
-            setBuildMode('none');
-            if (status) {
-                status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
-                status.style.color = '#27ae60';
-            }
-            const reopenBtn = document.getElementById('showBuildPhaseBtn');
-            if (reopenBtn) reopenBtn.style.display = 'none';
-            // Розблокуємо будівництво
-            // Якщо гравець раніше вже побудував щось, перевірка це врахує
         } else {
+            const playerInfo = data.order ? data.order.find(p => p.playerId === data.currentPlayerId) : null;
+            const name = playerInfo ? 'Гравець ' + data.currentPlayerId.slice(0, 4) : 'Інший гравець';
+            status.textContent = `⏳ Чекаємо, поки ${name} побудує...`;
+            status.style.color = '#f1c40f';
             initialPhase.canBuild = false;
             setBuildMode('none');
-            if (status) {
-                const playerInfo = data.order ? data.order.find(p => p.playerId === data.currentPlayerId) : null;
-                const name = playerInfo ? 'Гравець ' + data.currentPlayerId.slice(0, 4) : 'Інший гравець';
-                status.textContent = `⏳ Чекаємо, поки ${name} побудує...`;
-                status.style.color = '#f1c40f';
-            }
         }
     });
-    client.onInitialBuildRound2Start((data) => {
-        console.log('Round 2 started:', data);
-        onInitialBuildRound2Start(data);
-    });
+
     client.onInitialBuildYourTurn((data) => {
-        console.log('Initial build - your turn:', data, ' myPlayerId=', myPlayerId);
         initialPhase.canBuild = true;
-        
-        // Оновлюємо порядок будування з даних сервера
-        if (data.order) {
-            initialPhase.buildOrder = data.order;
-        }
-        
-        // Показуємо оверлей
+        if (data.order) initialPhase.buildOrder = data.order;
         const overlay = document.getElementById('buildPhaseOverlay');
         if (overlay) overlay.style.display = 'flex';
-        
-        // Показуємо кнопку "Продовжити" для активного гравця (ЗАВЖДИ, щоб можна було закрити вікно)
         const endBtn = document.getElementById('initialBuildEndTurnBtn');
-        if (endBtn) {
-            endBtn.style.display = 'inline-block';
-        }
+        if (endBtn) endBtn.style.display = 'inline-block';
         const okBtn = document.getElementById('initialBuildOkBtn');
         if (okBtn) okBtn.style.display = 'none';
-        
         const status = document.getElementById('buildPhaseStatus');
-        if (status) {
-            status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
-            status.style.color = '#27ae60';
-        }
-        
-        // Оновлюємо список порядку будування
+        if (status) { status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги'; status.style.color = '#27ae60'; }
+        // Оновлюємо список порядку
         const orderDiv = document.getElementById('buildPhaseOrder');
         if (orderDiv && data.order) {
             orderDiv.innerHTML = '';
@@ -2537,47 +2518,47 @@ function registerMultiplayerHandlers(client) {
             });
         }
     });
+
     client.onInitialBuildWaiting((data) => {
-        console.log('Initial build - waiting:', data, ' myPlayerId=', myPlayerId);
         initialPhase.canBuild = false;
         const currentId = data.currentPlayerId;
         const playerInfo = data.order ? data.order.find(p => p.playerId === currentId) : null;
         const name = playerInfo ? 'Гравець ' + currentId.slice(0, 4) : 'Інший гравець';
         const status = document.getElementById('buildPhaseStatus');
-        if (status) {
-            status.textContent = `⏳ Чекаємо, поки ${name} побудує...`;
-            status.style.color = '#f1c40f';
-        }
-        // Ховаємо кнопку "Продовжити" і показуємо "ОК" для закриття вікна
+        if (status) { status.textContent = `⏳ Чекаємо, поки ${name} побудує...`; status.style.color = '#f1c40f'; }
         const endBtn = document.getElementById('initialBuildEndTurnBtn');
         if (endBtn) endBtn.style.display = 'none';
         const okBtn = document.getElementById('initialBuildOkBtn');
         if (okBtn) okBtn.style.display = 'inline-block';
         setBuildMode('none');
     });
+
     client.onInitialBuildYourDone((data) => {
-        console.log('Initial build - your done:', data, ' myPlayerId=', myPlayerId);
         const status = document.getElementById('buildPhaseStatus');
-        if (status) {
-            status.textContent = '✅ Ви завершили будівництво! Чекайте інших гравців.';
-            status.style.color = '#f1c40f';
-        }
+        if (status) { status.textContent = '✅ Ви завершили будівництво! Чекайте інших гравців.'; status.style.color = '#f1c40f'; }
         setBuildMode('none');
     });
+
+    // ============================================================
+    // КРОК 7-10: ЗВИЧАЙНА ГРА (ХОДИ, КУБИКИ, РЕСУРСИ)
+    // ============================================================
     client.onRegularGameStart((data) => {
-        const reopenBtn = document.getElementById('showBuildPhaseBtn');
-        if (reopenBtn) reopenBtn.style.display = 'none';
+        document.getElementById('buildPhaseOverlay').style.display = 'none';
+        initialPhase.active = false;
+        initialPhase.phase = 'complete';
+        const rollBtn = document.getElementById('rollBtn');
+        if (rollBtn) rollBtn.disabled = false;
     });
+
     client.onYourTurn((data) => {
-        console.log('Your turn:', data, ' myPlayerId=', myPlayerId);
         showYourTurn(data);
     });
+
     client.onWaitingForTurn((data) => {
-        console.log('Waiting for turn:', data, ' myPlayerId=', myPlayerId);
         showWaitingForTurn(data);
     });
+
     client.onRegularDiceRolled((data) => {
-        console.log('Regular dice rolled:', data);
         const d1 = document.getElementById('die1');
         const d2 = document.getElementById('die2');
         if (d1 && d2) {
@@ -2586,83 +2567,40 @@ function registerMultiplayerHandlers(client) {
             document.getElementById('total').textContent = 'Сума: ' + data.total;
         }
     });
+
     client.onCollectResources((data) => {
-        console.log('Collect resources:', data);
-        handleCollectResources(data);
+        const diceTotal = data.diceTotal;
+        showResourceNotification(collectResources(diceTotal));
     });
-    client.onRegularGameStart((data) => {
-        console.log('Regular game start:', data);
-        const overlay = document.getElementById('buildPhaseOverlay');
-        if (overlay) overlay.style.display = 'none';
-        initialPhase.active = false;
-        initialPhase.phase = 'complete';
-        // 🔓 Розблоковуємо головну кнопку
-        const rollBtn = document.getElementById('rollBtn');
-        if (rollBtn) rollBtn.disabled = false;
-    });
+
     client.onTurnEnded((data) => {
-        console.log('Turn ended:', data);
         showWaitingForTurn({ currentPlayerId: data.nextPlayerId });
     });
-    client.onActionError((data) => {
-        console.log('Action error:', data);
-        showMessage(data.message || 'Помилка дії');
-    });
-    client.onDiceTie((data) => {
-        console.log('Dice tie:', data);
-        showMessage(data.message || 'Нічия! Перекиньте кубики');
-        initialPhase.myRoll = null;
-        initialPhase.diceRolls.clear();
-        const rollBtn = document.getElementById('rollDiceInitialBtn');
-        if (rollBtn) {
-            rollBtn.disabled = false;
-            rollBtn.style.opacity = '1';
-            rollBtn.style.cursor = 'pointer';
-        }
-        // Reset dice display
-        const die1El = document.getElementById('initialDie1');
-        const die2El = document.getElementById('initialDie2');
-        if (die1El && die2El) {
-            die1El.textContent = '⚀';
-            die2El.textContent = '⚀';
-        }
-        // Clear results
-        const results = document.getElementById('dicePhaseResults');
-        if (results) results.innerHTML = '';
-    });
+
+    // Синхронізація та помилки
     client.onBuildingSynced((data) => {
-        console.log('Building synced:', data);
         handleBuildingSynced(data);
     });
     client.onSyncBuildings((data) => {
-        console.log('Sync buildings (full state):', data);
         handleBuildingSynced({ buildings: data.buildings });
     });
+    client.onActionError((data) => {
+        showMessage(data.message || 'Помилка дії');
+    });
     client.onGameStateSync((data) => {
-        console.log('Game state sync:', data);
         myPlayerId = getMyPlayerId();
         if (data.gamePhase === 'regular-turn') {
-            initialPhase.active = false;
-            initialPhase.phase = 'complete';
-            if (data.currentTurnPlayerId === myPlayerId) {
-                showYourTurn({ playerId: data.currentTurnPlayerId });
-            } else {
-                showWaitingForTurn({ currentPlayerId: data.currentTurnPlayerId });
-            }
+            initialPhase.active = false; initialPhase.phase = 'complete';
+            if (data.currentTurnPlayerId === myPlayerId) showYourTurn({ playerId: data.currentTurnPlayerId });
+            else showWaitingForTurn({ currentPlayerId: data.currentTurnPlayerId });
         } else if (data.gamePhase === 'initial-build') {
-            initialPhase.active = true;
-            initialPhase.phase = 'initial-build';
+            initialPhase.active = true; initialPhase.phase = 'initial-build';
             initialPhase.buildOrder = data.initialBuildOrder || [];
             initialPhase.currentIndex = data.currentIndex || 0;
-            
             const overlay = document.getElementById('buildPhaseOverlay');
-            const info = document.getElementById('buildPhaseInfo');
             const orderDiv = document.getElementById('buildPhaseOrder');
             const status = document.getElementById('buildPhaseStatus');
-            const endBtn = document.getElementById('initialBuildEndTurnBtn');
-            
             if (overlay) overlay.style.display = 'flex';
-            if (info) info.textContent = '🏗️ Початкове будівництво: потрібно 1 село + 2 дороги';
             if (orderDiv && data.initialBuildOrder) {
                 orderDiv.innerHTML = '';
                 data.initialBuildOrder.forEach((player, index) => {
@@ -2673,512 +2611,171 @@ function registerMultiplayerHandlers(client) {
                     orderDiv.appendChild(div);
                 });
             }
-            if (endBtn) endBtn.style.display = 'none';
-
-            // ===== ДОДАНО ЛОГІКУ ПЕРЕВІРКИ =====
-            if (data.currentPlayerId === myPlayerId) {
-                // Якщо це мій хід після перезавантаження, розблокуємо можливість будувати
-                initialPhase.canBuild = true;
-                if (status) {
-                    status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
-                    status.style.color = '#27ae60';
-                }
-            } else {
-                initialPhase.canBuild = false;
-                setBuildMode('none');
-                if (status) {
-                    const playerInfo = data.initialBuildOrder ? data.initialBuildOrder.find(p => p.playerId === data.currentPlayerId) : null;
-                    const name = playerInfo ? 'Гравець ' + data.currentPlayerId.slice(0, 4) : 'Інший гравець';
-                    status.textContent = `⏳ Чекаємо, поки ${name} побудує...`;
-                    status.style.color = '#f1c40f';
-                }
-            }
-            // ===== КІНЕЦЬ ДОДАНОЇ ЛОГІКИ =====
+            if (data.currentPlayerId === myPlayerId) { initialPhase.canBuild = true; if (status) { status.textContent = '🎯 Ваш хід!'; status.style.color = '#27ae60'; } }
+            else { initialPhase.canBuild = false; setBuildMode('none'); if (status) { status.textContent = `⏳ Очікування...`; status.style.color = '#f1c40f'; } }
         }
     });
 }
 
-// ===== SINGLE PLAYER INITIAL PHASE =====
-function startSinglePlayerInitialPhase() {
-    if (isMultiplayer) return;
-    
-    myPlayerId = 'single_player';
-    initialPhase.active = true;
-    initialPhase.phase = 'initial-build';
-    initialPhaseBuildings = new Map();
-    initialPhaseBuildings.set(myPlayerId, { settlements: 0, roads: 0 });
-    
-    const overlay = document.getElementById('buildPhaseOverlay');
-    const info = document.getElementById('buildPhaseInfo');
-    const status = document.getElementById('buildPhaseStatus');
-    const endBtn = document.getElementById('initialBuildEndTurnBtn');
-    
-    if (overlay) overlay.style.display = 'flex';
-    if (info) info.textContent = '🏗️ Початкове будівництво: побудуйте 1 село та 2 дороги';
-    if (status) {
-        status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
-        status.style.color = '#27ae60';
-    }
-    if (endBtn) endBtn.style.display = 'none';
-    
-    initialPhase.canBuild = true;
-}
-
-// Initialize multiplayer if needed
-function initMultiplayer() {
-    const urlParams = getUrlParams();
-    if (urlParams.mode !== 'multiplayer') {
-        console.log('Single player mode - skipping multiplayer init');
-        // Start single player initial phase
-        setTimeout(() => startSinglePlayerInitialPhase(), 500);
-        return Promise.resolve();
-    }
-    
-    mpClient = new MultiplayerClient();
-    // Реєструємо всі обробники (визначені в index.html)
-    registerMultiplayerHandlers(mpClient);
-
-    // Get server URL from sessionStorage (set in splash.html)
-    const serverUrl = sessionStorage.getItem('serverUrl') || 'https://colonization.onrender.com';
-    console.log('Connecting to server:', serverUrl);
-
-    return mpClient.connect(serverUrl)
-        .then(() => {
-            console.log('Successfully connected to server');
-            mySocketId = mpClient.socket.id;
-            
-            // Set multiplayer flags before reading the player ID
-            multiplayerClient = mpClient;
-            isMultiplayer = true;
-            isHost = urlParams.host;
-            roomCode = urlParams.code;
-            myPlayerId = mySocketId;
-            console.log('My socket ID:', mySocketId, 'My player ID:', myPlayerId);
-            
-            // Rejoin the room after navigation
-            if (urlParams.code) {
-                mpClient.rejoinRoom(urlParams.code, urlParams.host);
-            }
-        })
-        .catch(err => {
-            console.error('Failed to connect to server:', err);
-            console.log('Continuing in single player mode');
-        });
-}
-
-// Handle multiplayer actions
-function handleMultiplayerAction(action, data) {
-    switch(action) {
-        case 'build':
-            // Sync building actions
-            if (data.type === 'road') {
-                gameState.roads.set(data.edgeKey, { color: data.color, playerId: data.playerId });
-            } else if (data.type === 'settlement') {
-                gameState.settlements.set(data.vertexKey, { type: 'settlement', vk: data.vertexKey, color: data.color, playerId: data.playerId });
-            } else if (data.type === 'city') {
-                gameState.settlements.set(data.vertexKey, { type: 'city', vk: data.vertexKey, color: data.color, playerId: data.playerId });
-            }
-            // Clear hover state to prevent visual artifacts
-            hoverEdge = null;
-            hoverVertex = null;
-            updateBuildStats();
-            updateResourceCardsDisplay();
-            // Ensure canvas is properly sized before rendering
-            if (mapHexSize <= 0 || !mapData) {
-                resizeCanvas();
-                const hexSize = calculateHexSize();
-                mapHexSize = hexSize; // Set global hex size
-                // Only render if mapData exists, otherwise wait for game to start
-                if (mapData) {
-                    renderMap(mapData, canvas, hexSize);
-                }
-            } else if (mapData) {
-                renderMap(mapData, canvas, mapHexSize);
-            }
-            break;
-        case 'roll-dice':
-            // Sync dice roll
-            rollDice(data.die1, data.die2);
-            break;
-        case 'resource-gain':
-            // Sync resource gain
-            if (data.resources) {
-                for (const [res, count] of Object.entries(data.resources)) {
-                    gameState.resourceCards[res] = (gameState.resourceCards[res] || 0) + count;
-                }
-                updateResourceCardsDisplay();
-            }
-            break;
-        case 'dev-card-play':
-            // Sync dev card play
-            if (data.cardId) {
-                const cardIndex = gameState.devHand.findIndex(c => c.id === data.cardId);
-                if (cardIndex !== -1) {
-                    gameState.devHand[cardIndex].used = true;
-                    updateDevHandDisplay();
-                }
-            }
-            break;
-    }
-}
-
-// Update players list display
-function updatePlayersList(players) {
-    console.log('Updating players list:', players);
-    // This can be extended to show a players panel in the game
-    // For now, just log to console
-}
-
-// Send game action to other players
-function sendGameAction(action, data) {
-    if (multiplayerClient && isMultiplayer) {
-        multiplayerClient.sendGameAction(action, data);
-    }
-}
-
-// Call init on load
-initMultiplayer();
-
-// Get my player ID from socket or stored reconnect ID
-function getMyPlayerId() {
-    if (multiplayerClient && multiplayerClient.socket && multiplayerClient.socket.id) {
-        return multiplayerClient.socket.id;
-    }
-    return null;
-}
-
-// Start dice phase
+// ============================================================
+// ФУНКЦІЇ ВІДОБРАЖЕННЯ (ОНОВЛЕНІ ТА НАДІЙНІ)
+// ============================================================
 function startDicePhase(data) {
     console.log('startDicePhase викликано, data:', data);
-    const rollBtn = document.getElementById('rollBtn');
-    if (rollBtn) rollBtn.disabled = true;
-
     initialPhase.active = true;
     initialPhase.phase = 'dice-roll';
     initialPhase.diceRolls = new Map();
     initialPhase.myRoll = null;
-    const players = Array.isArray(data) ? data : (data?.players || []);
-    initialPhase.totalPlayers = players.length;
     myPlayerId = getMyPlayerId();
-    console.log('myPlayerId:', myPlayerId);
 
     if (data && Array.isArray(data.diceRolls)) {
         initialPhase.diceRolls = new Map(data.diceRolls.map(item => [item.playerId, item.total]));
-        if (initialPhase.diceRolls.has(myPlayerId)) {
-            initialPhase.myRoll = initialPhase.diceRolls.get(myPlayerId);
-        }
+        if (initialPhase.diceRolls.has(myPlayerId)) initialPhase.myRoll = initialPhase.diceRolls.get(myPlayerId);
     }
 
     const overlay = document.getElementById('dicePhaseOverlay');
     const status = document.getElementById('dicePhaseStatus');
     const results = document.getElementById('dicePhaseResults');
-    const initialRollBtn = document.getElementById('rollDiceInitialBtn');
-
     overlay.style.display = 'flex';
-    status.textContent = '🎲 Киньте кубики для визначення черги. Натисніть «Продовжити», щоб здійснити свій кидок.';
+    status.textContent = '🎲 Киньте кубики для визначення черги';
     status.style.color = '#f1c40f';
     results.innerHTML = '';
-
-    if (data && Array.isArray(data.diceRolls)) {
-        initialPhase.diceRolls = new Map(data.diceRolls.map(item => [item.playerId, item.total]));
-        if (initialPhase.diceRolls.has(myPlayerId)) {
-            initialPhase.myRoll = initialPhase.diceRolls.get(myPlayerId);
-        }
-    }
-
-    // Видаляємо старі обробники, щоб уникнути дублювання
-    // Просто замінюємо кнопку на нову (без клонування)
-    const newBtn = document.createElement('button');
-    newBtn.id = 'rollDiceInitialBtn';
-    newBtn.style.cssText = 'padding: 15px 40px; font-size: 1.2em; background: linear-gradient(135deg, #9b59b6, #8e44ad); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold;';
-    newBtn.textContent = 'Продовжити';
-    // Замінюємо стару кнопку
-    initialRollBtn.parentNode.replaceChild(newBtn, initialRollBtn);
-
-    // Додаємо обробник кліку
-    newBtn.addEventListener('click', function() {
-        console.log('Кнопка кидання натиснута');
-        if (initialPhase.myRoll !== null) {
-            overlay.style.display = 'none';
-            showMessage('Ви вже кинули кубики. Очікуйте інших гравців.');
-            return;
-        }
-
-        const die1 = Math.floor(Math.random() * 6) + 1;
-        const die2 = Math.floor(Math.random() * 6) + 1;
-        const total = die1 + die2;
-        initialPhase.myRoll = total;
-        console.log('Кидок:', die1, die2, 'сума:', total);
-
-        // Анімація
-        const die1El = document.getElementById('initialDie1');
-        const die2El = document.getElementById('initialDie2');
-        if (die1El && die2El) {
-            die1El.style.animation = 'roll 0.8s cubic-bezier(0.3, 0.7, 0.5, 1.5)';
-            die2El.style.animation = 'roll 0.8s cubic-bezier(0.3, 0.7, 0.5, 1.5)';
-            setTimeout(() => {
-                die1El.textContent = '⚀⚁⚂⚃⚄⚅'[die1-1];
-                die2El.textContent = '⚀⚁⚂⚃⚄⚅'[die2-1];
-                die1El.style.animation = '';
-                die2El.style.animation = '';
-            }, 800);
-        }
-
-        status.textContent = '✅ Ви кинули кубики! Очікування інших гравців...';
-        status.style.color = '#27ae60';
-        newBtn.disabled = true;
-        newBtn.style.opacity = '0.5';
-        newBtn.style.cursor = 'not-allowed';
-
-        if (multiplayerClient && isMultiplayer) {
-            console.log('Надсилання кидка на сервер');
-            multiplayerClient.rollDiceInitial(die1, die2);
-        } else {
-            handleMyDiceRoll(total);
-        }
-
-        // Залишаємо гравця у вікні зі списком гравців та статусом очікування
-        // Вікно закриється автоматично, коли всі кинуть кубики
-        setTimeout(() => {
-            // Не закриваємо overlay - гравець бачить список гравців
-            // Вікно закриється через onPlayerDiceRolled коли всі кинуть
-        }, 900);
-    });
-
-    if (data.diceRolls) {
-        updateDicePhaseUI();
-    }
-
-    // Переконуємося, що оверлей видимий
-    overlay.style.display = 'flex';
-}
-
-
-// Handle my dice roll (for single player or after server confirmation)
-function handleMyDiceRoll(total) {
-    initialPhase.diceRolls.set(myPlayerId, total);
-    initialPhase.myRoll = total;
-    updateDicePhaseUI();
     
-    // Show message that we're waiting for other players
-    const status = document.getElementById('dicePhaseStatus');
-    if (status && initialPhase.totalPlayers > 1) {
-        status.textContent = '✅ Ви кинули кубики! Очікування інших гравців...';
-        status.style.color = '#27ae60';
+    // Перевіряємо, чи вже є результати
+    updateDicePhaseUI();
+
+    // Замінюємо кнопку на нову (щоб уникнути дублювання обробників)
+    const oldBtn = document.getElementById('rollDiceInitialBtn');
+    if (oldBtn) {
+        const newBtn = document.createElement('button');
+        newBtn.id = 'rollDiceInitialBtn';
+        newBtn.style.cssText = 'padding: 15px 40px; font-size: 1.2em; background: linear-gradient(135deg, #9b59b6, #8e44ad); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold;';
+        newBtn.textContent = initialPhase.myRoll !== null ? 'Очікування...' : '🎲 Кинути кубики';
+        oldBtn.parentNode.replaceChild(newBtn, oldBtn);
+        
+        newBtn.addEventListener('click', function() {
+            if (initialPhase.myRoll !== null) {
+                overlay.style.display = 'none';
+                showMessage('Ви вже кинули кубики.');
+                return;
+            }
+            const die1 = Math.floor(Math.random() * 6) + 1;
+            const die2 = Math.floor(Math.random() * 6) + 1;
+            const total = die1 + die2;
+            initialPhase.myRoll = total;
+            console.log('Кидок:', die1, die2, 'сума:', total);
+            const die1El = document.getElementById('initialDie1');
+            const die2El = document.getElementById('initialDie2');
+            if (die1El && die2El) {
+                die1El.style.animation = 'roll 0.8s cubic-bezier(0.3, 0.7, 0.5, 1.5)';
+                die2El.style.animation = 'roll 0.8s cubic-bezier(0.3, 0.7, 0.5, 1.5)';
+                setTimeout(() => {
+                    die1El.textContent = '⚀⚁⚂⚃⚄⚅'[die1-1];
+                    die2El.textContent = '⚀⚁⚂⚃⚄⚅'[die2-1];
+                    die1El.style.animation = ''; die2El.style.animation = '';
+                }, 800);
+            }
+            status.textContent = '✅ Ви кинули! Очікування інших...';
+            status.style.color = '#27ae60';
+            newBtn.disabled = true;
+            newBtn.style.opacity = '0.5';
+            newBtn.textContent = 'Очікування...';
+            if (multiplayerClient && isMultiplayer) {
+                multiplayerClient.rollDiceInitial(die1, die2);
+            } else {
+                handleMyDiceRoll(total);
+            }
+        });
     }
 }
 
-// Update dice phase UI
 function updateDicePhaseUI() {
     const status = document.getElementById('dicePhaseStatus');
     const results = document.getElementById('dicePhaseResults');
     const rollBtn = document.getElementById('rollDiceInitialBtn');
     
-    // Count how many players have rolled
     const rolledCount = initialPhase.diceRolls.size;
     const totalPlayers = initialPhase.totalPlayers || rolledCount + (initialPhase.myRoll ? 0 : 1);
-    status.textContent = `🎲 Кинуто кубики: ${rolledCount} / ${totalPlayers}`;
+    if (status) status.textContent = `🎲 Кинуто кубики: ${rolledCount} / ${totalPlayers}`;
     
-    // Show results
-    results.innerHTML = '';
-    for (const [playerId, total] of initialPhase.diceRolls) {
-        const isMe = playerId === myPlayerId;
-        const div = document.createElement('div');
-        div.style.cssText = 'padding: 10px; background: rgba(243,156,18,0.15); border: 2px solid #f39c12; border-radius: 8px; font-size: 1.1em;';
-        div.innerHTML = `<span style="color: ${isMe ? '#f1c40f' : '#fff'}; font-weight: ${isMe ? 'bold' : 'normal'};">${isMe ? 'Ви' : 'Гравець ' + playerId.slice(0, 4)}: ${total}</span>`;
-        results.appendChild(div);
+    if (results) {
+        results.innerHTML = '';
+        for (const [playerId, total] of initialPhase.diceRolls) {
+            const isMe = playerId === myPlayerId;
+            const div = document.createElement('div');
+            div.style.cssText = 'padding: 10px; background: rgba(243,156,18,0.15); border: 2px solid #f39c12; border-radius: 8px; font-size: 1.1em;';
+            div.innerHTML = `<span style="color: ${isMe ? '#f1c40f' : '#fff'}; font-weight: ${isMe ? 'bold' : 'normal'};">${isMe ? 'Ви' : 'Гравець ' + playerId.slice(0, 4)}: ${total}</span>`;
+            results.appendChild(div);
+        }
     }
-    
-    // Disable roll button after rolling
-    if (initialPhase.myRoll !== null) {
+    if (initialPhase.myRoll !== null && rollBtn) {
         rollBtn.disabled = true;
         rollBtn.style.opacity = '0.5';
-        rollBtn.style.cursor = 'not-allowed';
+        rollBtn.textContent = 'Очікування...';
     }
-    
-    // Show waiting message if not all players have rolled
-    if (rolledCount < totalPlayers) {
+    if (rolledCount < totalPlayers && status) {
         status.textContent = `⏳ Очікування гравців... (${rolledCount}/${totalPlayers})`;
         status.style.color = '#f1c40f';
     }
 }
 
-// Handle player dice rolled event
 function onPlayerDiceRolled(data) {
     initialPhase.diceRolls.set(data.playerId, data.total);
     initialPhase.totalPlayers = data.totalPlayers;
     updateDicePhaseUI();
-    
-    // Check if all players have rolled
     if (data.rollsCount === data.totalPlayers) {
-        // Wait for server to send build order
-        setTimeout(() => {
-            document.getElementById('dicePhaseOverlay').style.display = 'none';
-        }, 2000);
+        setTimeout(() => { document.getElementById('dicePhaseOverlay').style.display = 'none'; }, 1000);
     }
 }
 
-// Handle initial build start - show the overlay with build order info
-function onInitialBuildStart(data) {
-    initialPhase.active = true;
-    initialPhase.phase = 'initial-build';
-    initialPhase.buildOrder = data.order || [];
-    initialPhase.currentIndex = 0;
-    initialPhase.round = data.round || 0;
-    initialPhaseBuildings = new Map();
-    for (const p of data.order) {
-        initialPhaseBuildings.set(p.playerId, { settlements: 0, roads: 0 });
-    }
-    
-    // Show build phase overlay
-    const overlay = document.getElementById('buildPhaseOverlay');
-    const info = document.getElementById('buildPhaseInfo');
-    const orderDiv = document.getElementById('buildPhaseOrder');
-    const status = document.getElementById('buildPhaseStatus');
-    const endBtn = document.getElementById('initialBuildEndTurnBtn');
-    const reopenBtn = document.getElementById('showBuildPhaseBtn');
-    
-    overlay.style.display = 'flex';
-    if (reopenBtn) reopenBtn.style.display = 'none';
-    
-    info.textContent = '🏗️ Початкове будівництво: потрібно 1 село + 2 дороги';
-    
-    // Show build order
-    orderDiv.innerHTML = '';
-    if (data.order) {
-        data.order.forEach((player, index) => {
-            const isMe = player.playerId === myPlayerId;
-            const div = document.createElement('div');
-            div.style.cssText = `padding: 8px; background: ${isMe ? 'rgba(241,196,15,0.15)' : 'rgba(255,255,255,0.05)'}; border: 2px solid ${isMe ? '#f39c12' : 'rgba(255,255,255,0.1)'}; border-radius: 6px; font-size: 1em;`;
-            div.innerHTML = `<span style="color: ${isMe ? '#f1c40f' : '#fff'}; font-weight: ${isMe ? 'bold' : 'normal'};">${index + 1}. ${isMe ? 'Ви' : 'Гравець ' + player.playerId.slice(0, 4)}: ${player.total}</span>`;
-            orderDiv.appendChild(div);
-        });
-    }
-    
-    // Hide the end turn button initially
-    if (endBtn) endBtn.style.display = 'none';
-    
-    // Check if it's my turn or waiting
-    const currentId = data.currentPlayerId;
-    if (currentId === myPlayerId) {
-        status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
-        status.style.color = '#27ae60';
-        // Enable building by setting the phase
-        initialPhase.canBuild = true;
-    } else {
-        const playerInfo = data.order ? data.order.find(p => p.playerId === currentId) : null;
-        const name = playerInfo ? 'Гравець ' + currentId.slice(0, 4) : 'Інший гравець';
-        status.textContent = `⏳ Чекаємо, поки ${name} побудує...`;
-        status.style.color = '#f1c40f';
-        initialPhase.canBuild = false;
-        setBuildMode('none');
-    }
+function handleMyDiceRoll(total) {
+    initialPhase.diceRolls.set(myPlayerId, total);
+    initialPhase.myRoll = total;
+    updateDicePhaseUI();
 }
 
-// Handle next player in build phase (1 round only)
-function onInitialBuildNextPlayer(data) {
-    initialPhase.currentIndex++;
-    updateBuildPhaseStatus(data.currentPlayerId);
-}
-
-// Handle round 2 start (UNUSED - only 1 round now)
-function onInitialBuildRound2Start(data) {
-    // Not used anymore - only 1 round of initial build
-    initialPhase.round = 1;
-    initialPhase.currentIndex = 0;
-    onInitialBuildStart(data);
-}
-
-// Update build phase status
-function updateBuildPhaseStatus(currentPlayerId) {
-    const status = document.getElementById('buildPhaseStatus');
-    const isMe = currentPlayerId === myPlayerId;
-    
-    if (isMe) {
-        status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
-        status.style.color = '#27ae60';
-    } else {
-        status.textContent = 'Очікування ходу гравця...';
-        status.style.color = '#f1c40f';
-    }
-}
-
-// ===== REGULAR TURN MANAGEMENT =====
-let isMyTurn = false;
-let hasRolledThisTurn = false;
-let canPerformActions = false;
-let turnOrder = [];
-let currentTurnPlayerId = null;
-let waitingDotsTimer = null;
-
-// Show "Your Turn" overlay
+// ============================================================
+// ФУНКЦІЇ ЗВИЧАЙНИХ ХОДІВ (КРОКИ 8-10)
+// ============================================================
 function showYourTurn(data) {
-    console.log('[UI] showYourTurn called with:', data, 'myPlayerId:', myPlayerId, 'isMultiplayer:', isMultiplayer);
-    
+    console.log('[UI] showYourTurn called:', data, 'myPlayerId:', myPlayerId);
     isMyTurn = true;
     hasRolledThisTurn = false;
     canPerformActions = false;
     currentTurnPlayerId = data?.playerId || myPlayerId;
     
-    // Hide waiting overlay if visible
     const waitingOverlay = document.getElementById('waitingTurnOverlay');
     if (waitingOverlay) waitingOverlay.style.display = 'none';
-    if (waitingDotsTimer) {
-        clearInterval(waitingDotsTimer);
-        waitingDotsTimer = null;
-    }
+    if (waitingDotsTimer) { clearInterval(waitingDotsTimer); waitingDotsTimer = null; }
     
-    // Enable roll button for this player
     const rollBtn = document.getElementById('rollBtn');
-    if (rollBtn) {
-        rollBtn.disabled = false;
-        rollBtn.style.opacity = '1';
-        rollBtn.style.cursor = 'pointer';
-        console.log('[UI] Roll button enabled for player:', myPlayerId);
-    }
+    if (rollBtn) { rollBtn.disabled = false; rollBtn.style.opacity = '1'; rollBtn.style.cursor = 'pointer'; }
     
-    // Hide end turn button until after rolling
     const endTurnBtn = document.getElementById('endTurnBtn');
     if (endTurnBtn && isMultiplayer) {
         endTurnBtn.textContent = '✅ Завершити хід';
         endTurnBtn.disabled = true;
         endTurnBtn.style.display = 'none';
         endTurnBtn.style.opacity = '1';
-        endTurnBtn.style.cursor = 'pointer';
-        console.log('[UI] End turn button hidden until roll');
     }
     
-    // Show the "Your Turn" overlay
     const overlay = document.getElementById('yourTurnOverlay');
-    if (overlay) {
-        overlay.style.display = 'flex';
-        console.log('[UI] Your Turn overlay shown');
-    }
+    if (overlay) overlay.style.display = 'flex';
 }
 
-// Show "Waiting for Turn" overlay
 function showWaitingForTurn(data) {
-    console.log('[UI] showWaitingForTurn called with:', data, 'myPlayerId:', myPlayerId, 'isMultiplayer:', isMultiplayer);
-    
+    console.log('[UI] showWaitingForTurn called:', data, 'myPlayerId:', myPlayerId);
     isMyTurn = false;
     hasRolledThisTurn = false;
     canPerformActions = false;
     currentTurnPlayerId = data?.currentPlayerId || null;
     
-    // Hide your turn overlay
     const yourTurnOverlay = document.getElementById('yourTurnOverlay');
     if (yourTurnOverlay) yourTurnOverlay.style.display = 'none';
     
-    // Disable roll button while waiting
     const rollBtn = document.getElementById('rollBtn');
-    if (rollBtn) {
-        rollBtn.disabled = true;
-        rollBtn.style.opacity = '0.5';
-        rollBtn.style.cursor = 'not-allowed';
-        console.log('[UI] Roll button disabled - waiting for turn');
-    }
+    if (rollBtn) { rollBtn.disabled = true; rollBtn.style.opacity = '0.5'; rollBtn.style.cursor = 'not-allowed'; }
     
-    // Update end turn button to show waiting status in multiplayer
     const endTurnBtn = document.getElementById('endTurnBtn');
     if (endTurnBtn && isMultiplayer) {
         endTurnBtn.textContent = '⏳ Очікуємо хід інших гравців';
@@ -3186,19 +2783,14 @@ function showWaitingForTurn(data) {
         endTurnBtn.disabled = true;
         endTurnBtn.style.opacity = '0.7';
         endTurnBtn.style.cursor = 'not-allowed';
-        console.log('[UI] End turn button showing waiting status');
     }
     
-    // Show waiting overlay with dots
     const overlay = document.getElementById('waitingTurnOverlay');
     const info = document.getElementById('waitingTurnInfo');
     const currentPlayerName = currentTurnPlayerId === myPlayerId ? 'ваш' : 'іншого гравця';
     if (info) info.textContent = `Зараз хід ${currentPlayerName}...`;
     if (overlay) overlay.style.display = 'flex';
     
-    console.log('[UI] Waiting overlay shown for player:', currentTurnPlayerId);
-    
-    // Animated dots
     let dots = 0;
     waitingDotsTimer = setInterval(() => {
         dots = (dots % 3) + 1;
@@ -3207,33 +2799,13 @@ function showWaitingForTurn(data) {
     }, 500);
 }
 
-// Handle regular dice roll (when it's my turn)
 function handleRegularDiceRoll() {
-    console.log('[UI] handleRegularDiceRoll called, isMyTurn:', isMyTurn, 'hasRolledThisTurn:', hasRolledThisTurn, 'canPerformActions:', canPerformActions, 'myPlayerId:', myPlayerId);
-    
-    if (initialPhase.active && initialPhase.phase === 'dice-roll') {
-        showMessage('Спочатку киньте кубики для визначення черги!');
-        return;
-    }
-    if (initialPhase.active && initialPhase.phase === 'initial-build') {
-        showMessage('Зараз триває початкове будівництво!');
-        return;
-    }
-    if (!isMyTurn) {
-        console.log('[UI] Cannot roll - not my turn!');
-        showMessage('Зараз не ваш хід!');
-        return;
-    }
-    if (hasRolledThisTurn) {
-        showMessage('Ви вже кинули кубики!');
-        return;
-    }
-    if (gameState.roadBuildingMode > 0 || gameState.cardInProgress) {
-        showMessage('Спочатку завершіть поточну дію!');
-        return;
-    }
+    console.log('[UI] handleRegularDiceRoll called. isMyTurn=', isMyTurn, 'hasRolled=', hasRolledThisTurn);
+    if (initialPhase.active) return showMessage('Спочатку завершіть будівництво!');
+    if (!isMyTurn) return showMessage('Зараз не ваш хід!');
+    if (hasRolledThisTurn) return showMessage('Ви вже кинули кубики!');
+    if (gameState.roadBuildingMode > 0 || gameState.cardInProgress) return showMessage('Завершіть поточну дію!');
 
-    // Roll 2 dice
     const die1 = Math.floor(Math.random() * 6) + 1;
     const die2 = Math.floor(Math.random() * 6) + 1;
     const total = die1 + die2;
@@ -3241,67 +2813,35 @@ function handleRegularDiceRoll() {
     hasRolledThisTurn = true;
     canPerformActions = true;
     
-    // Show dice animation
     audioManager.playDiceSound();
     const d1 = document.getElementById('die1');
     const d2 = document.getElementById('die2');
-    d1.classList.add('rolling');
-    d2.classList.add('rolling');
+    d1.classList.add('rolling'); d2.classList.add('rolling');
     
     setTimeout(() => {
-        d1.classList.remove('rolling');
-        d2.classList.remove('rolling');
+        d1.classList.remove('rolling'); d2.classList.remove('rolling');
         d1.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[die1-1] + '</span>';
         d2.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[die2-1] + '</span>';
         document.getElementById('total').textContent = 'Сума: ' + total;
         
-        // У мультиплеєрі ресурси нараховує сервер через collect-resources
-        if (!isMultiplayer) {
-            showResourceNotification(collectResources(total));
-        }
+        if (!isMultiplayer) showResourceNotification(collectResources(total));
         
-        // Show end turn button (enable it - it was disabled in showYourTurn)
         const endTurnBtn = document.getElementById('endTurnBtn');
         endTurnBtn.style.display = 'inline-block';
         endTurnBtn.disabled = false;
-        
-        // Close the "Your Turn" overlay since we've rolled
         document.getElementById('yourTurnOverlay').style.display = 'none';
     }, 800);
     
-    // Send to server in multiplayer mode
     if (multiplayerClient && isMultiplayer) {
-        console.log('[UI] Sending dice roll to server:', die1, die2);
         multiplayerClient.rollRegularDice(die1, die2);
-    } else {
-        console.log('[UI] Single player mode - not sending to server');
     }
 }
 
-
-// Handle "collect resources" event from server (multiplayer)
-function handleCollectResources(data) {
-    const diceTotal = data.diceTotal;
-    showResourceNotification(collectResources(diceTotal));
-}
-
-// End current turn
 function handleEndTurn() {
-    console.log('[UI] handleEndTurn called, isMyTurn:', isMyTurn, 'hasRolledThisTurn:', hasRolledThisTurn, 'myPlayerId:', myPlayerId);
+    console.log('[UI] handleEndTurn called. isMyTurn=', isMyTurn, 'hasRolled=', hasRolledThisTurn);
+    if (!isMyTurn) return showMessage('Зараз не ваш хід!');
+    if (!hasRolledThisTurn) return showMessage('Спочатку киньте кубики!');
     
-    if (!isMyTurn) {
-        console.log('[UI] Cannot end turn - not my turn!');
-        showMessage('Зараз не ваш хід!');
-        return;
-    }
-    if (!hasRolledThisTurn) {
-        showMessage('Спочатку киньте кубики!');
-        return;
-    }
-    
-    console.log('[UI] Turn ended, switching to waiting state');
-    
-    // Update UI to show waiting state immediately
     const endTurnBtn = document.getElementById('endTurnBtn');
     if (endTurnBtn && isMultiplayer) {
         endTurnBtn.textContent = '⏳ Очікуємо хід інших гравців';
@@ -3309,307 +2849,117 @@ function handleEndTurn() {
         endTurnBtn.style.display = 'inline-block';
         endTurnBtn.style.opacity = '0.7';
         endTurnBtn.style.cursor = 'not-allowed';
-        console.log('[UI] End turn button updated to waiting state');
     }
-    
     setBuildMode('none');
-    
     if (multiplayerClient && isMultiplayer) {
-        console.log('[UI] Sending end-turn to server');
         multiplayerClient.endTurn();
-        // Request game state sync from server to get latest buildings
-        setTimeout(() => {
-            console.log('[UI] Requesting game state sync after end turn');
-            multiplayerClient.requestGameStateSync();
-        }, 500);
+        setTimeout(() => { multiplayerClient.requestGameStateSync(); }, 500);
     } else {
-        // Single player mode - just show waiting message
         showMessage('Хід завершено');
     }
 }
 
-// Handle "building synced" from server (for multiplayer validation)
+// ============================================================
+// ОБРОБНИКИ БУДІВНИЦТВА ТА СИНХРОНІЗАЦІЇ
+// ============================================================
 function handleBuildingSynced(data) {
     console.log('handleBuildingSynced called with:', data);
-    
-    // Server is the source of truth - update ALL buildings from server state
-    // The server already validates building placement, so we trust its state
     if (data.buildings && Array.isArray(data.buildings)) {
-        // Clear existing buildings and rebuild from server state
         gameState.roads.clear();
         gameState.settlements.clear();
-        
-        // Також оновлюємо initialPhaseBuildings з даних сервера
         if (initialPhase.active && initialPhase.phase === 'initial-build') {
             initialPhaseBuildings = new Map();
-            for (const p of initialPhase.buildOrder) {
-                initialPhaseBuildings.set(p.playerId, { settlements: 0, roads: 0 });
-            }
+            for (const p of initialPhase.buildOrder) initialPhaseBuildings.set(p.playerId, { settlements: 0, roads: 0 });
         }
-        
         data.buildings.forEach(bld => {
             if (bld.type === 'road' && (bld.edgeKey || bld.key)) {
                 const edgeKey = bld.edgeKey || bld.key;
-                gameState.roads.set(edgeKey, {
-                    color: bld.color,
-                    playerId: bld.playerId
-                });
-                // Оновлюємо initialPhaseBuildings
+                gameState.roads.set(edgeKey, { color: bld.color, playerId: bld.playerId });
                 if (initialPhase.active && initialPhase.phase === 'initial-build') {
-                    if (!initialPhaseBuildings.has(bld.playerId)) {
-                        initialPhaseBuildings.set(bld.playerId, { settlements: 0, roads: 0 });
-                    }
+                    if (!initialPhaseBuildings.has(bld.playerId)) initialPhaseBuildings.set(bld.playerId, { settlements: 0, roads: 0 });
                     const progress = initialPhaseBuildings.get(bld.playerId);
                     progress.roads++;
                 }
             } else if (bld.type === 'settlement' && (bld.vertexKey || bld.key)) {
                 const vertexKey = bld.vertexKey || bld.key;
-                gameState.settlements.set(vertexKey, {
-                    type: 'settlement',
-                    vk: vertexKey,
-                    color: bld.color,
-                    playerId: bld.playerId
-                });
-                // Оновлюємо initialPhaseBuildings
+                gameState.settlements.set(vertexKey, { type: 'settlement', vk: vertexKey, color: bld.color, playerId: bld.playerId });
                 if (initialPhase.active && initialPhase.phase === 'initial-build') {
-                    if (!initialPhaseBuildings.has(bld.playerId)) {
-                        initialPhaseBuildings.set(bld.playerId, { settlements: 0, roads: 0 });
-                    }
+                    if (!initialPhaseBuildings.has(bld.playerId)) initialPhaseBuildings.set(bld.playerId, { settlements: 0, roads: 0 });
                     const progress = initialPhaseBuildings.get(bld.playerId);
                     progress.settlements++;
                 }
             } else if (bld.type === 'city' && (bld.vertexKey || bld.key)) {
                 const vertexKey = bld.vertexKey || bld.key;
-                gameState.settlements.set(vertexKey, {
-                    type: 'city',
-                    vk: vertexKey,
-                    color: bld.color,
-                    playerId: bld.playerId
-                });
+                gameState.settlements.set(vertexKey, { type: 'city', vk: vertexKey, color: bld.color, playerId: bld.playerId });
             }
         });
-        
-        console.log('Updated buildings from server. Roads:', gameState.roads.size, 'Settlements:', gameState.settlements.size);
-    } else if (data.data) {
-        // Fallback: process individual building update (for backward compatibility)
-        const bldData = data.data;
-        
-        if (data.type === 'road' && bldData.edgeKey) {
-            gameState.roads.set(bldData.edgeKey, {
-                color: bldData.color,
-                playerId: bldData.playerId
-            });
-            if (initialPhase.active && initialPhase.phase === 'initial-build') {
-                if (!initialPhaseBuildings.has(bldData.playerId)) {
-                    initialPhaseBuildings.set(bldData.playerId, { settlements: 0, roads: 0 });
-                }
-                const progress = initialPhaseBuildings.get(bldData.playerId);
-                progress.roads++;
-            }
-        } else if (data.type === 'settlement' && bldData.vertexKey) {
-            gameState.settlements.set(bldData.vertexKey, {
-                type: 'settlement',
-                vk: bldData.vertexKey,
-                color: bldData.color,
-                playerId: bldData.playerId
-            });
-            if (initialPhase.active && initialPhase.phase === 'initial-build') {
-                if (!initialPhaseBuildings.has(bldData.playerId)) {
-                    initialPhaseBuildings.set(bldData.playerId, { settlements: 0, roads: 0 });
-                }
-                const progress = initialPhaseBuildings.get(bldData.playerId);
-                progress.settlements++;
-            }
-        } else if (data.type === 'city' && bldData.vertexKey) {
-            gameState.settlements.set(bldData.vertexKey, {
-                type: 'city',
-                vk: bldData.vertexKey,
-                color: bldData.color,
-                playerId: bldData.playerId
-            });
-        }
+        if (initialPhase.active && initialPhase.phase === 'initial-build' && initialPhase.canBuild) checkInitialPhaseComplete();
+        renderMap(mapData, canvas, mapHexSize);
+        updateBuildStats();
     }
-    
-    // After updating buildings, check if current player needs the "Продовжити" button
-    if (initialPhase.active && initialPhase.phase === 'initial-build' && initialPhase.canBuild) {
-        checkInitialPhaseComplete();
-    }
-    
-    renderMap(mapData, canvas, mapHexSize);
-    updateBuildStats();
 }
 
-// Check if current player can build during initial phase - TURN BASED!
 function canBuildDuringInitialPhase() {
-    if (!initialPhase.active || initialPhase.phase !== 'initial-build') {
-        return false;
-    }
-    
-    // Check if it's my turn (canBuild flag is set)
-    if (initialPhase.canBuild !== true) {
-        return false;
-    }
-    
-    return true;
+    return initialPhase.active && initialPhase.phase === 'initial-build' && initialPhase.canBuild === true;
 }
 
-// Override canBuildPiece to allow free building during initial phase
 function canBuildPieceInitial(t) {
-    if (!canBuildDuringInitialPhase()) {
-        return false;
-    }
-    
-    // During initial phase, allow building without resources
-    // but still check PER-PLAYER limits using initialPhaseBuildings
+    if (!canBuildDuringInitialPhase()) return false;
     const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
     switch(t) {
         case 'road': return myBuildings.roads < INITIAL_ROAD_LIMIT;
         case 'settlement': return myBuildings.settlements < INITIAL_SETTLEMENT_LIMIT;
-        case 'city': return false; // Can't build city during initial phase
+        case 'city': return false;
         default: return false;
     }
 }
 
-// Override building functions to track initial phase
-const originalSetBuildMode = setBuildMode;
-setBuildMode = function(mode) {
-    if (initialPhase.active && initialPhase.phase === 'initial-build' && canBuildDuringInitialPhase()) {
-        // Allow building during initial phase
-        if (mode !== 'none') {
-            buildMode = mode;
-            document.querySelectorAll('.build-btn').forEach(b => b.classList.remove('active'));
-            const btn = document.querySelector(`.build-btn[data-mode="${mode}"]`);
-            if (btn) btn.classList.add('active');
-            canvas.classList.add('crosshair');
-            hoverEdge = null;
-            hoverVertex = null;
-            if (mapData) renderMap(mapData, canvas, mapHexSize);
-        } else {
-            originalSetBuildMode(mode);
-        }
-    } else if (initialPhase.active && initialPhase.phase === 'initial-build') {
-        showMessage('Зараз не ваш хід!');
-    } else if (initialPhase.active && initialPhase.phase === 'dice-roll') {
-        showMessage('Спочатку киньте кубики для визначення черги!');
-    } else {
-        originalSetBuildMode(mode);
-    }
-};
-
-// Check if initial phase is complete for current player
 function checkInitialPhaseComplete() {
     if (initialPhase.active && initialPhase.phase === 'initial-build') {
-        // Використовуємо нову функцію isInitialPhaseComplete()
         if (isInitialPhaseComplete()) {
             const endBtn = document.getElementById('initialBuildEndTurnBtn');
-            if (endBtn) {
-                endBtn.style.display = 'inline-block';
-                const status = document.getElementById('buildPhaseStatus');
-                if (status) {
-                    status.textContent = '✅ Побудовано! Натисніть "Завершити хід" або OK для продовження';
-                    status.style.color = '#27ae60';
-                }
-            }
-            // Показуємо кнопку "Завершити хід" в сайдбарі під кубиками
+            if (endBtn) endBtn.style.display = 'inline-block';
+            const status = document.getElementById('buildPhaseStatus');
+            if (status) { status.textContent = '✅ Побудовано! Натисніть "Завершити хід"'; status.style.color = '#27ae60'; }
             const sidebarEndBtn = document.getElementById('endTurnBtn');
-            if (sidebarEndBtn) {
-                sidebarEndBtn.style.display = 'inline-block';
-            }
+            if (sidebarEndBtn) sidebarEndBtn.style.display = 'inline-block';
             setBuildMode('none');
             initialPhase.canBuild = false;
         }
     }
 }
 
-// ===== BUTTON EVENT HANDLERS =====
-
-// "Продовжити" button - close the overlay and finish turn if ready
+// ============================================================
+// ОБРОБНИКИ КНОПОК
+// ============================================================
 document.getElementById('initialBuildEndTurnBtn').addEventListener('click', () => {
-    audioManager.playClickSound();
     const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
-    
-    // Always close the overlay when button is clicked
     document.getElementById('buildPhaseOverlay').style.display = 'none';
-    
-    // If player has finished building, send end turn to server
     if (myBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && myBuildings.roads >= INITIAL_ROAD_LIMIT) {
-        if (multiplayerClient && isMultiplayer) {
-            multiplayerClient.endInitialBuildTurn();
-        }
-        // Reset buildings for this player
+        if (multiplayerClient && isMultiplayer) multiplayerClient.endInitialBuildTurn();
         initialPhaseBuildings.set(myPlayerId, { settlements: 0, roads: 0 });
         const endBtn = document.getElementById('initialBuildEndTurnBtn');
-        endBtn.style.display = 'none';
+        if (endBtn) endBtn.style.display = 'none';
         const status = document.getElementById('buildPhaseStatus');
-        status.textContent = '⏳ Очікування наступного гравця...';
-        status.style.color = '#f1c40f';
+        if (status) { status.textContent = '⏳ Очікування наступного гравця...'; status.style.color = '#f1c40f'; }
         setBuildMode('none');
         initialPhase.canBuild = false;
     }
 });
 
-// "ОК" button - for waiting players to close the overlay
 document.getElementById('initialBuildOkBtn').addEventListener('click', () => {
-    audioManager.playClickSound();
     document.getElementById('buildPhaseOverlay').style.display = 'none';
 });
 
-const closeBuildPhaseBtn = document.getElementById('closeBuildPhaseBtn');
-if (closeBuildPhaseBtn) {
-closeBuildPhaseBtn.addEventListener('click', () => {
-    audioManager.playClickSound();
-    const overlay = document.getElementById('buildPhaseOverlay');
-    if (overlay) overlay.style.display = 'none';
-
-    const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
-    if (isMultiplayer && initialPhase.active && initialPhase.phase === 'initial-build' && myBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && myBuildings.roads >= INITIAL_ROAD_LIMIT) {
-        if (multiplayerClient && isMultiplayer) {
-            multiplayerClient.endInitialBuildTurn();
-        }
-        initialPhase.canBuild = false;
-        const status = document.getElementById('buildPhaseStatus');
-        if (status) {
-            status.textContent = '⏳ Очікування наступного гравця...';
-            status.style.color = '#f1c40f';
-        }
-    }
-
-    const reopenBtn = document.getElementById('showBuildPhaseBtn');
-    if (reopenBtn) reopenBtn.style.display = 'inline-block';
-});
-}
-
-const showBuildPhaseBtn = document.getElementById('showBuildPhaseBtn');
-if (showBuildPhaseBtn) {
-showBuildPhaseBtn.addEventListener('click', () => {
-    audioManager.playClickSound();
-    const overlay = document.getElementById('buildPhaseOverlay');
-    if (overlay) overlay.style.display = 'flex';
-    const reopenBtn = document.getElementById('showBuildPhaseBtn');
-    if (reopenBtn) reopenBtn.style.display = 'none';
-});
-}
-
-// End Turn button - also handles initial build phase completion
 document.getElementById('endTurnBtn').addEventListener('click', () => {
-    audioManager.playClickSound();
-    
-    // Check if we're in initial build phase
     if (initialPhase.active && initialPhase.phase === 'initial-build') {
         const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
         if (myBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && myBuildings.roads >= INITIAL_ROAD_LIMIT) {
-            // Send to server that we're done (server tracks progress)
-            if (multiplayerClient && isMultiplayer) {
-                multiplayerClient.endInitialBuildTurn();
-            }
-            // Reset buildings for this player
+            if (multiplayerClient && isMultiplayer) multiplayerClient.endInitialBuildTurn();
             initialPhaseBuildings.set(myPlayerId, { settlements: 0, roads: 0 });
             document.getElementById('endTurnBtn').disabled = true;
             const status = document.getElementById('buildPhaseStatus');
-            if (status) {
-                status.textContent = '⏳ Очікування наступного гравця...';
-                status.style.color = '#f1c40f';
-            }
+            if (status) { status.textContent = '⏳ Очікування...'; status.style.color = '#f1c40f'; }
             setBuildMode('none');
             initialPhase.canBuild = false;
             return;
@@ -3618,24 +2968,58 @@ document.getElementById('endTurnBtn').addEventListener('click', () => {
             return;
         }
     }
-    
     handleEndTurn();
 });
 
-// Close "Your Turn" overlay and roll dice
 document.getElementById('closeYourTurnBtn').addEventListener('click', () => {
-    audioManager.playClickSound();
     handleRegularDiceRoll();
 });
 
-
-window.addEventListener('resize', () => {
-    if (mapData) {
-        resizeCanvas();
-        const newHexSize = calculateHexSize();
-        renderMap(mapData, canvas, newHexSize);
+// Оновлений setBuildMode (зберігає колір гравця)
+const originalSetBuildMode = setBuildMode;
+setBuildMode = function(mode) {
+    if (initialPhase.active && initialPhase.phase === 'initial-build' && canBuildDuringInitialPhase()) {
+        if (mode !== 'none') {
+            buildMode = mode;
+            document.querySelectorAll('.build-btn').forEach(b => b.classList.remove('active'));
+            const btn = document.querySelector(`.build-btn[data-mode="${mode}"]`);
+            if (btn) btn.classList.add('active');
+            canvas.classList.add('crosshair');
+            hoverEdge = null; hoverVertex = null;
+            if (mapData) renderMap(mapData, canvas, mapHexSize);
+        } else {
+            originalSetBuildMode(mode);
+        }
+    } else if (initialPhase.active && initialPhase.phase === 'initial-build') {
+        showMessage('Зараз не ваш хід!');
+    } else {
+        originalSetBuildMode(mode);
     }
-});
-</script>
-</body>
-</html>
+};
+
+// ============================================================
+// ІНІЦІАЛІЗАЦІЯ
+// ============================================================
+function initMultiplayer() {
+    const urlParams = getUrlParams();
+    if (urlParams.mode !== 'multiplayer') {
+        setTimeout(() => startSinglePlayerInitialPhase(), 500);
+        return Promise.resolve();
+    }
+    mpClient = new MultiplayerClient();
+    registerMultiplayerHandlers(mpClient);
+    const serverUrl = sessionStorage.getItem('serverUrl') || 'https://colonization.onrender.com';
+    console.log('Connecting to server:', serverUrl);
+    return mpClient.connect(serverUrl).then(() => {
+        mySocketId = mpClient.socket.id;
+        multiplayerClient = mpClient;
+        isMultiplayer = true;
+        isHost = urlParams.host;
+        roomCode = urlParams.code;
+        myPlayerId = mySocketId;
+        if (urlParams.code) mpClient.rejoinRoom(urlParams.code, urlParams.host);
+    }).catch(err => {
+        console.error('Failed to connect to server:', err);
+        console.log('Continuing in single player mode');
+    });
+}
