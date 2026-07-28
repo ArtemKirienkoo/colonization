@@ -48,36 +48,29 @@ function isMyServerVertex(vertexKey, playerId, room) {
 
 // Check if edge is connected to player's existing network (own settlements or roads)
 function isEdgeConnectedServer(edgeKey, playerId, room) {
-    if (!room.topology) return true; // Skip validation if no topology
-    
+    if (!room.topology) return true;
     const edgeMap = new Map(room.topology.edges);
     const edge = edgeMap.get(edgeKey);
     if (!edge) return false;
-    const va = edge[1].va; const vb = edge[1].vb;
     
-    // Find vertex keys by coordinates
-    const vertexMap = new Map(room.topology.vertices);
-    let vkA = null, vkB = null;
-    for (const [vk, vData] of vertexMap) {
-        if (vData.pos.x === va.x && vData.pos.y === va.y) vkA = vk;
-        if (vData.pos.x === vb.x && vData.pos.y === vb.y) vkB = vk;
-    }
+    // ТУТ БУЛА ПОМИЛКА: edge[1].va -> виправляємо на edge.va
+    const va = edge.va;
+    const vb = edge.vb;
     
-    // If own settlement at either end of road - can build
+    // ... далі за кодом, де перевіряються власні поселення:
     if (vkA && isMyServerVertex(vkA, playerId, room)) return true;
     if (vkB && isMyServerVertex(vkB, playerId, room)) return true;
     
-    // If own road connects to this edge
     for (const [ek2, bld] of room.buildings) {
         if (bld.type !== 'road' || bld.playerId !== playerId) continue;
         const edge2 = edgeMap.get(ek2);
         if (!edge2) continue;
         
-        // Shared vertex
-        if ((edge2[1].va.x === va.x && edge2[1].va.y === va.y) ||
-            (edge2[1].va.x === vb.x && edge2[1].va.y === vb.y) ||
-            (edge2[1].vb.x === va.x && edge2[1].vb.y === va.y) ||
-            (edge2[1].vb.x === vb.x && edge2[1].vb.y === vb.y)) {
+        // ТУТ ТАКОЖ: edge2[1].va -> edge2.va
+        if ((edge2.va.x === va.x && edge2.va.y === va.y) ||
+            (edge2.va.x === vb.x && edge2.va.y === vb.y) ||
+            (edge2.vb.x === va.x && edge2.vb.y === va.y) ||
+            (edge2.vb.x === vb.x && edge2.vb.y === vb.y)) {
             return true;
         }
     }
@@ -86,30 +79,27 @@ function isEdgeConnectedServer(edgeKey, playerId, room) {
 
 // Check if settlement can be placed (not within 2 edges of OTHER players' buildings)
 function canPlaceSettlementServer(vertexKey, playerId, room) {
-    if (!room.topology) return true; // Skip validation if no topology
-    
+    if (!room.topology) return true;
     const vertexMap = new Map(room.topology.vertices);
     const vData = vertexMap.get(vertexKey);
     if (!vData) return false;
     
-    // Find neighboring vertices (distance 1 edge)
     const neighborKeys = [];
     const edgeMap = new Map(room.topology.edges);
     for (const [ek, edge] of edgeMap) {
-        if ((edge[1].va.x === vData.pos.x && edge[1].va.y === vData.pos.y) ||
-            (edge[1].vb.x === vData.pos.x && edge[1].vb.y === vData.pos.y)) {
-            const target = (edge[1].va.x === vData.pos.x && edge[1].va.y === vData.pos.y) ? edge[1].vb : edge[1].va;
+        // ТУТ ТЕЖ: edge[1].va -> edge.va
+        if ((edge.va.x === vData.pos.x && edge.va.y === vData.pos.y) ||
+            (edge.vb.x === vData.pos.x && edge.vb.y === vData.pos.y)) {
+            const target = (edge.va.x === vData.pos.x && edge.va.y === vData.pos.y) ? edge.vb : edge.va;
             for (const [vk2, v2] of vertexMap) {
                 if (v2.pos.x === target.x && v2.pos.y === target.y) neighborKeys.push(vk2);
             }
         }
     }
     
-    // Check all existing settlements/cities
     for (const [vk2, bld] of room.buildings) {
         if (bld.type === 'settlement' || bld.type === 'city') {
-            if (vk2 === vertexKey) return false; // Spot taken
-            // Distance 0 (same spot) or 1 (neighboring vertex)
+            if (vk2 === vertexKey) return false;
             if (neighborKeys.includes(vk2)) return false;
         }
     }

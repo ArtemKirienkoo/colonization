@@ -692,6 +692,7 @@ body.is-paused canvas {
         <div id="buildPhaseOrder" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;"></div>
         <div id="buildPhaseStatus" style="color: #f1c40f; font-size: 1.2em; font-weight: bold;"></div>
         <button id="initialBuildEndTurnBtn" style="display: none; padding: 15px 40px; font-size: 1.2em; background: linear-gradient(135deg, #27ae60, #22954c); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; margin-top: 15px;">✅ Продовжити</button>
+        <button id="initialBuildOkBtn" style="display: none; padding: 15px 40px; font-size: 1.2em; background: linear-gradient(135deg, #3498db, #2980b9); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; margin-top: 15px;">ОК</button>
     </div>
 </div>
 
@@ -2505,10 +2506,17 @@ function registerMultiplayerHandlers(client) {
             initialPhase.buildOrder = data.order;
         }
         
-        // НЕ закриваємо оверлей автоматично - гравець бачить список черги
-        // Оверлей закриється тільки коли гравець натисне "Продовжити"
+        // Показуємо оверлей
         const overlay = document.getElementById('buildPhaseOverlay');
         if (overlay) overlay.style.display = 'flex';
+        
+        // Показуємо кнопку "Продовжити" для активного гравця (ЗАВЖДИ, щоб можна було закрити вікно)
+        const endBtn = document.getElementById('initialBuildEndTurnBtn');
+        if (endBtn) {
+            endBtn.style.display = 'inline-block';
+        }
+        const okBtn = document.getElementById('initialBuildOkBtn');
+        if (okBtn) okBtn.style.display = 'none';
         
         const status = document.getElementById('buildPhaseStatus');
         if (status) {
@@ -2540,6 +2548,11 @@ function registerMultiplayerHandlers(client) {
             status.textContent = `⏳ Чекаємо, поки ${name} побудує...`;
             status.style.color = '#f1c40f';
         }
+        // Ховаємо кнопку "Продовжити" і показуємо "ОК" для закриття вікна
+        const endBtn = document.getElementById('initialBuildEndTurnBtn');
+        if (endBtn) endBtn.style.display = 'none';
+        const okBtn = document.getElementById('initialBuildOkBtn');
+        if (okBtn) okBtn.style.display = 'inline-block';
         setBuildMode('none');
     });
     client.onInitialBuildYourDone((data) => {
@@ -3329,6 +3342,9 @@ function handleBuildingSynced(data) {
         // Також оновлюємо initialPhaseBuildings з даних сервера
         if (initialPhase.active && initialPhase.phase === 'initial-build') {
             initialPhaseBuildings = new Map();
+            for (const p of initialPhase.buildOrder) {
+                initialPhaseBuildings.set(p.playerId, { settlements: 0, roads: 0 });
+            }
         }
         
         data.buildings.forEach(bld => {
@@ -3340,9 +3356,11 @@ function handleBuildingSynced(data) {
                 });
                 // Оновлюємо initialPhaseBuildings
                 if (initialPhase.active && initialPhase.phase === 'initial-build') {
-                    const progress = initialPhaseBuildings.get(bld.playerId) || { settlements: 0, roads: 0 };
+                    if (!initialPhaseBuildings.has(bld.playerId)) {
+                        initialPhaseBuildings.set(bld.playerId, { settlements: 0, roads: 0 });
+                    }
+                    const progress = initialPhaseBuildings.get(bld.playerId);
                     progress.roads++;
-                    initialPhaseBuildings.set(bld.playerId, progress);
                 }
             } else if (bld.type === 'settlement' && (bld.vertexKey || bld.key)) {
                 const vertexKey = bld.vertexKey || bld.key;
@@ -3354,9 +3372,11 @@ function handleBuildingSynced(data) {
                 });
                 // Оновлюємо initialPhaseBuildings
                 if (initialPhase.active && initialPhase.phase === 'initial-build') {
-                    const progress = initialPhaseBuildings.get(bld.playerId) || { settlements: 0, roads: 0 };
+                    if (!initialPhaseBuildings.has(bld.playerId)) {
+                        initialPhaseBuildings.set(bld.playerId, { settlements: 0, roads: 0 });
+                    }
+                    const progress = initialPhaseBuildings.get(bld.playerId);
                     progress.settlements++;
-                    initialPhaseBuildings.set(bld.playerId, progress);
                 }
             } else if (bld.type === 'city' && (bld.vertexKey || bld.key)) {
                 const vertexKey = bld.vertexKey || bld.key;
@@ -3408,6 +3428,11 @@ function handleBuildingSynced(data) {
                 playerId: bldData.playerId
             });
         }
+    }
+    
+    // After updating buildings, check if current player needs the "Продовжити" button
+    if (initialPhase.active && initialPhase.phase === 'initial-build' && initialPhase.canBuild) {
+        checkInitialPhaseComplete();
     }
     
     renderMap(mapData, canvas, mapHexSize);
@@ -3498,12 +3523,16 @@ function checkInitialPhaseComplete() {
 
 // ===== BUTTON EVENT HANDLERS =====
 
-// Initial Build End Turn button - when player finishes 1 settlement + 2 roads
+// "Продовжити" button - close the overlay and finish turn if ready
 document.getElementById('initialBuildEndTurnBtn').addEventListener('click', () => {
     audioManager.playClickSound();
     const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
+    
+    // Always close the overlay when button is clicked
+    document.getElementById('buildPhaseOverlay').style.display = 'none';
+    
+    // If player has finished building, send end turn to server
     if (myBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && myBuildings.roads >= INITIAL_ROAD_LIMIT) {
-        // Send to server that we're done (server tracks progress, no need to send counts)
         if (multiplayerClient && isMultiplayer) {
             multiplayerClient.endInitialBuildTurn();
         }
@@ -3519,7 +3548,15 @@ document.getElementById('initialBuildEndTurnBtn').addEventListener('click', () =
     }
 });
 
-document.getElementById('closeBuildPhaseBtn').addEventListener('click', () => {
+// "ОК" button - for waiting players to close the overlay
+document.getElementById('initialBuildOkBtn').addEventListener('click', () => {
+    audioManager.playClickSound();
+    document.getElementById('buildPhaseOverlay').style.display = 'none';
+});
+
+const closeBuildPhaseBtn = document.getElementById('closeBuildPhaseBtn');
+if (closeBuildPhaseBtn) {
+closeBuildPhaseBtn.addEventListener('click', () => {
     audioManager.playClickSound();
     const overlay = document.getElementById('buildPhaseOverlay');
     if (overlay) overlay.style.display = 'none';
@@ -3540,14 +3577,18 @@ document.getElementById('closeBuildPhaseBtn').addEventListener('click', () => {
     const reopenBtn = document.getElementById('showBuildPhaseBtn');
     if (reopenBtn) reopenBtn.style.display = 'inline-block';
 });
+}
 
-document.getElementById('showBuildPhaseBtn').addEventListener('click', () => {
+const showBuildPhaseBtn = document.getElementById('showBuildPhaseBtn');
+if (showBuildPhaseBtn) {
+showBuildPhaseBtn.addEventListener('click', () => {
     audioManager.playClickSound();
     const overlay = document.getElementById('buildPhaseOverlay');
     if (overlay) overlay.style.display = 'flex';
     const reopenBtn = document.getElementById('showBuildPhaseBtn');
     if (reopenBtn) reopenBtn.style.display = 'none';
 });
+}
 
 // End Turn button - also handles initial build phase completion
 document.getElementById('endTurnBtn').addEventListener('click', () => {
