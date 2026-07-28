@@ -91,11 +91,14 @@ function canPlaceSettlementServer(vertexKey, playerId, room) {
     const vertexMap = new Map(room.topology.vertices);
     const vData = vertexMap.get(vertexKey);
     if (!vData) return false;
-    
+
     const neighborKeys = [];
     const edgeMap = new Map(room.topology.edges);
     for (const [ek, edge] of edgeMap) {
-        // ТУТ ТЕЖ: edge[1].va -> edge.va
+        // ===== ДОДАЙТЕ ЦІ ДВА РЯДКИ =====
+        if (!edge.va || !edge.vb) continue; // Пропускаємо ребро, якщо немає координат
+        // ==================================
+
         if ((edge.va.x === vData.pos.x && edge.va.y === vData.pos.y) ||
             (edge.vb.x === vData.pos.x && edge.vb.y === vData.pos.y)) {
             const target = (edge.va.x === vData.pos.x && edge.va.y === vData.pos.y) ? edge.vb : edge.va;
@@ -104,7 +107,7 @@ function canPlaceSettlementServer(vertexKey, playerId, room) {
             }
         }
     }
-    
+
     for (const [vk2, bld] of room.buildings) {
         if (bld.type === 'settlement' || bld.type === 'city') {
             if (vk2 === vertexKey) return false;
@@ -848,8 +851,14 @@ io.on('connection', (socket) => {
                 }
             } else if (type === 'settlement') {
                 // Don't build if too close to other settlements
-                if (!canPlaceSettlementServer(key, socket.id, room)) {
-                    socket.emit('action-error', { message: 'Не можна будувати поселення тут (відстань або чужі дороги)!' });
+                try {
+                    if (!canPlaceSettlementServer(key, socket.id, room)) {
+                        socket.emit('action-error', { message: 'Не можна будувати поселення тут (відстань або чужі дороги)!' });
+                        return;
+                    }
+                } catch (e) {
+                    console.error('Помилка у canPlaceSettlementServer:', e);
+                    socket.emit('action-error', { message: 'Помилка перевірки поселення!' });
                     return;
                 }
             } else if (type === 'city') {
