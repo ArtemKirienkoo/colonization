@@ -59,10 +59,11 @@ function isEdgeConnectedServer(edgeKey, playerId, room) {
     // ========== ДОДАЙТЕ ЦЕЙ БЛОК ==========
     // Знаходимо ключі вершин за їх координатами
     const vertexMap = new Map(room.topology.vertices);
+    // Знаходимо ключі вершин за їх координатами з допуском 0.001
     let vkA = null, vkB = null;
     for (const [vk, vData] of vertexMap) {
-        if (vData.pos.x === va.x && vData.pos.y === va.y) vkA = vk;
-        if (vData.pos.x === vb.x && vData.pos.y === vb.y) vkB = vk;
+        if (Math.abs(vData.pos.x - va.x) < 0.001 && Math.abs(vData.pos.y - va.y) < 0.001) vkA = vk;
+        if (Math.abs(vData.pos.x - vb.x) < 0.001 && Math.abs(vData.pos.y - vb.y) < 0.001) vkB = vk;
     }
     // ======================================
 
