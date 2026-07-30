@@ -136,18 +136,18 @@ class MultiplayerClient {
                 this.roomCode = data.roomCode;
                 this.players = data.players;
                 this.socket.off('room-created', onRoomCreated);
-                this.socket.off('join-error', onJoinError);
+                this.socket.off('create-room-error', onCreateRoomError);
                 resolve(data);
             };
 
-            const onJoinError = (error) => {
+            const onCreateRoomError = (error) => {
                 this.socket.off('room-created', onRoomCreated);
-                this.socket.off('join-error', onJoinError);
-                reject(error.message);
+                this.socket.off('create-room-error', onCreateRoomError);
+                reject(new Error(error.message));
             };
 
             this.socket.on('room-created', onRoomCreated);
-            this.socket.on('join-error', onJoinError);
+            this.socket.on('create-room-error', onCreateRoomError);
         });
     }
 

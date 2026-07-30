@@ -1911,7 +1911,7 @@ function renderMap(data, canvas, hexSize) {
             b = Math.round(b / count);
             ctx.save();
             drawHexPath(ctx, cx, cy, hexSize);
-            ctx.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',0.15)';
+            ctx.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',0.7)';
             ctx.fill();
             ctx.restore();
         }
@@ -3487,10 +3487,21 @@ function registerMultiplayerHandlers(client) {
         console.log('Initial build - your done:', data, ' myPlayerId=', myPlayerId);
         const status = document.getElementById('buildPhaseStatus');
         if (status) {
-            status.textContent = '✅ Ви завершили будівництво! Чекайте інших гравців.';
+            status.textContent = '⏳ Очікуємо хід інших гравців';
             status.style.color = '#f1c40f';
         }
         setBuildMode('none');
+        
+        // Also update the endTurnBtn to show waiting message (same as in game)
+        const endTurnBtn = document.getElementById('endTurnBtn');
+        if (endTurnBtn && isMultiplayer) {
+            endTurnBtn.textContent = '⏳ Очікуємо хід інших гравців';
+            endTurnBtn.disabled = true;
+            endTurnBtn.style.display = 'inline-block';
+            endTurnBtn.style.opacity = '1';
+            endTurnBtn.style.cursor = 'not-allowed';
+            endTurnBtn.onclick = null;
+        }
     });
     client.onRegularGameStart((data) => {
         const reopenBtn = document.getElementById('showBuildPhaseBtn');

@@ -1114,16 +1114,11 @@ io.on('connection', (socket) => {
                     playerId: socket.id
                 });
                 
-                // If all players disconnected, delete the room after a delay
+                // If all players disconnected, delete the room immediately
                 const allDisconnected = room.players.every(p => p.disconnected);
                 if (allDisconnected) {
-                    setTimeout(() => {
-                        const currentRoom = rooms.get(code);
-                        if (currentRoom && currentRoom.players.every(p => p.disconnected)) {
-                            rooms.delete(code);
-                            io.emit('rooms-list', getRoomsList());
-                        }
-                    }, 5000); // Wait 5 seconds before deleting
+                    rooms.delete(code);
+                    io.emit('rooms-list', getRoomsList());
                 }
             }
         });
