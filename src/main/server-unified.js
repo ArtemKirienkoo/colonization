@@ -868,6 +868,16 @@ io.on('connection', (socket) => {
                 });
             }
         }
+        
+        // Broadcast game-state-sync to ALL players in the room as a fallback
+        // This ensures that even if your-turn event is lost (e.g., sent to old socket ID),
+        // the next player will still receive the game state and know it's their turn
+        io.to(roomCode).emit('game-state-sync', {
+            gamePhase: room.gamePhase,
+            currentTurnPlayerId: nextPlayerId,
+            turnOrder: room.turnOrder,
+            buildings: getBuildingsArray(room)
+        });
     });
 
     // Sync a building action to all players (with validation)

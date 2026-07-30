@@ -1858,7 +1858,8 @@ function renderMap(data, canvas, hexSize) {
     
     // ===== COMPUTE CONTROLLED TERRITORY =====
     // For each settlement, find the 3 adjacent hexagons and mark them as controlled
-    const controlledTerritory = new Map(); // hexKey -> {color, playerId}
+    // Track ALL colors per hex (for mixing when multiple players control same hex)
+    const controlledTerritory = new Map(); // hexKey -> Set of colors
     for (const [vk, bld] of gameState.settlements) {
         if (bld.type !== 'settlement' && bld.type !== 'city') continue;
         const vert = vertexGeom.get(vk);
@@ -1867,7 +1868,12 @@ function renderMap(data, canvas, hexSize) {
             const hk = hexKey(hex);
             // Only mark land hexes
             if (!ls.has(hk)) continue;
-            controlledTerritory.set(hk, { color: bld.color, playerId: bld.playerId });
+            if (!controlledTerritory.has(hk)) {
+                controlledTerritory.set(hk, new Set());
+            }
+            if (bld.color) {
+                controlledTerritory.get(hk).add(bld.color);
+            }
         }
     }
     
@@ -1887,12 +1893,25 @@ function renderMap(data, canvas, hexSize) {
         ctx.fill();
         if(rt!=='desert')drawTexture(ctx,cx,cy,hexSize,rt);
         // ===== APPLY TERRITORY TINT =====
-        const control = controlledTerritory.get(k);
-        if (control) {
-            const pc = getPlayerColor(control.color);
+        const colors = controlledTerritory.get(k);
+        if (colors && colors.size > 0) {
+            // Mix colors: average RGB values of all player colors
+            let r = 0, g = 0, b = 0, count = 0;
+            for (const colorName of colors) {
+                const pc = getPlayerColor(colorName);
+                // Parse hex color #RRGGBB to RGB
+                const hex = pc.primary.replace('#', '');
+                r += parseInt(hex.substring(0, 2), 16);
+                g += parseInt(hex.substring(2, 4), 16);
+                b += parseInt(hex.substring(4, 6), 16);
+                count++;
+            }
+            r = Math.round(r / count);
+            g = Math.round(g / count);
+            b = Math.round(b / count);
             ctx.save();
             drawHexPath(ctx, cx, cy, hexSize);
-            ctx.fillStyle = pc.primary + '18'; // ~9% opacity - very subtle
+            ctx.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',0.15)';
             ctx.fill();
             ctx.restore();
         }
@@ -1987,53 +2006,6 @@ function renderMap(data, canvas, hexSize) {
             ctx.fillText('ROBBER',cx,cy+hh+3);
         }
     }
-    
-    // ===== DRAW TERRITORY BORDERS =====
-    // Draw colored borders on edges between controlled and uncontrolled territory
-    ctx.lineWidth = hexSize * 0.055;
-    ctx.lineCap = 'round';
-    for (const [ek, edge] of edgeGeom.edges) {
-        const hk1 = hexKey(edge.hex1);
-        const hk2 = hexKey(edge.hex2);
-        // Only consider edges where at least one hex is on land
-        if (!ls.has(hk1) && !ls.has(hk2)) continue;
-        
-        const c1 = controlledTerritory.get(hk1);
-        const c2 = controlledTerritory.get(hk2);
-        
-        let borderColor = null;
-        if (c1 && (!c2 || c1.playerId !== c2.playerId)) {
-            borderColor = c1.color;
-        } else if (c2 && (!c1 || c2.playerId !== c1.playerId)) {
-            borderColor = c2.color;
-        }
-        
-        if (borderColor) {
-            const pc = getPlayerColor(borderColor);
-            const ax = edge.va.x + ox, ay = edge.va.y + oy;
-            const bx = edge.vb.x + ox, by = edge.vb.y + oy;
-            
-            // Draw glow effect (thicker, semi-transparent)
-            ctx.save();
-            ctx.globalAlpha = 0.3;
-            ctx.strokeStyle = pc.primary;
-            ctx.lineWidth = hexSize * 0.12;
-            ctx.beginPath();
-            ctx.moveTo(ax, ay);
-            ctx.lineTo(bx, by);
-            ctx.stroke();
-            ctx.restore();
-            
-            // Draw main border line
-            ctx.strokeStyle = pc.primary;
-            ctx.lineWidth = hexSize * 0.055;
-            ctx.beginPath();
-            ctx.moveTo(ax, ay);
-            ctx.lineTo(bx, by);
-            ctx.stroke();
-        }
-    }
-    ctx.lineCap = 'butt';
     
     for(const [ek,roadData] of gameState.roads){
         const edge=edgeGeom.edges.get(ek);
