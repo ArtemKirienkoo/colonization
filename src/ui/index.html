@@ -1803,6 +1803,7 @@ function renderMap(data, canvas, hexSize) {
     ctx.fillRect(0,0,canvas.width,canvas.height);
     edgeGeom = computeEdgesAndVertices(all, hexSize); 
     vertexGeom = edgeGeom.vertices;
+    
     for(const h of data.ring3){
         const p=hexToPixel(h,hexSize),cx=p.x+ox,cy=p.y+oy,info=data.ocean.get(hexKey(h));
         drawHexPath(ctx,cx,cy,hexSize);
@@ -1854,6 +1855,22 @@ function renderMap(data, canvas, hexSize) {
     }
     const ls = new Set(); 
     [data.center,...data.ring1,...data.ring2].forEach(h => ls.add(hexKey(h)));
+    
+    // ===== COMPUTE CONTROLLED TERRITORY =====
+    // For each settlement, find the 3 adjacent hexagons and mark them as controlled
+    const controlledTerritory = new Map(); // hexKey -> {color, playerId}
+    for (const [vk, bld] of gameState.settlements) {
+        if (bld.type !== 'settlement' && bld.type !== 'city') continue;
+        const vert = vertexGeom.get(vk);
+        if (!vert) continue;
+        for (const hex of vert.hexes) {
+            const hk = hexKey(hex);
+            // Only mark land hexes
+            if (!ls.has(hk)) continue;
+            controlledTerritory.set(hk, { color: bld.color, playerId: bld.playerId });
+        }
+    }
+    
     for(const h of all){
         const k=hexKey(h);
         if(!ls.has(k))continue;
@@ -1869,6 +1886,16 @@ function renderMap(data, canvas, hexSize) {
         ctx.fillStyle=res.fill;
         ctx.fill();
         if(rt!=='desert')drawTexture(ctx,cx,cy,hexSize,rt);
+        // ===== APPLY TERRITORY TINT =====
+        const control = controlledTerritory.get(k);
+        if (control) {
+            const pc = getPlayerColor(control.color);
+            ctx.save();
+            drawHexPath(ctx, cx, cy, hexSize);
+            ctx.fillStyle = pc.primary + '18'; // ~9% opacity - very subtle
+            ctx.fill();
+            ctx.restore();
+        }
         drawHexPath(ctx,cx,cy,hexSize*0.82);
         ctx.strokeStyle='rgba(255,255,255,0.15)';
         ctx.lineWidth=1;ctx.stroke();
@@ -1960,7 +1987,54 @@ function renderMap(data, canvas, hexSize) {
             ctx.fillText('ROBBER',cx,cy+hh+3);
         }
     }
-    ctx.lineCap='butt';
+    
+    // ===== DRAW TERRITORY BORDERS =====
+    // Draw colored borders on edges between controlled and uncontrolled territory
+    ctx.lineWidth = hexSize * 0.055;
+    ctx.lineCap = 'round';
+    for (const [ek, edge] of edgeGeom.edges) {
+        const hk1 = hexKey(edge.hex1);
+        const hk2 = hexKey(edge.hex2);
+        // Only consider edges where at least one hex is on land
+        if (!ls.has(hk1) && !ls.has(hk2)) continue;
+        
+        const c1 = controlledTerritory.get(hk1);
+        const c2 = controlledTerritory.get(hk2);
+        
+        let borderColor = null;
+        if (c1 && (!c2 || c1.playerId !== c2.playerId)) {
+            borderColor = c1.color;
+        } else if (c2 && (!c1 || c2.playerId !== c1.playerId)) {
+            borderColor = c2.color;
+        }
+        
+        if (borderColor) {
+            const pc = getPlayerColor(borderColor);
+            const ax = edge.va.x + ox, ay = edge.va.y + oy;
+            const bx = edge.vb.x + ox, by = edge.vb.y + oy;
+            
+            // Draw glow effect (thicker, semi-transparent)
+            ctx.save();
+            ctx.globalAlpha = 0.3;
+            ctx.strokeStyle = pc.primary;
+            ctx.lineWidth = hexSize * 0.12;
+            ctx.beginPath();
+            ctx.moveTo(ax, ay);
+            ctx.lineTo(bx, by);
+            ctx.stroke();
+            ctx.restore();
+            
+            // Draw main border line
+            ctx.strokeStyle = pc.primary;
+            ctx.lineWidth = hexSize * 0.055;
+            ctx.beginPath();
+            ctx.moveTo(ax, ay);
+            ctx.lineTo(bx, by);
+            ctx.stroke();
+        }
+    }
+    ctx.lineCap = 'butt';
+    
     for(const [ek,roadData] of gameState.roads){
         const edge=edgeGeom.edges.get(ek);
         if(!edge)continue;
@@ -2167,7 +2241,12 @@ function drawHoverOnly(ctx, ox, oy, hs) {
 }
 
 function cacheCanvas(ctx) {
-    cachedCanvasData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    try {
+        cachedCanvasData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    } catch (e) {
+        console.warn('cacheCanvas: getImageData failed:', e);
+        // Don't update cachedCanvasData - keep the old one
+    }
 }
 
 function clearHoverAndRedraw(ctx, ox, oy, hs) {
@@ -3299,6 +3378,11 @@ function registerMultiplayerHandlers(client) {
     });
     client.onInitialBuildStart((data) => {
         console.log('Initial build started:', data, ' myPlayerId=', myPlayerId);
+        
+        // Close the dice phase overlay - dice phase is over, build phase is starting
+        const diceOverlay = document.getElementById('dicePhaseOverlay');
+        if (diceOverlay) diceOverlay.style.display = 'none';
+        
         onInitialBuildStart(data);
         
         // Якщо це мій хід - закриваємо оверлей, щоб мати доступ до канвасу
@@ -3927,13 +4011,10 @@ function onPlayerDiceRolled(data) {
     initialPhase.totalPlayers = data.totalPlayers;
     updateDicePhaseUI();
     
-    // Check if all players have rolled
-    if (data.rollsCount === data.totalPlayers) {
-        // Wait for server to send build order
-        setTimeout(() => {
-            document.getElementById('dicePhaseOverlay').style.display = 'none';
-        }, 2000);
-    }
+    // Don't close the overlay here - wait for server to either:
+    // 1. Send 'initial-build-start' (no tie) - overlay will be closed in onInitialBuildStart
+    // 2. Send 'dice-tie' (tie) - overlay stays open for re-roll
+    // Closing prematurely causes the tie re-roll window to disappear!
 }
 
 // Handle initial build start - show the overlay with build order info

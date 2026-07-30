@@ -723,14 +723,26 @@
             if (rooms.length === 0) {
                 roomsList.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">Немає активних кімнат</div>';
             } else {
-                roomsList.innerHTML = rooms.map(room => `
-                    <div class="room-item" data-code="${room.code}" style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 6px; margin-bottom: 8px; cursor: pointer; border: 1px solid rgba(243,156,18,0.2);">
-                        <div style="font-weight: bold; color: #f39c12;">${room.name}</div>
+                roomsList.innerHTML = rooms.map(room => {
+                    const isInGame = room.status === 'in-game';
+                    const statusText = isInGame ? 'У грі' : 'Очікування';
+                    const statusColor = isInGame ? '#e74c3c' : '#27ae60';
+                    const opacity = isInGame ? '0.5' : '1';
+                    
+                    return `
+                    <div class="room-item" data-code="${room.code}" data-status="${room.status || 'waiting'}" style="padding: 10px; background: rgba(255,255,255,${isInGame ? '0.03' : '0.05'}); border-radius: 6px; margin-bottom: 8px; cursor: ${isInGame ? 'not-allowed' : 'pointer'}; border: 1px solid ${isInGame ? 'rgba(231,76,60,0.3)' : 'rgba(243,156,18,0.2)'}; opacity: ${opacity};">
+                        <div style="font-weight: bold; color: ${isInGame ? '#666' : '#f39c12'};">${room.name}</div>
                         <div style="font-size: 0.85em; color: #aaa;">Гравці: ${room.players}/${room.maxPlayers}</div>
+                        <div style="font-size: 0.75em; color: ${statusColor}; margin-top: 2px;">● ${statusText}</div>
                     </div>
-                `).join('');
+                `;
+                }).join('');
                 document.querySelectorAll('.room-item').forEach(item => {
                     item.addEventListener('click', () => {
+                        const status = item.getAttribute('data-status');
+                        if (status === 'in-game') {
+                            return; // Don't allow clicking on in-game rooms
+                        }
                         document.getElementById('multiplayerLobbyModal').style.display = 'none';
                         document.getElementById('joinRoomModal').style.display = 'flex';
                     });
@@ -810,16 +822,28 @@
                         if (rooms.length === 0) {
                             roomsList.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">Немає активних кімнат</div>';
                         } else {
-                            roomsList.innerHTML = rooms.map(room => `
-                                <div class="room-item" data-code="${room.code}" style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 6px; margin-bottom: 8px; cursor: pointer; border: 1px solid rgba(243,156,18,0.2);">
-                                    <div style="font-weight: bold; color: #f39c12;">${room.name}</div>
+                            roomsList.innerHTML = rooms.map(room => {
+                                const isInGame = room.status === 'in-game';
+                                const statusText = isInGame ? 'У грі' : 'Очікування';
+                                const statusColor = isInGame ? '#e74c3c' : '#27ae60';
+                                const opacity = isInGame ? '0.5' : '1';
+                                
+                                return `
+                                <div class="room-item" data-code="${room.code}" data-status="${room.status || 'waiting'}" style="padding: 10px; background: rgba(255,255,255,${isInGame ? '0.03' : '0.05'}); border-radius: 6px; margin-bottom: 8px; cursor: ${isInGame ? 'not-allowed' : 'pointer'}; border: 1px solid ${isInGame ? 'rgba(231,76,60,0.3)' : 'rgba(243,156,18,0.2)'}; opacity: ${opacity};">
+                                    <div style="font-weight: bold; color: ${isInGame ? '#666' : '#f39c12'};">${room.name}</div>
                                     <div style="font-size: 0.85em; color: #aaa;">Гравці: ${room.players}/${room.maxPlayers}</div>
+                                    <div style="font-size: 0.75em; color: ${statusColor}; margin-top: 2px;">● ${statusText}</div>
                                 </div>
-                            `).join('');
+                            `;
+                            }).join('');
                             
                             // Re-add click handlers to room items
                             document.querySelectorAll('.room-item').forEach(item => {
                                 item.addEventListener('click', () => {
+                                    const status = item.getAttribute('data-status');
+                                    if (status === 'in-game') {
+                                        return; // Don't allow clicking on in-game rooms
+                                    }
                                     // Show join room modal without auto-filling the code
                                     document.getElementById('multiplayerLobbyModal').style.display = 'none';
                                     document.getElementById('joinRoomModal').style.display = 'flex';

@@ -301,14 +301,31 @@ io.on('connection', (socket) => {
 
         if (isHost) room.host = socket.id;
 
+        // Check if player already exists in the room (by socket.id or oldPlayerId)
         let existingPlayer = room.players.find(p => p.id === socket.id);
+        
+        // Also check if oldPlayerId still exists (in case it wasn't updated above)
+        if (!existingPlayer && oldPlayerId && oldPlayerId !== socket.id) {
+            const oldPlayerIndex = room.players.findIndex(p => p.id === oldPlayerId);
+            if (oldPlayerIndex !== -1) {
+                // Update the old player's ID to the new socket ID
+                room.players[oldPlayerIndex].id = socket.id;
+                room.players[oldPlayerIndex].disconnected = false;
+                existingPlayer = room.players[oldPlayerIndex];
+                console.log('[server] rejoin-room: found player by oldPlayerId on second attempt', { oldPlayerId, newSocketId: socket.id });
+            }
+        }
+        
         if (!existingPlayer) {
+            console.log('[server] rejoin-room: player not found, pushing new player', { roomCode, socketId: socket.id, oldPlayerId });
             room.players.push({
                 id: socket.id,
                 name: 'Гравець',
                 isHost: isHost,
                 color: 'red'
             });
+        } else {
+            console.log('[server] rejoin-room: player found, no duplicate created', { roomCode, socketId: socket.id });
         }
 
         socket.join(roomCode);
@@ -1050,12 +1067,22 @@ io.on('connection', (socket) => {
             if (playerIndex === -1) return;
             const player = room.players[playerIndex];
             
-            // If host disconnects, close the room and kick all players
+            // If host disconnects
             if (room.host === socket.id) {
-                io.to(code).emit('room-closed', {
-                    message: 'Хозяїн вийшов з кімнати'
-                });
-                rooms.delete(code);
+                if (room.gamePhase) {
+                    // Game already started - don't delete room, just mark as disconnected
+                    // Host can rejoin via rejoin-room
+                    player.disconnected = true;
+                    socket.to(code).emit('host-disconnected', {
+                        message: 'Хозяїн тимчасово відключився'
+                    });
+                } else {
+                    // Game not started yet - close the room
+                    io.to(code).emit('room-closed', {
+                        message: 'Хозяїн вийшов з кімнати'
+                    });
+                    rooms.delete(code);
+                }
                 return;
             }
             
