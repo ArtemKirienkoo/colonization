@@ -696,23 +696,7 @@ body.is-paused canvas {
     </div>
 </div>
 
-<!-- Your Turn Overlay (for regular gameplay) -->
-<div id="yourTurnOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); z-index: 2400; justify-content: center; align-items: center;">
-    <div style="background: rgba(26,26,46,0.98); border: 3px solid #27ae60; border-radius: 20px; padding: 30px 40px; text-align: center; max-width: 450px; box-shadow: 0 0 50px rgba(39,174,96,0.4);">
-        <h2 style="color: #27ae60; margin-bottom: 10px; font-size: 2em;">🎯 Ваш хід!</h2>
-        <p style="color: #ccc; margin-bottom: 20px; font-size: 1.1em;">Будь ласка, спочатку киньте кубики</p>
-        <button id="closeYourTurnBtn" style="padding: 12px 30px; font-size: 1.1em; background: linear-gradient(135deg, #27ae60, #229954); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 15px rgba(39,174,96,0.3);">🎲 Кинути кубики</button>
-    </div>
-</div>
-
-<!-- Waiting for Turn Overlay -->
-<div id="waitingTurnOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2400; justify-content: center; align-items: center;">
-    <div style="background: rgba(26,26,46,0.95); border: 3px solid #f39c12; border-radius: 20px; padding: 30px 40px; text-align: center; max-width: 450px; box-shadow: 0 0 40px rgba(243,156,18,0.3);">
-        <h2 style="color: #f39c12; margin-bottom: 10px; font-size: 1.6em;">⏳ Очікування ходу</h2>
-        <p id="waitingTurnInfo" style="color: #ccc; font-size: 1.1em;">Зараз хід іншого гравця...</p>
-    <div style="margin-top: 15px; font-size: 1em; color: #f1c40f;" id="waitingDotsAnim">.</div>
-    </div>
-</div>
+<!-- Your Turn Overlay видалено — текст виводиться на кнопці "endTurnBtn" -->
 
     <div class="settings-overlay" id="settingsModal" style="display: none;">
         <div class="settings-box">
@@ -1307,7 +1291,9 @@ function computeLongestRoadLength() {
         }
     }
     const roadGraph = new Map();
-    for (const [ek] of gameState.roads) {
+    for (const [ek, roadData] of gameState.roads) {
+        // Рахуємо тільки дороги поточного гравця
+        if (!roadData || roadData.playerId !== myPlayerId) continue;
         const edge = edgeGeom.edges.get(ek);
         if (!edge) continue;
         const keyA = getCoordKey(edge.va);
@@ -1319,7 +1305,12 @@ function computeLongestRoadLength() {
     }
     if (roadGraph.size === 0) return 0;
     if (settlementKeys.size === 0) {
-        return gameState.roads.size;
+        // Рахуємо тільки дороги поточного гравця
+        let myRoadCount = 0;
+        for (const [, roadData] of gameState.roads) {
+            if (roadData && roadData.playerId === myPlayerId) myRoadCount++;
+        }
+        return myRoadCount;
     }
     let longestSegment = 0;
     for (const startKey of settlementKeys) {
@@ -1502,7 +1493,11 @@ function canPlaceSettlement(vk) {
         }
         
         // If I have no settlements yet, I can build anywhere (first settlement)
-        if (mySettlements.size === 0) return true;
+        // BUT still can't build on opponent's road
+        if (mySettlements.size === 0) {
+            if(isVertexOnOpponentRoad(vk)) return false;
+            return true;
+        }
         
         // Check distance from my existing settlements using full vertex graph
         for (const existingVk of mySettlements) {
@@ -2571,7 +2566,7 @@ function canPerformMultiplayerActions(){
     if(!isMultiplayer) return true;
     if(initialPhase.active && initialPhase.phase === 'dice-roll') return false;
     if(initialPhase.active && initialPhase.phase === 'initial-build') return false;
-    return isMyTurn;
+    return isMyTurn && canPerformActions;
 }
 function isVertexOnOpponentRoad(vk){
     const vert=vertexGeom.get(vk);if(!vert)return false;
@@ -3348,6 +3343,10 @@ function registerMultiplayerHandlers(client) {
                 status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
                 status.style.color = '#27ae60';
             }
+            // Показуємо кнопку "Продовжити" для гравця, чий зараз хід
+            if (endBtn) endBtn.style.display = 'inline-block';
+            const okBtn = document.getElementById('initialBuildOkBtn');
+            if (okBtn) okBtn.style.display = 'none';
             const reopenBtn = document.getElementById('showBuildPhaseBtn');
             if (reopenBtn) reopenBtn.style.display = 'none';
             // Розблокуємо будівництво
@@ -3361,6 +3360,9 @@ function registerMultiplayerHandlers(client) {
                 status.textContent = `⏳ Чекаємо, поки ${name} побудує...`;
                 status.style.color = '#f1c40f';
             }
+            // Показуємо кнопку "ОК" для гравців, що очікують
+            const okBtn = document.getElementById('initialBuildOkBtn');
+            if (okBtn) okBtn.style.display = 'inline-block';
         }
     });
     client.onInitialBuildRound2Start((data) => {
@@ -3418,11 +3420,11 @@ function registerMultiplayerHandlers(client) {
             status.textContent = `⏳ Чекаємо, поки ${name} побудує...`;
             status.style.color = '#f1c40f';
         }
-        // Ховаємо кнопку "Продовжити" і показуємо "ОК" для закриття вікна
-        const endBtn = document.getElementById('initialBuildEndTurnBtn');
-        if (endBtn) endBtn.style.display = 'none';
+        // Показуємо кнопку "ОК" для гравців, що очікують
         const okBtn = document.getElementById('initialBuildOkBtn');
         if (okBtn) okBtn.style.display = 'inline-block';
+        const endBtn = document.getElementById('initialBuildEndTurnBtn');
+        if (endBtn) endBtn.style.display = 'none';
         setBuildMode('none');
     });
     client.onInitialBuildYourDone((data) => {
@@ -3451,14 +3453,25 @@ function registerMultiplayerHandlers(client) {
         const d1 = document.getElementById('die1');
         const d2 = document.getElementById('die2');
         if (d1 && d2) {
-            d1.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[data.die1-1] + '</span>';
-            d2.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[data.die2-1] + '</span>';
-            document.getElementById('total').textContent = 'Сума: ' + data.total;
+            // Анімація кидка для ВСІХ гравців (синхронно)
+            audioManager.playDiceSound();
+            d1.classList.add('rolling');
+            d2.classList.add('rolling');
+            setTimeout(() => {
+                d1.classList.remove('rolling');
+                d2.classList.remove('rolling');
+                d1.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[data.die1-1] + '</span>';
+                d2.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[data.die2-1] + '</span>';
+                document.getElementById('total').textContent = 'Сума: ' + data.total;
+            }, 800);
         }
     });
     client.onCollectResources((data) => {
         console.log('Collect resources:', data);
-        handleCollectResources(data);
+        if (data && data.diceTotal) {
+            const collected = collectResources(data.diceTotal);
+            showResourceNotification(collected);
+        }
     });
     client.onRegularGameStart((data) => {
         console.log('Regular game start:', data);
@@ -3480,25 +3493,55 @@ function registerMultiplayerHandlers(client) {
     });
     client.onDiceTie((data) => {
         console.log('Dice tie:', data);
-        showMessage(data.message || 'Нічия! Перекиньте кубики');
-        initialPhase.myRoll = null;
-        initialPhase.diceRolls.clear();
-        const rollBtn = document.getElementById('rollDiceInitialBtn');
-        if (rollBtn) {
-            rollBtn.disabled = false;
-            rollBtn.style.opacity = '1';
-            rollBtn.style.cursor = 'pointer';
+        
+        const tiedPlayers = data.players || [];
+        const isTied = tiedPlayers.includes(myPlayerId);
+        
+        if (isTied) {
+            // Цей гравець у ничий — скидаємо тільки його кидок
+            initialPhase.myRoll = null;
+            // Видаляємо тільки tied гравців з мапи
+            for (const pid of tiedPlayers) {
+                initialPhase.diceRolls.delete(pid);
+            }
+            
+            // Показуємо вікно знову
+            const overlay = document.getElementById('dicePhaseOverlay');
+            if (overlay) overlay.style.display = 'flex';
+            
+            // Дозволяємо кинути кубики знову
+            const rollBtn = document.getElementById('rollDiceInitialBtn');
+            if (rollBtn) {
+                rollBtn.disabled = false;
+                rollBtn.style.opacity = '1';
+                rollBtn.style.cursor = 'pointer';
+            }
+            
+            // Reset dice display
+            const die1El = document.getElementById('initialDie1');
+            const die2El = document.getElementById('initialDie2');
+            if (die1El && die2El) {
+                die1El.textContent = '⚀';
+                die2El.textContent = '⚀';
+            }
+            
+            // Clear results
+            const results = document.getElementById('dicePhaseResults');
+            if (results) results.innerHTML = '';
+            
+            // Оновлюємо статус
+            const status = document.getElementById('dicePhaseStatus');
+            if (status) {
+                status.textContent = '🎲 Нічия! Киньте кубики знову';
+                status.style.color = '#f1c40f';
+            }
+        } else {
+            // Цей гравець вже визначився — показуємо очікування
+            showMessage('Очікування перекидання кубиків гравцями з ничиєю...');
+            
+            // Оновлюємо UI щоб показати поточний стан
+            updateDicePhaseUI();
         }
-        // Reset dice display
-        const die1El = document.getElementById('initialDie1');
-        const die2El = document.getElementById('initialDie2');
-        if (die1El && die2El) {
-            die1El.textContent = '⚀';
-            die2El.textContent = '⚀';
-        }
-        // Clear results
-        const results = document.getElementById('dicePhaseResults');
-        if (results) results.innerHTML = '';
     });
     client.onBuildingSynced((data) => {
         console.log('Building synced:', data);
@@ -3960,7 +4003,7 @@ function onInitialBuildStart(data) {
 function onInitialBuildNextPlayer(data) {
     initialPhase.currentIndex++;
     
-    // Update OK button visibility based on whose turn it is
+    // Update button visibility based on whose turn it is
     const currentId = data.currentPlayerId;
     const okBtn = document.getElementById('initialBuildOkBtn');
     const endBtn = document.getElementById('initialBuildEndTurnBtn');
@@ -3975,8 +4018,8 @@ function onInitialBuildNextPlayer(data) {
         setBuildMode('none');
         if (endBtn) endBtn.style.display = 'inline-block';
     } else {
-        // It's not my turn - show OK button so they can close the overlay
-        if (okBtn) okBtn.style.display = 'inline-block';
+        // It's not my turn - show "Продовжити" button so they can close the overlay
+        if (endBtn) endBtn.style.display = 'inline-block';
         initialPhase.canBuild = false;
         setBuildMode('none');
     }
@@ -4014,7 +4057,7 @@ let turnOrder = [];
 let currentTurnPlayerId = null;
 let waitingDotsTimer = null;
 
-// Show "Your Turn" overlay
+// Show "Your Turn" - оновлює кнопку endTurnBtn
 function showYourTurn(data) {
     console.log('[UI] showYourTurn called with:', data, 'myPlayerId:', myPlayerId, 'isMultiplayer:', isMultiplayer);
     
@@ -4023,9 +4066,7 @@ function showYourTurn(data) {
     canPerformActions = false;
     currentTurnPlayerId = data?.playerId || myPlayerId;
     
-    // Hide waiting overlay if visible
-    const waitingOverlay = document.getElementById('waitingTurnOverlay');
-    if (waitingOverlay) waitingOverlay.style.display = 'none';
+    // Stop waiting dots if any
     if (waitingDotsTimer) {
         clearInterval(waitingDotsTimer);
         waitingDotsTimer = null;
@@ -4040,26 +4081,28 @@ function showYourTurn(data) {
         console.log('[UI] Roll button enabled for player:', myPlayerId);
     }
     
-    // Hide end turn button until after rolling
-    const endTurnBtn = document.getElementById('endTurnBtn');
-    if (endTurnBtn && isMultiplayer) {
-        endTurnBtn.textContent = '✅ Завершити хід';
-        endTurnBtn.disabled = true;
-        endTurnBtn.style.display = 'none';
-        endTurnBtn.style.opacity = '1';
-        endTurnBtn.style.cursor = 'pointer';
-        console.log('[UI] End turn button hidden until roll');
+    // Enable trade button for this player
+    const tradeBtn = document.getElementById('tradeBtn');
+    if (tradeBtn) {
+        tradeBtn.disabled = false;
+        tradeBtn.style.opacity = '1';
+        tradeBtn.style.cursor = 'pointer';
     }
     
-    // Show the "Your Turn" overlay
-    const overlay = document.getElementById('yourTurnOverlay');
-    if (overlay) {
-        overlay.style.display = 'flex';
-        console.log('[UI] Your Turn overlay shown');
+    // Оновлюємо кнопку endTurnBtn: показуємо "🎯 Ваш хід!" тільки як текст статусу
+    const endTurnBtn = document.getElementById('endTurnBtn');
+    if (endTurnBtn && isMultiplayer) {
+        endTurnBtn.textContent = '🎯 Ваш хід!';
+        endTurnBtn.style.display = 'inline-block';
+        endTurnBtn.disabled = true; // кнопка неактивна — нею не можна завершити хід, поки не кинуті кубики
+        endTurnBtn.style.opacity = '1';
+        endTurnBtn.style.cursor = 'not-allowed';
+        endTurnBtn.onclick = null; // прибираємо обробник
+        console.log('[UI] End turn button shows "Ваш хід!" status');
     }
 }
 
-// Show "Waiting for Turn" overlay
+// Show "Waiting for Turn" - оновлює кнопку endTurnBtn
 function showWaitingForTurn(data) {
     console.log('[UI] showWaitingForTurn called with:', data, 'myPlayerId:', myPlayerId, 'isMultiplayer:', isMultiplayer);
     
@@ -4068,9 +4111,11 @@ function showWaitingForTurn(data) {
     canPerformActions = false;
     currentTurnPlayerId = data?.currentPlayerId || null;
     
-    // Hide your turn overlay
-    const yourTurnOverlay = document.getElementById('yourTurnOverlay');
-    if (yourTurnOverlay) yourTurnOverlay.style.display = 'none';
+    // Stop waiting dots if any
+    if (waitingDotsTimer) {
+        clearInterval(waitingDotsTimer);
+        waitingDotsTimer = null;
+    }
     
     // Disable roll button while waiting
     const rollBtn = document.getElementById('rollBtn');
@@ -4081,33 +4126,25 @@ function showWaitingForTurn(data) {
         console.log('[UI] Roll button disabled - waiting for turn');
     }
     
-    // Update end turn button to show waiting status in multiplayer
+    // Disable trade button while waiting
+    const tradeBtn = document.getElementById('tradeBtn');
+    if (tradeBtn) {
+        tradeBtn.disabled = true;
+        tradeBtn.style.opacity = '0.5';
+        tradeBtn.style.cursor = 'not-allowed';
+    }
+    
+    // Оновлюємо кнопку endTurnBtn: показуємо "⏳ Очікуємо хід інших гравців"
     const endTurnBtn = document.getElementById('endTurnBtn');
     if (endTurnBtn && isMultiplayer) {
         endTurnBtn.textContent = '⏳ Очікуємо хід інших гравців';
         endTurnBtn.style.display = 'inline-block';
         endTurnBtn.disabled = true;
-        endTurnBtn.style.opacity = '0.7';
+        endTurnBtn.style.opacity = '1';
         endTurnBtn.style.cursor = 'not-allowed';
+        endTurnBtn.onclick = null; // прибираємо обробник
         console.log('[UI] End turn button showing waiting status');
     }
-    
-    // Show waiting overlay with dots
-    const overlay = document.getElementById('waitingTurnOverlay');
-    const info = document.getElementById('waitingTurnInfo');
-    const currentPlayerName = currentTurnPlayerId === myPlayerId ? 'ваш' : 'іншого гравця';
-    if (info) info.textContent = `Зараз хід ${currentPlayerName}...`;
-    if (overlay) overlay.style.display = 'flex';
-    
-    console.log('[UI] Waiting overlay shown for player:', currentTurnPlayerId);
-    
-    // Animated dots
-    let dots = 0;
-    waitingDotsTimer = setInterval(() => {
-        dots = (dots % 3) + 1;
-        const dotsAnim = document.getElementById('waitingDotsAnim');
-        if (dotsAnim) dotsAnim.textContent = '.'.repeat(dots);
-    }, 500);
 }
 
 // Handle regular dice roll (when it's my turn)
@@ -4136,7 +4173,7 @@ function handleRegularDiceRoll() {
         return;
     }
 
-    // Roll 2 dice
+    // Roll 2 dice - генеруємо значення
     const die1 = Math.floor(Math.random() * 6) + 1;
     const die2 = Math.floor(Math.random() * 6) + 1;
     const total = die1 + die2;
@@ -4144,48 +4181,36 @@ function handleRegularDiceRoll() {
     hasRolledThisTurn = true;
     canPerformActions = true;
     
-    // Show dice animation
-    audioManager.playDiceSound();
-    const d1 = document.getElementById('die1');
-    const d2 = document.getElementById('die2');
-    d1.classList.add('rolling');
-    d2.classList.add('rolling');
-    
-    setTimeout(() => {
-        d1.classList.remove('rolling');
-        d2.classList.remove('rolling');
-        d1.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[die1-1] + '</span>';
-        d2.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[die2-1] + '</span>';
-        document.getElementById('total').textContent = 'Сума: ' + total;
-        
-        // У мультиплеєрі ресурси нараховує сервер через collect-resources
-        if (!isMultiplayer) {
-            showResourceNotification(collectResources(total));
-        }
-        
-        // Show end turn button (enable it - it was disabled in showYourTurn)
-        const endTurnBtn = document.getElementById('endTurnBtn');
-        endTurnBtn.style.display = 'inline-block';
-        endTurnBtn.disabled = false;
-        
-        // Close the "Your Turn" overlay since we've rolled
-        document.getElementById('yourTurnOverlay').style.display = 'none';
-    }, 800);
-    
-    // Send to server in multiplayer mode
+    // В мультиплеєрі відправляємо на сервер — сервер розсилає всім
+    // Анімацію показуємо після отримання regular-dice-rolled від сервера
     if (multiplayerClient && isMultiplayer) {
         console.log('[UI] Sending dice roll to server:', die1, die2);
         multiplayerClient.rollRegularDice(die1, die2);
     } else {
-        console.log('[UI] Single player mode - not sending to server');
+        // Одиночна гра — локальна анімація
+        audioManager.playDiceSound();
+        const d1 = document.getElementById('die1');
+        const d2 = document.getElementById('die2');
+        d1.classList.add('rolling');
+        d2.classList.add('rolling');
+        setTimeout(() => {
+            d1.classList.remove('rolling');
+            d2.classList.remove('rolling');
+            d1.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[die1-1] + '</span>';
+            d2.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[die2-1] + '</span>';
+            document.getElementById('total').textContent = 'Сума: ' + total;
+            showResourceNotification(collectResources(total));
+        }, 800);
     }
-}
-
-
-// Handle "collect resources" event from server (multiplayer)
-function handleCollectResources(data) {
-    const diceTotal = data.diceTotal;
-    showResourceNotification(collectResources(diceTotal));
+    
+    // Show end turn button (enable it)
+    const endTurnBtn = document.getElementById('endTurnBtn');
+    if (endTurnBtn) {
+        endTurnBtn.style.display = 'inline-block';
+        endTurnBtn.disabled = false;
+        endTurnBtn.textContent = '✅ Завершити хід';
+        endTurnBtn.onclick = null; // прибираємо обробник "ваш хід"
+    }
 }
 
 // End current turn
@@ -4210,7 +4235,7 @@ function handleEndTurn() {
         endTurnBtn.textContent = '⏳ Очікуємо хід інших гравців';
         endTurnBtn.disabled = true;
         endTurnBtn.style.display = 'inline-block';
-        endTurnBtn.style.opacity = '0.7';
+        endTurnBtn.style.opacity = '1';
         endTurnBtn.style.cursor = 'not-allowed';
         console.log('[UI] End turn button updated to waiting state');
     }
@@ -4493,7 +4518,7 @@ showBuildPhaseBtn.addEventListener('click', () => {
 });
 }
 
-// End Turn button - also handles initial build phase completion
+// End Turn button - універсальний обробник
 document.getElementById('endTurnBtn').addEventListener('click', () => {
     audioManager.playClickSound();
     
@@ -4501,11 +4526,9 @@ document.getElementById('endTurnBtn').addEventListener('click', () => {
     if (initialPhase.active && initialPhase.phase === 'initial-build') {
         const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
         if (myBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && myBuildings.roads >= INITIAL_ROAD_LIMIT) {
-            // Send to server that we're done (server tracks progress)
             if (multiplayerClient && isMultiplayer) {
                 multiplayerClient.endInitialBuildTurn();
             }
-            // Reset buildings for this player
             initialPhaseBuildings.set(myPlayerId, { settlements: 0, roads: 0 });
             document.getElementById('endTurnBtn').disabled = true;
             const status = document.getElementById('buildPhaseStatus');
@@ -4523,12 +4546,6 @@ document.getElementById('endTurnBtn').addEventListener('click', () => {
     }
     
     handleEndTurn();
-});
-
-// Close "Your Turn" overlay and roll dice
-document.getElementById('closeYourTurnBtn').addEventListener('click', () => {
-    audioManager.playClickSound();
-    handleRegularDiceRoll();
 });
 
 

@@ -318,11 +318,14 @@
         
         <!-- Rooms list (hidden during loading) -->
         <div id="roomsListContainer" style="display: none;">
+            <div style="margin-bottom: 15px;">
+                <input type="text" id="roomSearchInput" placeholder="🔍 Пошук кімнати за назвою..." style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #f39c12; background: rgba(255,255,255,0.1); color: #fff; font-size: 1em; outline: none;">
+            </div>
             <div style="display: flex; gap: 10px; margin-bottom: 15px;">
                 <button id="createRoomBtn" class="mode-btn" style="flex: 1;">Створити кімнату</button>
                 <button id="refreshRoomsBtn" class="mode-btn" style="flex: 1;">Оновити список</button>
             </div>
-            <div id="roomsList" style="max-height: 200px; overflow-y: auto; margin-bottom: 15px; text-align: left;">
+            <div id="roomsList" style="max-height: 400px; overflow-y: auto; margin-bottom: 15px; text-align: left;">
                 <div style="color: #666; text-align: center; padding: 20px;">Немає активних кімнат</div>
             </div>
         </div>
@@ -636,6 +639,22 @@
             document.getElementById('volumeModal').style.display = 'none';
         }
 
+        // Helper function to show temporary message
+        function showMessage(text) {
+            // Create message element
+            const messageDiv = document.createElement('div');
+            messageDiv.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(231, 76, 60, 0.95); color: #fff; padding: 20px 40px; border-radius: 10px; font-size: 1.2em; font-weight: bold; z-index: 9999; box-shadow: 0 0 30px rgba(231, 76, 60, 0.5); border: 2px solid #fff;';
+            messageDiv.textContent = text;
+            document.body.appendChild(messageDiv);
+            
+            // Remove after 2 seconds
+            setTimeout(() => {
+                messageDiv.style.transition = 'opacity 0.5s';
+                messageDiv.style.opacity = '0';
+                setTimeout(() => messageDiv.remove(), 500);
+            }, 2000);
+        }
+
         // Multiplayer client
         let mpClient = null;
         let currentRoomCode = null;
@@ -670,10 +689,8 @@
     });
     client.onColorChanged((data) => {
         console.log('Color changed:', data);
-        if (isHost && currentRoomCode) {
+        if (currentRoomCode) {
             updatePlayersList(data.players, mySocketId);
-        } else if (!isHost && currentRoomCode) {
-            updatePlayersListForGuest(data.players, mySocketId);
         }
     });
     client.onColorChangeFailed((data) => {
@@ -685,15 +702,12 @@
     });
     client.onPlayerLeft((data) => {
         console.log('Player left:', data);
-        if (isHost && currentRoomCode) {
+        if (currentRoomCode) {
             updatePlayersList(data.players, mySocketId);
             const startGameBtn = document.getElementById('startGameBtn');
             if (startGameBtn && startGameBtn.style.display === 'none') {
                 startGameBtn.style.display = 'inline-block';
             }
-        }
-        if (!isHost && currentRoomCode) {
-            updatePlayersListForGuest(data.players, mySocketId);
         }
     });
     client.onRoomClosed((data) => {
@@ -733,25 +747,25 @@
             const setupEventHandlers = () => {
                 mySocketId = mpClient.socket.id;
                 console.log('Socket ID:', mySocketId);
-                // Handle player joined event (for host to see new players)
+                // Handle player joined event (for all players to see new players)
                 mpClient.onPlayerJoined((data) => {
                     console.log('Player joined:', data);
-                    if (isHost && currentRoomCode) {
+                    if (currentRoomCode) {
                         updatePlayersList(data.players, mySocketId);
                         // Ensure start game button is visible for host
-                        const startGameBtn = document.getElementById('startGameBtn');
-                        if (startGameBtn && startGameBtn.style.display === 'none') {
-                            startGameBtn.style.display = 'inline-block';
+                        if (isHost) {
+                            const startGameBtn = document.getElementById('startGameBtn');
+                            if (startGameBtn && startGameBtn.style.display === 'none') {
+                                startGameBtn.style.display = 'inline-block';
+                            }
                         }
                     }
                 });
                 // Handle color changed event
                 mpClient.onColorChanged((data) => {
                     console.log('Color changed:', data);
-                    if (isHost && currentRoomCode) {
+                    if (currentRoomCode) {
                         updatePlayersList(data.players, mySocketId);
-                    } else if (!isHost && currentRoomCode) {
-                        updatePlayersListForGuest(data.players, mySocketId);
                     }
                 });
                 // Handle color change failed event
@@ -766,16 +780,13 @@
                 // Handle player left event
                 mpClient.onPlayerLeft((data) => {
                     console.log('Player left:', data);
-                    if (isHost && currentRoomCode) {
+                    if (currentRoomCode) {
                         updatePlayersList(data.players, mySocketId);
                         // Ensure start game button is visible for host
                         const startGameBtn = document.getElementById('startGameBtn');
                         if (startGameBtn && startGameBtn.style.display === 'none') {
                             startGameBtn.style.display = 'inline-block';
                         }
-                    }
-                    if (!isHost && currentRoomCode) {
-                        updatePlayersListForGuest(data.players, mySocketId);
                     }
                 });
                 // Handle room closed (host left)
@@ -845,20 +856,47 @@
 
         function loadRoomsList() {
             const roomsList = document.getElementById('roomsList');
+            const searchInput = document.getElementById('roomSearchInput');
+            const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
+            
             mpClient.getRoomsList().then(rooms => {
-                if (rooms.length === 0) {
-                    roomsList.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">Немає активних кімнат</div>';
+                // Filter rooms by search term
+                let filteredRooms = rooms;
+                if (searchTerm) {
+                    filteredRooms = rooms.filter(room => 
+                        room.name.toLowerCase().includes(searchTerm)
+                    );
+                }
+                
+                if (filteredRooms.length === 0) {
+                    const message = searchTerm ? 
+                        'Кімнати з такою назвою не знайдені' : 
+                        'Немає активних кімнат';
+                    roomsList.innerHTML = `<div style="color: #666; text-align: center; padding: 20px;">${message}</div>`;
                 } else {
-                    roomsList.innerHTML = rooms.map(room => `
-                        <div class="room-item" data-code="${room.code}" style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 6px; margin-bottom: 8px; cursor: pointer; border: 1px solid rgba(243,156,18,0.2);">
-                            <div style="font-weight: bold; color: #f39c12;">${room.name}</div>
+                    roomsList.innerHTML = filteredRooms.map(room => {
+                        const isInGame = room.status === 'in-game';
+                        const statusText = isInGame ? 'У грі' : 'Очікування';
+                        const statusColor = isInGame ? '#e74c3c' : '#27ae60';
+                        const opacity = isInGame ? '0.5' : '1';
+                        
+                        return `
+                        <div class="room-item" data-code="${room.code}" data-status="${room.status || 'waiting'}" style="padding: 10px; background: rgba(255,255,255,${isInGame ? '0.03' : '0.05'}); border-radius: 6px; margin-bottom: 8px; cursor: ${isInGame ? 'not-allowed' : 'pointer'}; border: 1px solid ${isInGame ? 'rgba(231,76,60,0.3)' : 'rgba(243,156,18,0.2)'}; opacity: ${opacity};">
+                            <div style="font-weight: bold; color: ${isInGame ? '#666' : '#f39c12'};">${room.name}</div>
                             <div style="font-size: 0.85em; color: #aaa;">Гравці: ${room.players}/${room.maxPlayers}</div>
+                            <div style="font-size: 0.75em; color: ${statusColor}; margin-top: 2px;">● ${statusText}</div>
                         </div>
-                    `).join('');
+                    `;
+                    }).join('');
                     
-        // Add click handlers to room items
+                    // Add click handlers to room items (only for waiting rooms)
                     document.querySelectorAll('.room-item').forEach(item => {
                         item.addEventListener('click', () => {
+                            const status = item.getAttribute('data-status');
+                            if (status === 'in-game') {
+                                showMessage('Гра вже розпочата! Не можна приєднатися.');
+                                return;
+                            }
                             // Show join room modal without auto-filling the code
                             document.getElementById('multiplayerLobbyModal').style.display = 'none';
                             document.getElementById('joinRoomModal').style.display = 'flex';
@@ -938,6 +976,14 @@
             audioManager.playClickSound();
             loadRoomsList();
         });
+
+        // Room search functionality
+        const roomSearchInput = document.getElementById('roomSearchInput');
+        if (roomSearchInput) {
+            roomSearchInput.addEventListener('input', () => {
+                loadRoomsList();
+            });
+        }
 
 
         document.getElementById('backFromLobby').addEventListener('click', () => {
@@ -1056,7 +1102,12 @@
                     });
                 }
             }).catch(err => {
-                alert('Помилка створення кімнати: ' + err);
+                // Check if it's a duplicate room name error
+                if (err.message && err.message.includes('вже існує')) {
+                    alert('Кімната з такою назвою вже існує! Будь ласка, виберіть іншу назву.');
+                } else {
+                    alert('Помилка створення кімнати: ' + err);
+                }
             });
         });
 
@@ -1124,7 +1175,7 @@ document.getElementById('exitRoomBtn').addEventListener('click', () => {
         // Handle Escape key for roomCreatedModal - go to main menu, not lobby
         // (This is handled in the main Escape handler below, so we don't need a separate one here)
 
-        // Function to update players list in room created modal (for host)
+        // Unified function to update players list (works for both host and guests)
         function updatePlayersList(players, mySocketId) {
             const playersList = document.getElementById('playersList');
             const colorMap = {
@@ -1145,18 +1196,39 @@ document.getElementById('exitRoomBtn').addEventListener('click', () => {
             playersList.innerHTML = players.map((p, index) => {
                 const color = colorMap[p.color] || '#f39c12';
                 const isCurrentUser = p.id === mySocketId;
+                const isHostPlayer = p.isHost;
                 
-                if (p.isHost) {
-                    return `<div style="padding: 8px; background: ${color}22; border-radius: 5px; color: ${color}; border-left: 4px solid ${color}; display: flex; align-items: center; justify-content: space-between;">
-                        <span>Хозяїн (ви)</span>
-                        <button class="change-color-btn" data-player-id="${p.id}" ${isCurrentUser ? '' : 'disabled'} style="width: 32px; height: 32px; border-radius: 50%; background: ${color}; border: 3px solid ${color}; box-shadow: 0 0 0 2px #fff; cursor: ${isCurrentUser ? 'pointer' : 'not-allowed'}; transition: all 0.2s; padding: 0;" title="${isCurrentUser ? 'Змінити колір' : 'Можна змінити тільки свій колір'}"></button>
-                    </div>`;
+                // Determine player label
+                let playerLabel;
+                if (isHostPlayer && isCurrentUser) {
+                    playerLabel = 'Хозяїн (ви)';
+                } else if (isHostPlayer && !isCurrentUser) {
+                    playerLabel = 'Гравець (хозяїн)';
+                } else if (!isHostPlayer && isCurrentUser) {
+                    playerLabel = 'Гравець (ви)';
                 } else {
+                    playerLabel = 'Гравець';
+                }
+                
+                // Determine if color button should be enabled
+                const canChangeColor = isCurrentUser;
+                const buttonDisabled = canChangeColor ? '' : 'disabled';
+                const buttonCursor = canChangeColor ? 'pointer' : 'not-allowed';
+                const buttonOpacity = canChangeColor ? '1' : '0.6';
+                
+                // For non-current-user players, use simpler layout
+                if (!isCurrentUser && !isHostPlayer) {
                     return `<div style="padding: 8px; background: ${color}22; border-radius: 5px; color: ${color}; border-left: 4px solid ${color}; display: flex; align-items: center; justify-content: space-between;">
-                        <span>Гравець</span>
-                        <button class="change-color-btn" data-player-id="${p.id}" ${isCurrentUser ? '' : 'disabled'} style="width: 32px; height: 32px; border-radius: 50%; background: ${color}; border: 3px solid ${color}; box-shadow: 0 0 0 2px #fff; cursor: ${isCurrentUser ? 'pointer' : 'not-allowed'}; transition: all 0.2s; padding: 0;" title="${isCurrentUser ? 'Змінити колір' : 'Можна змінити тільки свій колір'}"></button>
+                        <span>${playerLabel}</span>
+                        <button disabled style="width: 32px; height: 32px; border-radius: 50%; background: ${color}; border: 3px solid #fff; box-shadow: 0 0 0 2px #fff; cursor: not-allowed; transition: all 0.2s; padding: 0; opacity: 0.6;" title="Колір іншого гравця"></button>
                     </div>`;
                 }
+                
+                // For current user and host, show full layout with color button
+                return `<div style="padding: 8px; background: ${color}22; border-radius: 5px; color: ${color}; border-left: 4px solid ${color}; display: flex; align-items: center; justify-content: space-between;">
+                    <span>${playerLabel}</span>
+                    <button class="change-color-btn" data-player-id="${p.id}" ${buttonDisabled} style="width: 32px; height: 32px; border-radius: 50%; background: ${color}; border: 4px solid #fff; cursor: ${buttonCursor}; transition: all 0.2s; padding: 0; opacity: ${buttonOpacity};" title="${canChangeColor ? 'Змінити колір' : 'Можна змінити тільки свій колір'}"></button>
+                </div>`;
             }).join('');
             
             // Add click handlers to color change buttons (only for current user)
@@ -1165,60 +1237,6 @@ document.getElementById('exitRoomBtn').addEventListener('click', () => {
                     audioManager.playClickSound();
                     const playerId = btn.getAttribute('data-player-id');
                     // Only allow changing own color
-                    if (playerId === mySocketId) {
-                        selectedPlayerIdForColor = playerId;
-                        colorSelectionModal.style.display = 'flex';
-                    }
-                });
-            });
-        }
-
-        // Function to update players list for guest (marks self as "ви")
-        function updatePlayersListForGuest(players, mySocketId) {
-            const playersList = document.getElementById('playersList');
-            const colorMap = {
-                'red': '#e74c3c',
-                'blue': '#3498db',
-                'yellow': '#f1c40f',
-                'green': '#27ae60'
-            };
-            const defaultColors = ['red', 'blue', 'yellow', 'green'];
-            
-            // Ensure all players have colors
-            players.forEach((p, index) => {
-                if (!p.color) {
-                    p.color = defaultColors[index] || 'red';
-                }
-            });
-            
-            playersList.innerHTML = players.map((p, index) => {
-                const color = colorMap[p.color] || '#f39c12';
-                const isCurrentUser = p.id === mySocketId;
-                const disabledStyle = isCurrentUser ? '' : 'opacity: 0.4; cursor: not-allowed;';
-                
-                if (p.isHost) {
-                    // Show host with disabled color button (same layout as host sees, but non-clickable)
-                    return `<div style="padding: 8px; background: ${color}22; border-radius: 5px; color: ${color}; border-left: 4px solid ${color}; display: flex; align-items: center; justify-content: space-between;">
-                        <span>Гравець (хозяїн)</span>
-                        <button disabled style="width: 32px; height: 32px; border-radius: 50%; background: ${color}; border: 3px solid #fff; box-shadow: 0 0 0 2px #fff; cursor: not-allowed; transition: all 0.2s; padding: 0; opacity: 0.6;" title="Колір хозяїна"></button>
-                    </div>`;
-                } else if (p.id === mySocketId) {
-                    return `<div style="padding: 8px; background: ${color}22; border-radius: 5px; color: ${color}; border-left: 4px solid ${color}; display: flex; align-items: center; justify-content: space-between;">
-                        <span>Гравець (ви)</span>
-                        <button class="change-color-btn" data-player-id="${p.id}" style="width: 32px; height: 32px; border-radius: 50%; background: ${color}; border: 3px solid ${color}; box-shadow: 0 0 0 2px #fff; cursor: pointer; transition: all 0.2s; padding: 0;" title="Змінити колір"></button>
-                    </div>`;
-                } else {
-                    return `<div style="padding: 8px; background: ${color}22; border-radius: 5px; color: ${color}; border-left: 4px solid ${color};">
-                        Гравець
-                    </div>`;
-                }
-            }).join('');
-            
-            // Add click handlers to color change buttons (only for self)
-            document.querySelectorAll('.change-color-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    audioManager.playClickSound();
-                    const playerId = btn.getAttribute('data-player-id');
                     if (playerId === mySocketId) {
                         selectedPlayerIdForColor = playerId;
                         colorSelectionModal.style.display = 'flex';
@@ -1261,7 +1279,7 @@ document.getElementById('exitRoomBtn').addEventListener('click', () => {
                     document.getElementById('roomCreatedModal').style.display = 'flex';
                     document.getElementById('roomCodeDisplay').textContent = code;
                     // Show players list (including self as "Гравець (ви)")
-                    updatePlayersListForGuest(data.players, mySocketId);
+                    updatePlayersList(data.players, mySocketId);
                     // Save guest's color from server response
                     const myPlayerData = data.players.find(p => p.id === mySocketId);
                     if (myPlayerData && myPlayerData.color) {

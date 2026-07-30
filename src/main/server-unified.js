@@ -75,10 +75,12 @@ function isEdgeConnectedServer(edgeKey, playerId, room) {
         const edge2 = edgeMap.get(ek2);
         if (!edge2) continue;
         
-        if ((edge2.va.x === va.x && edge2.va.y === va.y) ||
-            (edge2.va.x === vb.x && edge2.va.y === vb.y) ||
-            (edge2.vb.x === va.x && edge2.vb.y === va.y) ||
-            (edge2.vb.x === vb.x && edge2.vb.y === vb.y)) {
+        // Use rounding to avoid floating point precision issues
+        const round3 = (n) => Math.round(n * 1000);
+        if ((round3(edge2.va.x) === round3(va.x) && round3(edge2.va.y) === round3(va.y)) ||
+            (round3(edge2.va.x) === round3(vb.x) && round3(edge2.va.y) === round3(vb.y)) ||
+            (round3(edge2.vb.x) === round3(va.x) && round3(edge2.vb.y) === round3(va.y)) ||
+            (round3(edge2.vb.x) === round3(vb.x) && round3(edge2.vb.y) === round3(vb.y))) {
             return true;
         }
     }
@@ -99,11 +101,13 @@ function canPlaceSettlementServer(vertexKey, playerId, room) {
         if (!edge.va || !edge.vb) continue; // Пропускаємо ребро, якщо немає координат
         // ==================================
 
-        if ((edge.va.x === vData.pos.x && edge.va.y === vData.pos.y) ||
-            (edge.vb.x === vData.pos.x && edge.vb.y === vData.pos.y)) {
-            const target = (edge.va.x === vData.pos.x && edge.va.y === vData.pos.y) ? edge.vb : edge.va;
+        // Use rounding to avoid floating point precision issues
+        const round3 = (n) => Math.round(n * 1000);
+        if ((round3(edge.va.x) === round3(vData.pos.x) && round3(edge.va.y) === round3(vData.pos.y)) ||
+            (round3(edge.vb.x) === round3(vData.pos.x) && round3(edge.vb.y) === round3(vData.pos.y))) {
+            const target = (round3(edge.va.x) === round3(vData.pos.x) && round3(edge.va.y) === round3(vData.pos.y)) ? edge.vb : edge.va;
             for (const [vk2, v2] of vertexMap) {
-                if (v2.pos.x === target.x && v2.pos.y === target.y) neighborKeys.push(vk2);
+                if (round3(v2.pos.x) === round3(target.x) && round3(v2.pos.y) === round3(target.y)) neighborKeys.push(vk2);
             }
         }
     }
@@ -136,6 +140,18 @@ io.on('connection', (socket) => {
 
     // Create room
     socket.on('create-room', ({ roomName, playerName, maxPlayers, color }) => {
+        // Check if room name already exists
+        const existingRoom = Array.from(rooms.values()).find(room => 
+            room.name.toLowerCase() === (roomName || 'Кімната').toLowerCase()
+        );
+        
+        if (existingRoom) {
+            socket.emit('create-room-error', { 
+                message: 'Кімната з такою назвою вже існує!' 
+            });
+            return;
+        }
+        
         const roomCode = generateRoomCode();
         const defaultColors = ['red', 'blue', 'yellow', 'green'];
         
@@ -152,6 +168,7 @@ io.on('connection', (socket) => {
             }],
             gameState: null,
             createdAt: Date.now(),
+            status: 'waiting', // 'waiting' or 'in-game'
             gamePhase: null, // 'dice-roll', 'initial-build', 'regular-turn'
             diceRolls: new Map(), // playerId -> total
             initialBuildOrder: [], // sorted array of {playerId, total}
@@ -187,6 +204,12 @@ io.on('connection', (socket) => {
         
         if (!room) {
             socket.emit('join-error', { message: 'Кімната не знайдена' });
+            return;
+        }
+        
+        // Don't allow joining in-game rooms
+        if (room.status === 'in-game') {
+            socket.emit('join-error', { message: 'Гра вже розпочата! Не можна приєднатися.' });
             return;
         }
         
@@ -506,6 +529,9 @@ io.on('connection', (socket) => {
     socket.on('start-game', ({ roomCode }) => {
         const room = rooms.get(roomCode);
         if (room && room.host === socket.id) {
+            // Mark room as in-game
+            room.status = 'in-game';
+            
             // Initialize game phase
             room.gamePhase = 'dice-roll';
             room.diceRolls = new Map();
@@ -529,6 +555,9 @@ io.on('connection', (socket) => {
             io.to(roomCode).emit('start-dice-phase', { 
                 players: room.players.map(p => ({ id: p.id, name: p.name }))
             });
+            
+            // Update room list for all clients
+            io.emit('rooms-list', getRoomsList());
         }
     });
 
@@ -1021,13 +1050,18 @@ io.on('connection', (socket) => {
             if (playerIndex === -1) return;
             const player = room.players[playerIndex];
             
+            // If host disconnects, close the room and kick all players
+            if (room.host === socket.id) {
+                io.to(code).emit('room-closed', {
+                    message: 'Хозяїн вийшов з кімнати'
+                });
+                rooms.delete(code);
+                return;
+            }
+            
             if (!room.gamePhase) {
                 // Game not started yet - remove player completely
                 room.players.splice(playerIndex, 1);
-                if (room.host === socket.id && room.players.length > 0) {
-                    room.host = room.players[0].id;
-                    room.players[0].isHost = true;
-                }
                 if (room.players.length === 0) {
                     rooms.delete(code);
                     return;
@@ -1042,6 +1076,18 @@ io.on('connection', (socket) => {
                 socket.to(code).emit('player-disconnected', {
                     playerId: socket.id
                 });
+                
+                // If all players disconnected, delete the room after a delay
+                const allDisconnected = room.players.every(p => p.disconnected);
+                if (allDisconnected) {
+                    setTimeout(() => {
+                        const currentRoom = rooms.get(code);
+                        if (currentRoom && currentRoom.players.every(p => p.disconnected)) {
+                            rooms.delete(code);
+                            io.emit('rooms-list', getRoomsList());
+                        }
+                    }, 5000); // Wait 5 seconds before deleting
+                }
             }
         });
         
@@ -1056,7 +1102,8 @@ function getRoomsList() {
         code: room.code,
         name: room.name,
         players: room.players.length,
-        maxPlayers: room.maxPlayers
+        maxPlayers: room.maxPlayers,
+        status: room.status || 'waiting' // 'waiting' or 'in-game'
     }));
 }
 
