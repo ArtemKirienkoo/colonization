@@ -416,6 +416,21 @@ class MultiplayerClient {
         this._safeOn('game-state-sync', callback);
     }
 
+    // Handle knight activated event
+    onKnightActivated(callback) {
+        this._safeOn('knight-activated', callback);
+    }
+
+    // Handle resource stolen event
+    onResourceStolen(callback) {
+        this._safeOn('resource-stolen', callback);
+    }
+
+    // Handle dev cards sync (for reconnection)
+    onSyncDevCards(callback) {
+        this._safeOn('sync-dev-cards', callback);
+    }
+
     // Request game state sync from server
     requestGameStateSync() {
         if (this.socket && this.roomCode) {

@@ -181,7 +181,11 @@ io.on('connection', (socket) => {
                 actionsLocked: true // locked until dice rolled
             },
             buildings: new Map(), // edgeKey/vertexKey -> {playerId, color, type}
-            topology: null // Cloud version topology support
+            topology: null, // Cloud version topology support
+            // ===== NEW: Robber and Dev Card state =====
+            robber: { hexKey: null, placedBy: null }, // {hexKey: 'q,r,s', placedBy: playerId}
+            devCardHands: new Map(), // playerId -> array of dev cards
+            knightCards: new Map() // playerId -> count of active knights
         };
         
         rooms.set(roomCode, room);
@@ -442,6 +446,13 @@ io.on('connection', (socket) => {
         if (room.buildings) {
             socket.emit('sync-buildings', { buildings: getBuildingsArray(room) });
         }
+        
+        // Send dev card hands for all players
+        const devCardHandsData = {};
+        for (const [playerId, hand] of room.devCardHands) {
+            devCardHandsData[playerId] = hand;
+        }
+        socket.emit('sync-dev-cards', { devCardHands: devCardHandsData });
 
         if (room.gamePhase === 'dice-roll') {
             const diceRolls = Array.from(room.diceRolls.entries()).map(([playerId, total]) => ({ playerId, total }));
@@ -556,6 +567,17 @@ io.on('connection', (socket) => {
             room.currentInitialBuildIndex = 0;
             room.initialBuildRoundComplete = false;
             room.buildings = new Map();
+            
+            // Initialize robber and dev card state
+            room.robber = { hexKey: null, placedBy: null };
+            room.devCardHands = new Map();
+            room.knightCards = new Map();
+            
+            // Initialize dev card hands for all players
+            for (const p of room.players) {
+                room.devCardHands.set(p.id, []);
+                room.knightCards.set(p.id, 0);
+            }
             
             // Send map seed for synchronization
             const mapSeed = room.gameState || {
@@ -1030,6 +1052,108 @@ io.on('connection', (socket) => {
                 type: 'build-sync',
                 buildData: payload,
                 gameState: room.gameState
+            });
+        }
+        else if (action === 'place-robber') {
+            // Update robber position on server
+            room.gameState.robber = {
+                hexKey: payload.hexKey,
+                placedBy: socket.id
+            };
+            
+            // Broadcast to all players
+            io.to(roomCode).emit('game-state-update', {
+                type: 'robber-placed',
+                robber: room.gameState.robber,
+                gameState: room.gameState
+            });
+        }
+        else if (action === 'activate-knight') {
+            // Track knight usage on server - use devCardHands
+            const playerHand = room.devCardHands.get(socket.id) || [];
+            const knightCard = playerHand.find(c => c.type === 'knight' && !c.used);
+            
+            if (knightCard) {
+                knightCard.used = true;
+                
+                // Update knight count for largest army tracking
+                if (!room.knightCards.has(socket.id)) {
+                    room.knightCards.set(socket.id, 0);
+                }
+                room.knightCards.set(socket.id, room.knightCards.get(socket.id) + 1);
+                
+                // Broadcast to all players
+                io.to(roomCode).emit('game-state-update', {
+                    type: 'knight-activated',
+                    playerId: socket.id,
+                    gameState: room.gameState
+                });
+            }
+        }
+        else if (action === 'monopoly') {
+            // Broadcast monopoly action to all players
+            io.to(roomCode).emit('game-state-update', {
+                type: 'monopoly-action',
+                targetPlayerId: payload.targetPlayerId,
+                resource: payload.resource,
+                playerId: socket.id
+            });
+        }
+        else if (action === 'steal-resource') {
+            // Handle robber stealing a random resource
+            const fromPlayerId = payload.fromPlayerId;
+            const toPlayerId = payload.toPlayerId;
+            
+            // Initialize player resources if needed
+            if (!room.playerResources) {
+                room.playerResources = new Map();
+            }
+            if (!room.playerResources.has(fromPlayerId)) {
+                room.playerResources.set(fromPlayerId, { wood: 0, brick: 0, geese: 0, water: 0, stone: 0 });
+            }
+            if (!room.playerResources.has(toPlayerId)) {
+                room.playerResources.set(toPlayerId, { wood: 0, brick: 0, geese: 0, water: 0, stone: 0 });
+            }
+            
+            // Get target player's resources
+            const fromResources = room.playerResources.get(fromPlayerId);
+            const toResources = room.playerResources.get(toPlayerId);
+            
+            // Count total resources of the target player
+            const totalResources = fromResources.wood + fromResources.brick + fromResources.geese + 
+                                  fromResources.water + fromResources.stone;
+            
+            // Only steal if target has 7 or more resources
+            let stolenResource = null;
+            if (totalResources >= 7) {
+                // Find resources that the target player has
+                const availableResources = [];
+                if (fromResources.wood > 0) availableResources.push('wood');
+                if (fromResources.brick > 0) availableResources.push('brick');
+                if (fromResources.geese > 0) availableResources.push('geese');
+                if (fromResources.water > 0) availableResources.push('water');
+                if (fromResources.stone > 0) availableResources.push('stone');
+                
+                // If target has resources, steal one randomly
+                if (availableResources.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * availableResources.length);
+                    stolenResource = availableResources[randomIndex];
+                    
+                    // Transfer resource
+                    fromResources[stolenResource]--;
+                    toResources[stolenResource]++;
+                }
+            }
+            
+            // Broadcast to all players that a resource was stolen
+            io.to(roomCode).emit('game-state-update', {
+                type: 'resource-stolen',
+                fromPlayerId: fromPlayerId,
+                toPlayerId: toPlayerId,
+                resource: stolenResource,
+                success: stolenResource !== null,
+                hasEnoughCards: totalResources >= 7,
+                playerId: socket.id
             });
         }
     });
