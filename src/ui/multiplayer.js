@@ -221,13 +221,23 @@ class MultiplayerClient {
         // Fallback: request full game state in case any phase events were emitted
         // before the client rejoined and missed them. Server will emit 'game-state-sync'.
         try {
-            const oldPlayerId = sessionStorage.getItem('multiplayerPlayerId');
             console.log('[MultiplayerClient] request-game-state', { roomCode, socketId: this.socket?.id, oldPlayerId });
             this._logEmit('request-game-state', { roomCode, oldPlayerId });
             this.socket.emit('request-game-state', { roomCode, oldPlayerId });
         } catch (e) {
             console.warn('[MultiplayerClient] request-game-state failed', e);
         }
+
+        // Additional fallback: request game state again after a delay
+        // This handles the case where the server hasn't processed 'start-game' yet
+        // when the client first rejoined (race condition on game start)
+        setTimeout(() => {
+            if (this.socket && this.roomCode) {
+                console.log('[MultiplayerClient] delayed request-game-state (fallback)', { roomCode, socketId: this.socket?.id });
+                this._logEmit('request-game-state (delayed)', { roomCode, oldPlayerId });
+                this.socket.emit('request-game-state', { roomCode, oldPlayerId });
+            }
+        }, 2000);
     }
 
     // Sync a building action to all players in the room (stores on server)

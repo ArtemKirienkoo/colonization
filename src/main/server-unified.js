@@ -343,9 +343,17 @@ io.on('connection', (socket) => {
         // Send game state based on current phase
         if (room.gamePhase === 'dice-roll') {
             const diceRolls = Array.from(room.diceRolls.entries()).map(([playerId, total]) => ({ playerId, total }));
+            const playersList = room.players.map(p => ({ id: p.id, name: p.name }));
+            // Emit start-dice-phase (primary event)
             socket.emit('start-dice-phase', {
-                players: room.players.map(p => ({ id: p.id, name: p.name })),
+                players: playersList,
                 diceRolls
+            });
+            // Also emit game-state-sync as a fallback (in case start-dice-phase was missed)
+            socket.emit('game-state-sync', {
+                gamePhase: room.gamePhase,
+                players: playersList,
+                diceRolls: diceRolls
             });
         } else if (room.gamePhase === 'initial-build') {
             const currentPlayerId = room.initialBuildOrder[room.currentInitialBuildIndex]?.playerId;
@@ -456,9 +464,17 @@ io.on('connection', (socket) => {
 
         if (room.gamePhase === 'dice-roll') {
             const diceRolls = Array.from(room.diceRolls.entries()).map(([playerId, total]) => ({ playerId, total }));
+            const playersList = room.players.map(p => ({ id: p.id, name: p.name }));
+            // Emit start-dice-phase (primary event)
             socket.emit('start-dice-phase', {
-                players: room.players.map(p => ({ id: p.id, name: p.name })),
+                players: playersList,
                 diceRolls
+            });
+            // Also emit game-state-sync as a fallback (in case start-dice-phase was missed)
+            socket.emit('game-state-sync', {
+                gamePhase: room.gamePhase,
+                players: playersList,
+                diceRolls: diceRolls
             });
         } else if (room.gamePhase === 'initial-build') {
             const currentPlayerId = room.initialBuildOrder[room.currentInitialBuildIndex]?.playerId;

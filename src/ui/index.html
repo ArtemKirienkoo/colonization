@@ -3729,6 +3729,20 @@ function deserializeMap(serializedMap) {
     };
 }
 
+// ===== MULTIPLAYER INTEGRATION =====
+// Declare multiplayer variables BEFORE any code that might use them
+// (e.g. updateAllUI -> updateBuildStats -> computeVictoryPoints -> hasLargestArmy uses myPlayerId)
+let multiplayerClient = null;
+let mpClient = null;
+let isMultiplayer = false;
+let isHost = false;
+let roomCode = null;
+let myPlayerId = null;
+let mySocketId = null;
+let initialPhaseBuildings = new Map();
+let robberMode = false; // Block all actions when robber needs to be placed
+let largestArmyHolder = null; // Track who has the largest army medal
+
 // Check for multiplayer map in sessionStorage first
 let data = null;
 const storedMultiplayerMap = sessionStorage.getItem('multiplayerMap');
@@ -3759,18 +3773,6 @@ loadVolumeSettings();
 
 // Запускаємо фонову музику
 audioManager.startBackgroundMusic();
-
-// ===== MULTIPLAYER INTEGRATION =====
-let multiplayerClient = null;
-let mpClient = null;
-let isMultiplayer = false;
-let isHost = false;
-let roomCode = null;
-let myPlayerId = null;
-let mySocketId = null;
-let initialPhaseBuildings = new Map();
-let robberMode = false; // Block all actions when robber needs to be placed
-let largestArmyHolder = null; // Track who has the largest army medal
 
 function registerMultiplayerHandlers(client) {
     client.onPlayerJoined((data) => {
@@ -4124,7 +4126,20 @@ function registerMultiplayerHandlers(client) {
     client.onGameStateSync((data) => {
         console.log('Game state sync:', data);
         myPlayerId = getMyPlayerId();
-        if (data.gamePhase === 'regular-turn') {
+        // Handle dice-roll phase as a fallback (in case start-dice-phase event was missed)
+        if (data.gamePhase === 'dice-roll') {
+            console.log('[game-state-sync] dice-roll phase detected, showing dice overlay');
+            // Only show dice overlay if it's not already visible
+            const existingOverlay = document.getElementById('dicePhaseOverlay');
+            if (existingOverlay && existingOverlay.style.display !== 'flex') {
+                // Build the data structure expected by startDicePhase
+                const diceRollsData = data.diceRolls || [];
+                startDicePhase({
+                    players: data.players || [],
+                    diceRolls: diceRollsData
+                });
+            }
+        } else if (data.gamePhase === 'regular-turn') {
             initialPhase.active = false;
             initialPhase.phase = 'complete';
             if (data.currentTurnPlayerId === myPlayerId) {
