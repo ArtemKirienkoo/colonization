@@ -2211,38 +2211,58 @@ function renderMap(data, canvas, hexSize) {
         const robberRes = mapData.resources.get(gameState.robber.hexKey);
         if (robberRes !== 'desert') {
             ctx.save();
-            ctx.beginPath();
-            ctx.arc(rcx, rcy, hexSize * 0.25, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-            ctx.fill();
-            ctx.strokeStyle = '#e74c3c';
-            ctx.lineWidth = 3;
-            ctx.stroke();
-            const s = hexSize * 0.3;
+            // Purple rectangle background (like in screenshot 2)
+            const rectWidth = hexSize * 0.7;
+            const rectHeight = hexSize * 0.5;
+            const rectX = rcx - rectWidth / 2;
+            const rectY = rcy - rectHeight / 2;
+            
+            // Draw purple rectangle with rounded corners
+            ctx.fillStyle = '#8b5cf6';
+            ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
+            ctx.strokeStyle = '#6d28d9';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
+            
+            // Draw robber figure (black silhouette with sword)
+            const s = hexSize * 0.35;
+            const figureX = rcx;
+            const figureY = rcy + 2;
+            
+            // Body (black ellipse)
             ctx.fillStyle = '#1a1a1a';
             ctx.beginPath();
-            ctx.ellipse(rcx - s*0.05, rcy + s*0.08, s*0.25, s*0.14, 0, 0, Math.PI * 2);
+            ctx.ellipse(figureX - s*0.05, figureY + s*0.1, s*0.25, s*0.15, 0, 0, Math.PI * 2);
             ctx.fill();
+            
+            // Head (black circle)
             ctx.beginPath();
-            ctx.moveTo(rcx + s*0.1, rcy - s*0.05);
-            ctx.lineTo(rcx + s*0.35, rcy - s*0.1);
-            ctx.lineTo(rcx + s*0.4, rcy - s*0.32);
-            ctx.lineTo(rcx + s*0.22, rcy - s*0.38);
+            ctx.arc(figureX - s*0.02, figureY - s*0.15, s*0.2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Sword (gray line with silver tip)
+            ctx.strokeStyle = '#777';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(figureX + s*0.2, figureY - s*0.2);
+            ctx.lineTo(figureX + s*0.55, figureY - s*0.6);
+            ctx.stroke();
+            
+            // Sword tip (silver)
+            ctx.fillStyle = '#aaa';
+            ctx.beginPath();
+            ctx.moveTo(figureX + s*0.55, figureY - s*0.6);
+            ctx.lineTo(figureX + s*0.5, figureY - s*0.5);
+            ctx.lineTo(figureX + s*0.6, figureY - s*0.5);
             ctx.closePath();
             ctx.fill();
-            ctx.fillStyle = '#0a0a0a';
-            ctx.beginPath();
-            ctx.arc(rcx - s*0.02, rcy - s*0.2, s*0.18, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#444';
-            ctx.beginPath();
-            ctx.arc(rcx, rcy - s*0.4, s*0.1, 0, Math.PI * 2);
-            ctx.fill();
+            
+            // Label
             ctx.fillStyle = '#fff';
-            ctx.font = 'bold ' + (hexSize*0.15) + 'px sans-serif';
+            ctx.font = 'bold ' + (hexSize*0.18) + 'px sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillText('ROBBER', rcx, rcy + hexSize * 0.3);
+            ctx.fillText('ROBBER', rcx, rcy + rectHeight / 2 + 5);
             ctx.restore();
         }
     }
@@ -3350,7 +3370,12 @@ function handleSevenRolled() {
     const tradeBtn = document.getElementById('tradeBtn');
     if (tradeBtn) { tradeBtn.disabled = true; tradeBtn.style.opacity = '0.5'; tradeBtn.style.cursor = 'not-allowed'; }
     const endTurnBtn = document.getElementById('endTurnBtn');
-    if (endTurnBtn) { endTurnBtn.disabled = true; endTurnBtn.style.opacity = '0.5'; endTurnBtn.style.cursor = 'not-allowed'; }
+    if (endTurnBtn) { 
+        endTurnBtn.disabled = true; 
+        endTurnBtn.style.opacity = '0.5'; 
+        endTurnBtn.style.cursor = 'not-allowed'; 
+        endTurnBtn.onclick = null; // Remove click handler
+    }
     
     showMessage('🎲 Випало 7! Клікніть на гекс іншого гравця, щоб розмістити розбійника');
 }
@@ -3419,7 +3444,10 @@ function placeRobber(targetHexKey) {
         return false;
     }
     
-    // Move robber
+    // Clear old robber position (especially if it was on desert)
+    const oldRobberHex = gameState.robber.hexKey;
+    
+    // Move robber to new position
     gameState.robber.hexKey = targetHexKey;
     gameState.robber.placedBy = myPlayerId;
     
@@ -3433,12 +3461,42 @@ function placeRobber(targetHexKey) {
     const tradeBtn = document.getElementById('tradeBtn');
     if (tradeBtn) { tradeBtn.disabled = false; tradeBtn.style.opacity = '1'; tradeBtn.style.cursor = 'pointer'; }
     const endTurnBtn = document.getElementById('endTurnBtn');
-    if (endTurnBtn) { endTurnBtn.disabled = false; endTurnBtn.style.opacity = '1'; endTurnBtn.style.cursor = 'pointer'; }
+    if (endTurnBtn) { 
+        endTurnBtn.disabled = false; 
+        endTurnBtn.style.opacity = '1'; 
+        endTurnBtn.style.cursor = 'pointer'; 
+        // Restore the click handler
+        endTurnBtn.onclick = () => {
+            audioManager.playClickSound();
+            if (initialPhase.active && initialPhase.phase === 'initial-build') {
+                const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
+                if (myBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && myBuildings.roads >= INITIAL_ROAD_LIMIT) {
+                    if (multiplayerClient && isMultiplayer) {
+                        multiplayerClient.endInitialBuildTurn();
+                    }
+                    initialPhaseBuildings.set(myPlayerId, { settlements: 0, roads: 0 });
+                    document.getElementById('endTurnBtn').disabled = true;
+                    const status = document.getElementById('buildPhaseStatus');
+                    if (status) {
+                        status.textContent = '⏳ Очікування наступного гравця...';
+                        status.style.color = '#f1c40f';
+                    }
+                    setBuildMode('none');
+                    initialPhase.canBuild = false;
+                    return;
+                } else {
+                    showMessage('Спочатку побудуйте 1 село + 2 дороги!');
+                    return;
+                }
+            }
+            handleEndTurn();
+        };
+    }
     
     // Steal a random resource from the target player (if they have 7+ cards)
     stealRandomResource(target.ownerPlayerId, myPlayerId);
     
-    // Render map
+    // Render map to update robber position
     renderMap(mapData, canvas, mapHexSize);
     
     // Sync in multiplayer
