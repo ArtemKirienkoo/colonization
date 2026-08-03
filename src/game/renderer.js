@@ -115,61 +115,61 @@ function markPortCorners(ctx, cx, cy, hexSize, portCorners, portColor) {
     }
 }
 
-// Draw robber token (purple figure with "ROBBER" text)
+// Draw robber token (same style as desert tile token — rounded corners, same size)
 function drawRobberToken(ctx, cx, cy, size) {
-    const s = size * 0.38;
-    const sx = cx, sy = cy + 2;
-    
-    // Shadow
+    // Same dimensions as desert tile token
+    const rs = size * 0.3, hw = rs * 1.35, hh = rs * 0.95, rr = size * 0.07;
+    // Rounded rectangle (same as desert tile)
+    ctx.beginPath();
+    ctx.moveTo(cx-hw+rr, cy-hh);
+    ctx.lineTo(cx+hw-rr, cy-hh);
+    ctx.quadraticCurveTo(cx+hw, cy-hh, cx+hw, cy-hh+rr);
+    ctx.lineTo(cx+hw, cy+hh-rr);
+    ctx.quadraticCurveTo(cx+hw, cy+hh, cx+hw-rr, cy+hh);
+    ctx.lineTo(cx-hw+rr, cy+hh);
+    ctx.quadraticCurveTo(cx-hw, cy+hh, cx-hw, cy+hh-rr);
+    ctx.lineTo(cx-hw, cy-hh+rr);
+    ctx.quadraticCurveTo(cx-hw, cy-hh, cx-hw+rr, cy-hh);
+    ctx.closePath();
+    ctx.fillStyle = '#8b5cf6';
+    ctx.fill();
+    ctx.strokeStyle = '#6d28d9';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Robber figure (same as desert tile)
+    const s = size * 0.38, scx = cx, scy = cy + 2;
     ctx.fillStyle = '#1a1a1a';
     ctx.beginPath();
-    ctx.ellipse(sx - s*0.05, sy + s*0.08, s*0.25, s*0.14, 0, 0, Math.PI*2);
+    ctx.ellipse(scx-s*0.05, scy+s*0.08, s*0.25, s*0.14, 0, 0, Math.PI*2);
     ctx.fill();
-    
-    // Body
     ctx.beginPath();
-    ctx.moveTo(sx + s*0.1, sy - s*0.05);
-    ctx.lineTo(sx + s*0.35, sy - s*0.1);
-    ctx.lineTo(sx + s*0.4, sy - s*0.32);
-    ctx.lineTo(sx + s*0.22, sy - s*0.38);
+    ctx.moveTo(scx+s*0.1, scy-s*0.05);
+    ctx.lineTo(scx+s*0.35, scy-s*0.1);
+    ctx.lineTo(scx+s*0.4, scy-s*0.32);
+    ctx.lineTo(scx+s*0.22, scy-s*0.38);
     ctx.closePath();
     ctx.fill();
-    
-    // Head
     ctx.fillStyle = '#0a0a0a';
     ctx.beginPath();
-    ctx.arc(sx - s*0.02, sy - s*0.2, s*0.18, 0, Math.PI*2);
+    ctx.arc(scx-s*0.02, scy-s*0.2, s*0.18, 0, Math.PI*2);
     ctx.fill();
-    
-    // Eye
     ctx.fillStyle = '#444';
     ctx.beginPath();
-    ctx.arc(sx, sy - s*0.4, s*0.1, 0, Math.PI*2);
+    ctx.arc(scx, scy-s*0.4, s*0.1, 0, Math.PI*2);
     ctx.fill();
-    
-    // Staff
     ctx.strokeStyle = '#777';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(sx + s*0.3, sy - s*0.2);
-    ctx.lineTo(sx + s*0.6, sy - s*0.7);
+    ctx.moveTo(scx+s*0.3, scy-s*0.2);
+    ctx.lineTo(scx+s*0.6, scy-s*0.7);
     ctx.stroke();
-    
-    // Staff top
     ctx.fillStyle = '#aaa';
     ctx.beginPath();
-    ctx.moveTo(sx + s*0.6, sy - s*0.75);
-    ctx.lineTo(sx + s*0.54, sy - s*0.62);
-    ctx.lineTo(sx + s*0.66, sy - s*0.62);
+    ctx.moveTo(scx+s*0.6, scy-s*0.75);
+    ctx.lineTo(scx+s*0.54, scy-s*0.62);
+    ctx.lineTo(scx+s*0.66, scy-s*0.62);
     ctx.closePath();
     ctx.fill();
-    
-    // ROBBER text
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold ' + (size * 0.2) + 'px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText('ROBBER', cx, cy + size * 0.3);
 }
 
 function renderMap(data, canvas, hexSize) {

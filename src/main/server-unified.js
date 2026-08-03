@@ -1178,8 +1178,9 @@ io.on('connection', (socket) => {
             });
         }
         else if (action === 'place-robber') {
-            // Update robber position on server
-            room.gameState.robber = {
+            // Update robber position on server — use room.robber (NOT room.gameState.robber)
+            // room.robber is what regular-dice-roll uses for resource collection
+            room.robber = {
                 hexKey: payload.hexKey,
                 placedBy: socket.id
             };
@@ -1187,7 +1188,7 @@ io.on('connection', (socket) => {
             // Broadcast to all players
             io.to(roomCode).emit('game-state-update', {
                 type: 'robber-placed',
-                robber: room.gameState.robber,
+                robber: room.robber,
                 gameState: room.gameState
             });
         }

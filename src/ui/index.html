@@ -1972,61 +1972,59 @@ function renderMap(data, canvas, hexSize) {
                 }
             }
         }else{
-            const rs=hexSize*0.3,hw=rs*1.35,hh=rs*0.95,rr=hexSize*0.07;
-            ctx.beginPath();
-            ctx.moveTo(cx-hw+rr,cy-hh);
-            ctx.lineTo(cx+hw-rr,cy-hh);
-            ctx.quadraticCurveTo(cx+hw,cy-hh,cx+hw,cy-hh+rr);
-            ctx.lineTo(cx+hw,cy+hh-rr);
-            ctx.quadraticCurveTo(cx+hw,cy+hh,cx+hw-rr,cy+hh);
-            ctx.lineTo(cx-hw+rr,cy+hh);
-            ctx.quadraticCurveTo(cx-hw,cy+hh,cx-hw,cy+hh-rr);
-            ctx.lineTo(cx-hw,cy-hh+rr);
-            ctx.quadraticCurveTo(cx-hw,cy-hh,cx-hw+rr,cy-hh);
-            ctx.closePath();
-            ctx.fillStyle='#8b5cf6';
-            ctx.fill();
-            ctx.strokeStyle='#6d28d9';
-            ctx.lineWidth=2;
-            ctx.stroke();
-            const s=hexSize*0.38,scx=cx,scy=cy+2;
-            ctx.fillStyle='#1a1a1a';
-            ctx.beginPath();
-            ctx.ellipse(scx-s*0.05,scy+s*0.08,s*0.25,s*0.14,0,0,Math.PI*2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.moveTo(scx+s*0.1,scy-s*0.05);
-            ctx.lineTo(scx+s*0.35,scy-s*0.1);
-            ctx.lineTo(scx+s*0.4,scy-s*0.32);
-            ctx.lineTo(scx+s*0.22,scy-s*0.38);
-            ctx.closePath();
-            ctx.fill();
-            ctx.fillStyle='#0a0a0a';
-            ctx.beginPath();
-            ctx.arc(scx-s*0.02,scy-s*0.2,s*0.18,0,Math.PI*2);
-            ctx.fill();
-            ctx.fillStyle='#444';
-            ctx.beginPath();
-            ctx.arc(scx,scy-s*0.4,s*0.1,0,Math.PI*2);
-            ctx.fill();
-            ctx.strokeStyle='#777';
-            ctx.lineWidth=1.5;
-            ctx.beginPath();
-            ctx.moveTo(scx+s*0.3,scy-s*0.2);
-            ctx.lineTo(scx+s*0.6,scy-s*0.7);
-            ctx.stroke();
-            ctx.fillStyle='#aaa';
-            ctx.beginPath();
-            ctx.moveTo(scx+s*0.6,scy-s*0.75);
-            ctx.lineTo(scx+s*0.54,scy-s*0.62);
-            ctx.lineTo(scx+s*0.66,scy-s*0.62);
-            ctx.closePath();
-            ctx.fill();
-            ctx.fillStyle='#fff';
-            ctx.font='bold '+(hexSize*0.2)+'px sans-serif';
-            ctx.textAlign='center';
-            ctx.textBaseline='top';
-            ctx.fillText('ROBBER',cx,cy+hh+3);
+            // Desert tile - draw robber figure ONLY if robber is on this desert hex
+            if (gameState.robber.hexKey === k) {
+                const rs=hexSize*0.3,hw=rs*1.35,hh=rs*0.95,rr=hexSize*0.07;
+                ctx.beginPath();
+                ctx.moveTo(cx-hw+rr,cy-hh);
+                ctx.lineTo(cx+hw-rr,cy-hh);
+                ctx.quadraticCurveTo(cx+hw,cy-hh,cx+hw,cy-hh+rr);
+                ctx.lineTo(cx+hw,cy+hh-rr);
+                ctx.quadraticCurveTo(cx+hw,cy+hh,cx+hw-rr,cy+hh);
+                ctx.lineTo(cx-hw+rr,cy+hh);
+                ctx.quadraticCurveTo(cx-hw,cy+hh,cx-hw,cy+hh-rr);
+                ctx.lineTo(cx-hw,cy-hh+rr);
+                ctx.quadraticCurveTo(cx-hw,cy-hh,cx-hw+rr,cy-hh);
+                ctx.closePath();
+                ctx.fillStyle='#8b5cf6';
+                ctx.fill();
+                ctx.strokeStyle='#6d28d9';
+                ctx.lineWidth=2;
+                ctx.stroke();
+                const s=hexSize*0.38,scx=cx,scy=cy+2;
+                ctx.fillStyle='#1a1a1a';
+                ctx.beginPath();
+                ctx.ellipse(scx-s*0.05,scy+s*0.08,s*0.25,s*0.14,0,0,Math.PI*2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(scx+s*0.1,scy-s*0.05);
+                ctx.lineTo(scx+s*0.35,scy-s*0.1);
+                ctx.lineTo(scx+s*0.4,scy-s*0.32);
+                ctx.lineTo(scx+s*0.22,scy-s*0.38);
+                ctx.closePath();
+                ctx.fill();
+                ctx.fillStyle='#0a0a0a';
+                ctx.beginPath();
+                ctx.arc(scx-s*0.02,scy-s*0.2,s*0.18,0,Math.PI*2);
+                ctx.fill();
+                ctx.fillStyle='#444';
+                ctx.beginPath();
+                ctx.arc(scx,scy-s*0.4,s*0.1,0,Math.PI*2);
+                ctx.fill();
+                ctx.strokeStyle='#777';
+                ctx.lineWidth=1.5;
+                ctx.beginPath();
+                ctx.moveTo(scx+s*0.3,scy-s*0.2);
+                ctx.lineTo(scx+s*0.6,scy-s*0.7);
+                ctx.stroke();
+                ctx.fillStyle='#aaa';
+                ctx.beginPath();
+                ctx.moveTo(scx+s*0.6,scy-s*0.75);
+                ctx.lineTo(scx+s*0.54,scy-s*0.62);
+                ctx.lineTo(scx+s*0.66,scy-s*0.62);
+                ctx.closePath();
+                ctx.fill();
+            }
         }
     }
     
@@ -2203,6 +2201,7 @@ function renderMap(data, canvas, hexSize) {
         ctx.stroke();
     }
     // Draw robber on the hex where it's placed (if not on desert)
+    // Uses the SAME token style as the desert tile (rounded corners, same size)
     if (gameState.robber.hexKey) {
         const robberHexParts = gameState.robber.hexKey.split(',').map(Number);
         const robberHex = { q: robberHexParts[0], r: robberHexParts[1], s: robberHexParts[2] };
@@ -2210,60 +2209,59 @@ function renderMap(data, canvas, hexSize) {
         const rcx = rp.x + ox, rcy = rp.y + oy;
         const robberRes = mapData.resources.get(gameState.robber.hexKey);
         if (robberRes !== 'desert') {
-            ctx.save();
-            // Purple rectangle background (like in screenshot 2)
-            const rectWidth = hexSize * 0.7;
-            const rectHeight = hexSize * 0.5;
-            const rectX = rcx - rectWidth / 2;
-            const rectY = rcy - rectHeight / 2;
-            
-            // Draw purple rectangle with rounded corners
-            ctx.fillStyle = '#8b5cf6';
-            ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
-            ctx.strokeStyle = '#6d28d9';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
-            
-            // Draw robber figure (black silhouette with sword)
-            const s = hexSize * 0.35;
-            const figureX = rcx;
-            const figureY = rcy + 2;
-            
-            // Body (black ellipse)
-            ctx.fillStyle = '#1a1a1a';
+            // Same size as desert tile token
+            const rs=hexSize*0.3,hw=rs*1.35,hh=rs*0.95,rr=hexSize*0.07;
+            // Rounded rectangle (same as desert tile)
             ctx.beginPath();
-            ctx.ellipse(figureX - s*0.05, figureY + s*0.1, s*0.25, s*0.15, 0, 0, Math.PI * 2);
+            ctx.moveTo(rcx-hw+rr,rcy-hh);
+            ctx.lineTo(rcx+hw-rr,rcy-hh);
+            ctx.quadraticCurveTo(rcx+hw,rcy-hh,rcx+hw,rcy-hh+rr);
+            ctx.lineTo(rcx+hw,rcy+hh-rr);
+            ctx.quadraticCurveTo(rcx+hw,rcy+hh,rcx+hw-rr,rcy+hh);
+            ctx.lineTo(rcx-hw+rr,rcy+hh);
+            ctx.quadraticCurveTo(rcx-hw,rcy+hh,rcx-hw,rcy+hh-rr);
+            ctx.lineTo(rcx-hw,rcy-hh+rr);
+            ctx.quadraticCurveTo(rcx-hw,rcy-hh,rcx-hw+rr,rcy-hh);
+            ctx.closePath();
+            ctx.fillStyle='#8b5cf6';
             ctx.fill();
-            
-            // Head (black circle)
-            ctx.beginPath();
-            ctx.arc(figureX - s*0.02, figureY - s*0.15, s*0.2, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // Sword (gray line with silver tip)
-            ctx.strokeStyle = '#777';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(figureX + s*0.2, figureY - s*0.2);
-            ctx.lineTo(figureX + s*0.55, figureY - s*0.6);
+            ctx.strokeStyle='#6d28d9';
+            ctx.lineWidth=2;
             ctx.stroke();
-            
-            // Sword tip (silver)
-            ctx.fillStyle = '#aaa';
+            // Robber figure (same as desert tile)
+            const s=hexSize*0.38,scx=rcx,scy=rcy+2;
+            ctx.fillStyle='#1a1a1a';
             ctx.beginPath();
-            ctx.moveTo(figureX + s*0.55, figureY - s*0.6);
-            ctx.lineTo(figureX + s*0.5, figureY - s*0.5);
-            ctx.lineTo(figureX + s*0.6, figureY - s*0.5);
+            ctx.ellipse(scx-s*0.05,scy+s*0.08,s*0.25,s*0.14,0,0,Math.PI*2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(scx+s*0.1,scy-s*0.05);
+            ctx.lineTo(scx+s*0.35,scy-s*0.1);
+            ctx.lineTo(scx+s*0.4,scy-s*0.32);
+            ctx.lineTo(scx+s*0.22,scy-s*0.38);
             ctx.closePath();
             ctx.fill();
-            
-            // Label
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold ' + (hexSize*0.18) + 'px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'top';
-            ctx.fillText('ROBBER', rcx, rcy + rectHeight / 2 + 5);
-            ctx.restore();
+            ctx.fillStyle='#0a0a0a';
+            ctx.beginPath();
+            ctx.arc(scx-s*0.02,scy-s*0.2,s*0.18,0,Math.PI*2);
+            ctx.fill();
+            ctx.fillStyle='#444';
+            ctx.beginPath();
+            ctx.arc(scx,scy-s*0.4,s*0.1,0,Math.PI*2);
+            ctx.fill();
+            ctx.strokeStyle='#777';
+            ctx.lineWidth=1.5;
+            ctx.beginPath();
+            ctx.moveTo(scx+s*0.3,scy-s*0.2);
+            ctx.lineTo(scx+s*0.6,scy-s*0.7);
+            ctx.stroke();
+            ctx.fillStyle='#aaa';
+            ctx.beginPath();
+            ctx.moveTo(scx+s*0.6,scy-s*0.75);
+            ctx.lineTo(scx+s*0.54,scy-s*0.62);
+            ctx.lineTo(scx+s*0.66,scy-s*0.62);
+            ctx.closePath();
+            ctx.fill();
         }
     }
     cacheCanvas(ctx);
@@ -3455,42 +3453,20 @@ function placeRobber(targetHexKey) {
     gameState.cardInProgress = false;
     robberMode = false;
     
-    // Re-enable buttons
+    // Re-enable roll and trade buttons (but NOT end-turn — it fires automatically via setTimeout)
     const rollBtn = document.getElementById('rollBtn');
     if (rollBtn) { rollBtn.disabled = false; rollBtn.style.opacity = '1'; rollBtn.style.cursor = 'pointer'; }
     const tradeBtn = document.getElementById('tradeBtn');
     if (tradeBtn) { tradeBtn.disabled = false; tradeBtn.style.opacity = '1'; tradeBtn.style.cursor = 'pointer'; }
+    // Keep end-turn button DISABLED — turn ends automatically via setTimeout below
+    // This prevents the user from clicking it and causing a double end-turn
     const endTurnBtn = document.getElementById('endTurnBtn');
-    if (endTurnBtn) { 
-        endTurnBtn.disabled = false; 
-        endTurnBtn.style.opacity = '1'; 
-        endTurnBtn.style.cursor = 'pointer'; 
-        // Restore the click handler
-        endTurnBtn.onclick = () => {
-            audioManager.playClickSound();
-            if (initialPhase.active && initialPhase.phase === 'initial-build') {
-                const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
-                if (myBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && myBuildings.roads >= INITIAL_ROAD_LIMIT) {
-                    if (multiplayerClient && isMultiplayer) {
-                        multiplayerClient.endInitialBuildTurn();
-                    }
-                    initialPhaseBuildings.set(myPlayerId, { settlements: 0, roads: 0 });
-                    document.getElementById('endTurnBtn').disabled = true;
-                    const status = document.getElementById('buildPhaseStatus');
-                    if (status) {
-                        status.textContent = '⏳ Очікування наступного гравця...';
-                        status.style.color = '#f1c40f';
-                    }
-                    setBuildMode('none');
-                    initialPhase.canBuild = false;
-                    return;
-                } else {
-                    showMessage('Спочатку побудуйте 1 село + 2 дороги!');
-                    return;
-                }
-            }
-            handleEndTurn();
-        };
+    if (endTurnBtn) {
+        endTurnBtn.disabled = true;
+        endTurnBtn.style.opacity = '0.5';
+        endTurnBtn.style.cursor = 'not-allowed';
+        endTurnBtn.textContent = '⏳ Завершення ходу...';
+        endTurnBtn.onclick = null;
     }
     
     // Steal a random resource from the target player (if they have 7+ cards)
@@ -4997,6 +4973,8 @@ function handleRegularDiceRoll() {
         endTurnBtn.onclick = null;
         // Delay enabling the button to match dice animation (800ms + buffer)
         setTimeout(() => {
+            // Don't enable if robber still needs to be placed
+            if (robberMode || gameState.cardInProgress) return;
             endTurnBtn.disabled = false;
             endTurnBtn.style.opacity = '1';
             endTurnBtn.style.cursor = 'pointer';
@@ -5007,6 +4985,12 @@ function handleRegularDiceRoll() {
 // End current turn
 function handleEndTurn() {
     console.log('[UI] handleEndTurn called, isMyTurn:', isMyTurn, 'hasRolledThisTurn:', hasRolledThisTurn, 'myPlayerId:', myPlayerId);
+    
+    // Block ending turn while robber needs to be placed
+    if (robberMode || gameState.cardInProgress) {
+        showMessage('Спочатку розмістіть розбійника!');
+        return;
+    }
     
     if (!isMyTurn) {
         console.log('[UI] Cannot end turn - not my turn!');
