@@ -2385,7 +2385,7 @@ canvas.addEventListener('mousemove', (e) => {
         let md=Infinity;
         for(const[ek,edge]of edgeGeom.edges){
             if(!isEdgeValidForRoad(ek))continue;
-            if(buildMode==='road'&&!isEdgeConnected(ek)&&gameState.roadBuildingMode===0)continue;
+            if(buildMode==='road'&&!isEdgeConnected(ek))continue;
             if(gameState.roads.has(ek))continue;
             const d=Math.sqrt((mx-(edge.cx+ox))**2+(my-(edge.cy+oy))**2);
             if(d<md&&d<mapHexSize*0.7){
@@ -2588,7 +2588,8 @@ canvas.addEventListener('click', (e) => {
         }
         audioManager.playBuildSound();
         if(gameState.roadBuildingMode > 0) {
-            gameState.roads.set(hoverEdge, { 
+            const builtEdgeKey = hoverEdge;
+            gameState.roads.set(builtEdgeKey, { 
                 color: myPlayerColor,
                 playerId: myPlayerId 
             });
@@ -2601,7 +2602,7 @@ canvas.addEventListener('click', (e) => {
             renderMap(mapData, canvas, mapHexSize);
             updateBuildStats();
             if (multiplayerClient && isMultiplayer) {
-                multiplayerClient.syncBuild('road', { edgeKey: hoverEdge });
+                multiplayerClient.syncBuild('road', { edgeKey: builtEdgeKey, color: myPlayerColor });
             }
         } else {
             if(isInitialPhaseComplete()) deductResources('road');
