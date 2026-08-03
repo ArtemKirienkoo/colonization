@@ -1211,6 +1211,7 @@ let myPlayerColor = sessionStorage.getItem('myPlayerColor') || null; // 'red', '
 let buildMode = 'none', 
     hoverEdge = null, 
     hoverVertex = null, 
+    hoverRobberHex = null,
     isRolling = false, 
     isPaused = false;
 let settingsPreviousState = null; // 'pause' або 'menu'
@@ -1238,7 +1239,8 @@ let initialPhase = {
     currentIndex: 0,
     round: 0, // 0 = high to low, 1 = low to high
     diceRolls: new Map(), // playerId -> total
-    myRoll: null
+    myRoll: null,
+    canBuild: false // чи може поточний гравець будувати в початковій фазі
 };
 
 function countBuildings() { 
@@ -1281,36 +1283,23 @@ function countKnights() {
     return gameState.devHand.filter(c => c.type === 'knight' && !c.used).length; 
 }
 function hasLargestArmy() { 
-    const myKnights = gameState.knightCards.get(myPlayerId) || 0;
+    const myKnights = countKnights();
     return myKnights >= LARGEST_ARMY_THRESHOLD && largestArmyHolder === myPlayerId; 
 }
 function checkLargestArmy() {
-    const myKnights = gameState.knightCards.get(myPlayerId) || 0;
+    const myKnights = countKnights();
     
-    // Find player with most knights
-    let maxKnights = 0;
-    let holder = null;
-    for (const [playerId, count] of gameState.knightCards) {
-        if (count > maxKnights) {
-            maxKnights = count;
-            holder = playerId;
-        }
-    }
-    
-    // Update holder if threshold met
-    if (maxKnights >= LARGEST_ARMY_THRESHOLD) {
-        const oldHolder = largestArmyHolder;
-        largestArmyHolder = holder;
-        
-        // If holder changed, update UI
-        if (oldHolder !== holder) {
-            showMessage(holder === myPlayerId ? '⚔️ Ви отримали найбільше військо! +2 ПО' : '⚔️ Найбільше військо втрачено');
+    // Only track MY knights (unused/active in hand), not other players'
+    if (myKnights >= LARGEST_ARMY_THRESHOLD) {
+        if (largestArmyHolder !== myPlayerId) {
+            largestArmyHolder = myPlayerId;
+            showMessage('⚔️ Ви отримали найбільше військо! +2 ПО');
             updateBuildStats();
         }
     } else {
-        if (largestArmyHolder !== null) {
+        if (largestArmyHolder === myPlayerId) {
             largestArmyHolder = null;
-            showMessage('⚔️ Найбільше військо більше не існує');
+            showMessage('⚔️ Найбільше військо втрачено');
             updateBuildStats();
         }
     }
@@ -2263,6 +2252,36 @@ let cachedCanvasData = null;
 
 function drawHoverOnly(ctx, ox, oy, hs) {
     const m = buildMode!=='none'?buildMode:(gameState.roadBuildingMode>0?'road':'none');
+    if (m === 'none' && !robberMode) return;
+    
+    // Robber hover highlight
+    if (robberMode && hoverRobberHex) {
+        const h = hoverRobberHex;
+        const p = hexToPixel(h, hs);
+        const cx = p.x + ox, cy = p.y + oy;
+        
+        // Draw highlight circle on the hex
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, hs * 0.35, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(231, 76, 60, 0.3)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(231, 76, 60, 0.8)';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        
+        // Draw pulsing ring
+        ctx.beginPath();
+        ctx.arc(cx, cy, hs * 0.45, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(231, 76, 60, 0.5)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+        return;
+    }
+    
     if (m === 'none') return;
     if (m === 'road' && hoverEdge) {
         const e = edgeGeom.edges.get(hoverEdge);
@@ -2309,6 +2328,41 @@ function clearHoverAndRedraw(ctx, ox, oy, hs) {
 canvas.addEventListener('mousemove', (e) => {
     if (isPaused) return;
     const m = buildMode!=='none'?buildMode:(gameState.roadBuildingMode>0?'road':'none');
+    
+    // Robber hover detection
+    if (robberMode) {
+        const r=canvas.getBoundingClientRect(),sx=canvas.width/r.width,sy=canvas.height/r.height,mx=(e.clientX-r.left)*sx,my=(e.clientY-r.top)*sy,ox=mapOffset.ox,oy=mapOffset.oy;
+        let foundHex = null;
+        
+        for (const h of allHexes) {
+            const p = hexToPixel(h, mapHexSize);
+            const cx = p.x + ox, cy = p.y + oy;
+            const dist = Math.sqrt((mx - cx) ** 2 + (my - cy) ** 2);
+            
+            if (dist < mapHexSize * 0.8) {
+                const k = hexKey(h);
+                const ls = new Set();
+                [mapData.center, ...mapData.ring1, ...mapData.ring2].forEach(hex => ls.add(hexKey(hex)));
+                
+                if (ls.has(k)) {
+                    const available = getAvailableHexesForRobber();
+                    const target = available.find(av => av.key === k);
+                    if (target) {
+                        foundHex = h;
+                    }
+                    break;
+                }
+            }
+        }
+        
+        if (foundHex !== hoverRobberHex) {
+            hoverRobberHex = foundHex;
+            const ctx=canvas.getContext('2d');
+            clearHoverAndRedraw(ctx,mapOffset.ox,mapOffset.oy,mapHexSize);
+        }
+        return;
+    }
+    
     if(m==='none'){
         if(hoverEdge!==null||hoverVertex!==null){
             hoverEdge=null;
@@ -2677,6 +2731,21 @@ function isInitialPhaseComplete() {
         return false;
     }
 }
+// Перевіряє, чи може поточний гравець будувати під час початкової фази
+function canBuildDuringInitialPhase() {
+    return initialPhase.active && initialPhase.phase === 'initial-build' && initialPhase.canBuild === true;
+}
+
+// Перевіряє, чи не досягнуто ліміту будівель даного типу в початковій фазі
+function canBuildPieceInitial(type) {
+    const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
+    switch (type) {
+        case 'road': return myBuildings.roads < INITIAL_ROAD_LIMIT;
+        case 'settlement': return myBuildings.settlements < INITIAL_SETTLEMENT_LIMIT;
+        default: return false;
+    }
+}
+
 function canRollDice() {
     // Під час фази кидання кубиків (початкова) - дозволяємо через overlay
     if (initialPhase.active && initialPhase.phase === 'dice-roll') {
@@ -2781,20 +2850,28 @@ function buyDevCard(){
         showMessage('Колода порожня!');
         return;
     }
-    audioManager.playCardSound();
-    c.stone--;
-    c.geese--;
-    c.water--;
-    const card=gameState.devDeck.pop();
-    card.used=false;
-    gameState.devHand.push(card);
-    if(card.type==='knight'){
-        showMessage('⚔️ Рицар! Клікніть, щоб використати');
-    }else{
-        showMessage('Отримано: '+getDevCardInfo(card.type).icon+' '+getDevCardInfo(card.type).name);
+    
+    if (isMultiplayer && multiplayerClient) {
+        // Send buy request to server
+        multiplayerClient.sendGameAction('buy-dev-card', {});
+        showMessage('📜 Очікування підтвердження...');
+    } else {
+        // Single player - buy directly
+        audioManager.playCardSound();
+        c.stone--;
+        c.geese--;
+        c.water--;
+        const card=gameState.devDeck.pop();
+        card.used=false;
+        gameState.devHand.push(card);
+        if(card.type==='knight'){
+            showMessage('⚔️ Рицар! Клікніть, щоб використати');
+        }else{
+            showMessage('Отримано: '+getDevCardInfo(card.type).icon+' '+getDevCardInfo(card.type).name);
+        }
+        updateAllUI();
+        renderMap(mapData,canvas,mapHexSize);
     }
-    updateAllUI();
-    renderMap(mapData,canvas,mapHexSize);
 }
 function confirmActivateDevCard(index){
     if(gameState.roadBuildingMode>0||gameState.cardInProgress){
@@ -3100,12 +3177,10 @@ function showMonopolyResourceSelection(modal, targetPlayerId, card) {
     
     let h='<h3 style="text-align:center;color:#f39c12;margin-bottom:15px;">👑 МОНОПОЛІЯ</h3><p style="text-align:center;color:#ccc;margin-bottom:12px;">Крок 2: Оберіть ресурс для захоплення</p>';
     
-    // Show target player's resources
+    // Show target player's resources (WITHOUT count - just icons)
     h+='<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:12px;padding:8px;background:rgba(0,0,0,0.2);border-radius:8px;">';
     resources.forEach(r=>{
-        const count = targetResources[r] || 0;
-        const disabled = count === 0 ? 'opacity:0.4;cursor:not-allowed;' : '';
-        h+='<div class="yop-res-option" data-r="'+r+'" style="padding:8px 12px;border-radius:6px;cursor:pointer;background:rgba(243,156,18,0.15);border:2px solid rgba(243,156,18,0.3);text-align:center;min-width:70px;'+disabled+'"><div style="font-size:1.5em;">'+RESOURCES[r].icon+'</div><div style="font-size:0.7em;color:#ccc;">'+RESOURCES[r].name+'</div><div style="font-size:0.8em;color:#f1c40f;font-weight:bold;">'+count+'</div></div>';
+        h+='<div class="yop-res-option" data-r="'+r+'" style="padding:8px 12px;border-radius:6px;cursor:pointer;background:rgba(243,156,18,0.15);border:2px solid rgba(243,156,18,0.3);text-align:center;min-width:70px;"><div style="font-size:1.5em;">'+RESOURCES[r].icon+'</div><div style="font-size:0.7em;color:#ccc;">'+RESOURCES[r].name+'</div></div>';
     });
     h+='</div>';
     
@@ -3118,9 +3193,6 @@ function showMonopolyResourceSelection(modal, targetPlayerId, card) {
     options.forEach(opt => {
         opt.addEventListener('click', function() {
             const resource = this.dataset.r;
-            const count = targetResources[resource] || 0;
-            
-            if (count === 0) return; // Can't select resource with 0 count
             
             if (selectedResource) {
                 const prev = mc.querySelector('[data-r="'+selectedResource+'"]');
@@ -3143,21 +3215,13 @@ function showMonopolyResourceSelection(modal, targetPlayerId, card) {
     
     document.getElementById('monoConfirm').addEventListener('click',()=>{
         if (selectedResource) {
-            // Calculate how many resources to steal
-            const stolenCount = targetResources[selectedResource] || 0;
-            
+            // Send monopoly action to server - server handles the actual count
             if (isMultiplayer && multiplayerClient) {
                 multiplayerClient.sendGameAction('monopoly', {
                     targetPlayerId: targetPlayerId,
-                    resource: selectedResource,
-                    count: stolenCount
+                    resource: selectedResource
                 });
-            }
-            
-            // Update local resources
-            if (stolenCount > 0) {
-                gameState.resourceCards[selectedResource] += stolenCount;
-                showMessage('👑 Монополія! Захоплено '+stolenCount+' '+RESOURCES[selectedResource].name+'!');
+                showMessage('👑 Монополія! Захоплено всі '+RESOURCES[selectedResource].name+' у гравця!');
             }
             
             card.used = true;
@@ -3285,32 +3349,20 @@ function handleSevenRolled() {
         return;
     }
     
-    // Block all actions
+    // Block ALL actions until robber is placed
     gameState.cardInProgress = true;
     robberMode = true;
     setBuildMode('none');
     
-    showMessage('🎲 Випало 7! Розмістіть розбійника на території іншого гравця');
+    // Disable roll, trade, end-turn buttons
+    const rollBtn = document.getElementById('rollBtn');
+    if (rollBtn) { rollBtn.disabled = true; rollBtn.style.opacity = '0.5'; rollBtn.style.cursor = 'not-allowed'; }
+    const tradeBtn = document.getElementById('tradeBtn');
+    if (tradeBtn) { tradeBtn.disabled = true; tradeBtn.style.opacity = '0.5'; tradeBtn.style.cursor = 'not-allowed'; }
+    const endTurnBtn = document.getElementById('endTurnBtn');
+    if (endTurnBtn) { endTurnBtn.disabled = true; endTurnBtn.style.opacity = '0.5'; endTurnBtn.style.cursor = 'not-allowed'; }
     
-    // Show overlay for robber placement
-    const overlay = document.createElement('div');
-    overlay.id = 'robberOverlay';
-    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:2500;display:flex;justify-content:center;align-items:center;';
-    overlay.innerHTML = `
-        <div style="background:rgba(26,26,46,0.98);border:3px solid #f39c12;border-radius:20px;padding:40px;text-align:center;max-width:600px;box-shadow:0 0 50px rgba(243,156,18,0.6);">
-            <h2 style="color:#f39c12;margin-bottom:20px;font-size:1.8em;">🎲 Випало 7!</h2>
-            <p style="color:#ccc;margin-bottom:15px;font-size:1.1em;">Розмістіть розбійника на гексі, що належить іншому гравцю</p>
-            <p style="color:#f1c40f;margin-bottom:20px;font-size:1em;">Клікніть на гекс, щоб розмістити розбійника</p>
-            <button id="cancelRobberBtn" style="padding:10px 24px;background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:6px;cursor:pointer;">Скасувати</button>
-        </div>
-    `;
-    document.body.appendChild(overlay);
-    
-    document.getElementById('cancelRobberBtn').addEventListener('click', () => {
-        overlay.remove();
-        gameState.cardInProgress = false;
-        robberMode = false;
-    });
+    showMessage('🎲 Випало 7! Клікніть на гекс іншого гравця, щоб розмістити розбійника');
 }
 
 function getAvailableHexesForRobber() {
@@ -3320,7 +3372,21 @@ function getAvailableHexesForRobber() {
     const ls = new Set();
     [mapData.center, ...mapData.ring1, ...mapData.ring2].forEach(h => ls.add(hexKey(h)));
     
-    // Find all hexes that belong to OTHER players (have opponent settlements/cities adjacent)
+    // In single-player mode, allow placing on any land hex (except desert and current robber position)
+    if (!isMultiplayer) {
+        for (const h of allHexes) {
+            const k = hexKey(h);
+            if (!ls.has(k)) continue;
+            const res = mapData.resources.get(k);
+            if (res === 'desert') continue;
+            if (gameState.robber.hexKey === k) continue; // Skip if robber already here
+            const num = mapData.numbers.get(k);
+            available.push({ hex: h, key: k, number: num, resource: res, ownerPlayerId: null });
+        }
+        return available;
+    }
+    
+    // In multiplayer, find all hexes that belong to OTHER players
     const opponentHexes = new Map(); // hexKey -> playerId (owner)
     
     for (const [vk, bld] of gameState.settlements) {
@@ -3367,13 +3433,17 @@ function placeRobber(targetHexKey) {
     gameState.robber.hexKey = targetHexKey;
     gameState.robber.placedBy = myPlayerId;
     
-    // Remove overlay
-    const overlay = document.getElementById('robberOverlay');
-    if (overlay) overlay.remove();
-    
     // Reset state
     gameState.cardInProgress = false;
     robberMode = false;
+    
+    // Re-enable buttons
+    const rollBtn = document.getElementById('rollBtn');
+    if (rollBtn) { rollBtn.disabled = false; rollBtn.style.opacity = '1'; rollBtn.style.cursor = 'pointer'; }
+    const tradeBtn = document.getElementById('tradeBtn');
+    if (tradeBtn) { tradeBtn.disabled = false; tradeBtn.style.opacity = '1'; tradeBtn.style.cursor = 'pointer'; }
+    const endTurnBtn = document.getElementById('endTurnBtn');
+    if (endTurnBtn) { endTurnBtn.disabled = false; endTurnBtn.style.opacity = '1'; endTurnBtn.style.cursor = 'pointer'; }
     
     // Steal a random resource from the target player (if they have 7+ cards)
     stealRandomResource(target.ownerPlayerId, myPlayerId);
@@ -3989,8 +4059,35 @@ function registerMultiplayerHandlers(client) {
     client.onCollectResources((data) => {
         console.log('Collect resources:', data);
         if (data && data.diceTotal) {
-            const collected = collectResources(data.diceTotal);
-            showResourceNotification(collected);
+            let collected = [];
+            
+            // Use server-calculated resource updates if available (multiplayer)
+            if (data.resourceUpdates && Object.keys(data.resourceUpdates).length > 0) {
+                // Update local resources from server
+                for (const [playerId, resources] of Object.entries(data.resourceUpdates)) {
+                    if (playerId === myPlayerId) {
+                        // Calculate what I gained
+                        for (const [res, newCount] of Object.entries(resources)) {
+                            const oldCount = gameState.resourceCards[res] || 0;
+                            const gained = newCount - oldCount;
+                            if (gained > 0) {
+                                for (let i = 0; i < gained; i++) {
+                                    collected.push({ type: res, icon: RESOURCES[res].icon, name: RESOURCES[res].name });
+                                }
+                            }
+                            gameState.resourceCards[res] = newCount;
+                        }
+                    }
+                }
+            } else {
+                // Single player - use local collection
+                collected = collectResources(data.diceTotal);
+            }
+            
+            if (collected.length > 0) {
+                showResourceNotification(collected);
+            }
+            updateResourceCardsDisplay();
         }
     });
     client.onResourceStolen((data) => {
@@ -4015,6 +4112,47 @@ function registerMultiplayerHandlers(client) {
                     showMessage('🎲 Розбійник розміщено, але у гравця менше 7 карт');
                 }
             }
+        }
+    });
+    
+    // Handle dev card purchase from server
+    client.onDevCardPurchased((data) => {
+        console.log('Dev card purchased:', data);
+        if (data.playerId === myPlayerId) {
+            // Deduct resources
+            if (data.playerResources) {
+                gameState.resourceCards = { ...data.playerResources };
+            }
+            
+            // Add card to hand
+            if (data.card) {
+                gameState.devHand.push(data.card);
+                const info = getDevCardInfo(data.card.type);
+                showMessage('📜 Отримано: ' + info.icon + ' ' + info.name);
+            }
+            
+            updateAllUI();
+            renderMap(mapData, canvas, mapHexSize);
+        }
+    });
+    
+    // Handle monopoly completion from server
+    client.onMonopolyCompleted((data) => {
+        console.log('Monopoly completed:', data);
+        if (data.playerId === myPlayerId) {
+            // Update my resources
+            if (data.myResources) {
+                gameState.resourceCards = { ...data.myResources };
+            }
+            showMessage('👑 Монополія! Захоплено ' + data.stolenCount + ' ' + RESOURCES[data.resource].name + '!');
+            updateAllUI();
+        } else if (data.targetPlayerId === myPlayerId) {
+            // My resources were stolen
+            if (data.targetResources) {
+                gameState.resourceCards = { ...data.targetResources };
+            }
+            showMessage('😢 У вас захоплено ' + data.stolenCount + ' ' + RESOURCES[data.resource].name + ' монополією!');
+            updateAllUI();
         }
     });
     
@@ -4795,13 +4933,21 @@ function handleRegularDiceRoll() {
         }, 800);
     }
     
-    // Show end turn button (enable it)
+    // Show end turn button (enable it) - with delay to match dice animation
     const endTurnBtn = document.getElementById('endTurnBtn');
     if (endTurnBtn) {
         endTurnBtn.style.display = 'inline-block';
-        endTurnBtn.disabled = false;
+        endTurnBtn.disabled = true;
         endTurnBtn.textContent = '✅ Завершити хід';
-        endTurnBtn.onclick = null; // прибираємо обробник "ваш хід"
+        endTurnBtn.style.opacity = '0.5';
+        endTurnBtn.style.cursor = 'not-allowed';
+        endTurnBtn.onclick = null;
+        // Delay enabling the button to match dice animation (800ms + buffer)
+        setTimeout(() => {
+            endTurnBtn.disabled = false;
+            endTurnBtn.style.opacity = '1';
+            endTurnBtn.style.cursor = 'pointer';
+        }, 1500);
     }
 }
 

@@ -436,6 +436,16 @@ class MultiplayerClient {
         this._safeOn('resource-stolen', callback);
     }
 
+    // Handle dev card purchased event
+    onDevCardPurchased(callback) {
+        this._safeOn('dev-card-purchased', callback);
+    }
+
+    // Handle monopoly completed event
+    onMonopolyCompleted(callback) {
+        this._safeOn('monopoly-completed', callback);
+    }
+
     // Handle dev cards sync (for reconnection)
     onSyncDevCards(callback) {
         this._safeOn('sync-dev-cards', callback);

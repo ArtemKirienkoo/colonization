@@ -33,6 +33,28 @@ function generateRoomCode() {
     return code;
 }
 
+// Create dev card deck (same composition as client-side)
+function createDevCardDeck() {
+    const deck = [];
+    for (let i = 0; i < 14; i++) deck.push({ type: 'knight', id: 'knight_' + i });
+    for (let i = 0; i < 2; i++) deck.push({ type: 'plenty', id: 'plenty_' + i });
+    for (let i = 0; i < 2; i++) deck.push({ type: 'monopoly', id: 'monopoly_' + i });
+    for (let i = 0; i < 2; i++) deck.push({ type: 'roads', id: 'roads_' + i });
+    deck.push({ type: 'vp_market', id: 'vp_market' },
+        { type: 'vp_library', id: 'vp_library' },
+        { type: 'vp_cathedral', id: 'vp_cathedral' },
+        { type: 'vp_townhall', id: 'vp_townhall' },
+        { type: 'vp_university', id: 'vp_university' });
+    
+    // Shuffle deck
+    for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    
+    return deck;
+}
+
 // ===== HELPER FUNCTIONS FOR SERVER-SIDE VALIDATION =====
 // Check if edge (road) belongs to player
 function isMyServerRoad(edgeKey, playerId, room) {
@@ -588,11 +610,16 @@ io.on('connection', (socket) => {
             room.robber = { hexKey: null, placedBy: null };
             room.devCardHands = new Map();
             room.knightCards = new Map();
+            room.playerResources = new Map();
+            
+            // Initialize dev card deck (shared among all players)
+            room.devCardDeck = createDevCardDeck();
             
             // Initialize dev card hands for all players
             for (const p of room.players) {
                 room.devCardHands.set(p.id, []);
                 room.knightCards.set(p.id, 0);
+                room.playerResources.set(p.id, { wood: 0, brick: 0, geese: 0, water: 0, stone: 0 });
             }
             
             // Send map seed for synchronization
@@ -851,9 +878,90 @@ io.on('connection', (socket) => {
             canActNow: true // only the roller can act
         });
         
+        // ===== SERVER-SIDE RESOURCE COLLECTION =====
+        // Initialize player resources if needed
+        if (!room.playerResources) {
+            room.playerResources = new Map();
+        }
+        for (const p of room.players) {
+            if (!room.playerResources.has(p.id)) {
+                room.playerResources.set(p.id, { wood: 0, brick: 0, geese: 0, water: 0, stone: 0 });
+            }
+        }
+        
+        // Collect resources for each player based on their buildings
+        const resourceGains = new Map(); // playerId -> {resource: count}
+        for (const p of room.players) {
+            resourceGains.set(p.id, {});
+        }
+        
+        // Get robber hex key
+        const robberHexKey = room.robber?.hexKey || null;
+        
+        // Iterate through all buildings
+        for (const [buildingKey, building] of room.buildings) {
+            if (building.type !== 'settlement' && building.type !== 'city') continue;
+            
+            const vertexKey = building.vertexKey || building.key;
+            if (!vertexKey) continue;
+            
+            // Find adjacent hexes for this vertex
+            const vertexData = room.topology?.vertices?.get(vertexKey);
+            if (!vertexData || !vertexData.hexes) continue;
+            
+            const multiplier = building.type === 'city' ? 2 : 1;
+            
+            // Check each adjacent hex
+            for (const hex of vertexData.hexes) {
+                const hexKeyStr = hex.q + ',' + hex.r + ',' + hex.s;
+                const hexNumber = room.gameState?.numbers?.[hexKeyStr];
+                const hexResource = room.gameState?.resources?.[hexKeyStr];
+                
+                // Skip if number doesn't match dice total
+                if (hexNumber !== total) continue;
+                
+                // Skip desert
+                if (!hexResource || hexResource === 'desert') continue;
+                
+                // Check if robber is on this hex
+                if (robberHexKey === hexKeyStr) {
+                    // Robber is here - resources go to the robber placer
+                    const robberPlacerId = room.robber?.placedBy;
+                    if (robberPlacerId && resourceGains.has(robberPlacerId)) {
+                        resourceGains.get(robberPlacerId)[hexResource] = (resourceGains.get(robberPlacerId)[hexResource] || 0) + multiplier;
+                    }
+                } else {
+                    // Normal resource collection
+                    const playerId = building.playerId;
+                    if (resourceGains.has(playerId)) {
+                        resourceGains.get(playerId)[hexResource] = (resourceGains.get(playerId)[hexResource] || 0) + multiplier;
+                    }
+                }
+            }
+        }
+        
+        // Apply resource gains to player resources
+        const resourceUpdates = {};
+        for (const [playerId, gains] of resourceGains) {
+            const playerRes = room.playerResources.get(playerId);
+            if (!playerRes) continue;
+            
+            let totalGained = 0;
+            for (const [resource, count] of Object.entries(gains)) {
+                playerRes[resource] += count;
+                totalGained += count;
+            }
+            
+            if (totalGained > 0) {
+                resourceUpdates[playerId] = { ...playerRes };
+            }
+        }
+        
         // Send resource collection data to all players
         io.to(roomCode).emit('collect-resources', {
-            diceTotal: total
+            diceTotal: total,
+            resourceUpdates: resourceUpdates,
+            robberHexKey: robberHexKey
         });
         
         // Sync buildings after dice roll (in case robber moved, etc.)
@@ -1034,7 +1142,6 @@ io.on('connection', (socket) => {
     });
 
     // Handle game actions
-    // Додайте/оновіть обробник дій у server-unified.js:
     socket.on('game-action', (data) => {
         const { roomCode, action, payload } = data;
         const room = rooms.get(roomCode);
@@ -1107,12 +1214,43 @@ io.on('connection', (socket) => {
             }
         }
         else if (action === 'monopoly') {
-            // Broadcast monopoly action to all players
+            // ===== SERVER-SIDE RESOURCE TRANSFER =====
+            if (!room.playerResources) {
+                room.playerResources = new Map();
+            }
+            
+            const targetPlayerId = payload.targetPlayerId;
+            const resource = payload.resource;
+            
+            // Initialize resources for both players if needed
+            if (!room.playerResources.has(socket.id)) {
+                room.playerResources.set(socket.id, { wood: 0, brick: 0, geese: 0, water: 0, stone: 0 });
+            }
+            if (!room.playerResources.has(targetPlayerId)) {
+                room.playerResources.set(targetPlayerId, { wood: 0, brick: 0, geese: 0, water: 0, stone: 0 });
+            }
+            
+            const targetResources = room.playerResources.get(targetPlayerId);
+            const myResources = room.playerResources.get(socket.id);
+            
+            // Calculate how many resources to steal
+            const stolenCount = targetResources[resource] || 0;
+            
+            // Transfer ALL resources of this type
+            if (stolenCount > 0) {
+                targetResources[resource] -= stolenCount;
+                myResources[resource] += stolenCount;
+            }
+            
+            // Broadcast monopoly result to all players
             io.to(roomCode).emit('game-state-update', {
-                type: 'monopoly-action',
-                targetPlayerId: payload.targetPlayerId,
-                resource: payload.resource,
-                playerId: socket.id
+                type: 'monopoly-completed',
+                playerId: socket.id,
+                targetPlayerId: targetPlayerId,
+                resource: resource,
+                stolenCount: stolenCount,
+                targetResources: targetResources,
+                myResources: myResources
             });
         }
         else if (action === 'steal-resource') {
@@ -1171,6 +1309,57 @@ io.on('connection', (socket) => {
                 hasEnoughCards: totalResources >= 7,
                 playerId: socket.id
             });
+        }
+        else if (action === 'buy-dev-card') {
+            // ===== SERVER-SIDE DEV CARD PURCHASE =====
+            const playerId = socket.id;
+            
+            // Initialize dev card hand if needed
+            if (!room.devCardHands.has(playerId)) {
+                room.devCardHands.set(playerId, []);
+            }
+            
+            // Check if player has resources (client should validate, but server double-checks)
+            const playerRes = room.playerResources?.get(playerId);
+            if (!playerRes || playerRes.stone < 1 || playerRes.geese < 1 || playerRes.water < 1) {
+                socket.emit('action-error', { message: 'Недостатньо ресурсів для покупки карти!' });
+                return;
+            }
+            
+            // Check if deck has cards
+            if (!room.devCardDeck || room.devCardDeck.length === 0) {
+                socket.emit('action-error', { message: 'Колода карт розвитку порожня!' });
+                return;
+            }
+            
+            // Deduct resources
+            playerRes.stone--;
+            playerRes.geese--;
+            playerRes.water--;
+            
+            // Draw card from deck
+            const card = room.devCardDeck.pop();
+            card.used = false;
+            card.ownerId = playerId;
+            
+            // Add to player's hand
+            room.devCardHands.get(playerId).push(card);
+            
+            // Broadcast to all players
+            io.to(roomCode).emit('game-state-update', {
+                type: 'dev-card-purchased',
+                playerId: playerId,
+                card: card,
+                remainingDeckCount: room.devCardDeck.length,
+                playerResources: playerRes
+            });
+            
+            // Sync dev cards to all players
+            const devCardHandsData = {};
+            for (const [pid, hand] of room.devCardHands) {
+                devCardHandsData[pid] = hand;
+            }
+            io.to(roomCode).emit('sync-dev-cards', { devCardHands: devCardHandsData });
         }
     });
 
