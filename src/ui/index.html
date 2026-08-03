@@ -2254,30 +2254,20 @@ function drawHoverOnly(ctx, ox, oy, hs) {
     const m = buildMode!=='none'?buildMode:(gameState.roadBuildingMode>0?'road':'none');
     if (m === 'none' && !robberMode) return;
     
-    // Robber hover highlight
+    // Robber hover highlight - highlight entire hex with yellow
     if (robberMode && hoverRobberHex) {
         const h = hoverRobberHex;
         const p = hexToPixel(h, hs);
         const cx = p.x + ox, cy = p.y + oy;
         
-        // Draw highlight circle on the hex
+        // Draw highlight over entire hex (like road highlight)
         ctx.save();
-        ctx.beginPath();
-        ctx.arc(cx, cy, hs * 0.35, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(231, 76, 60, 0.3)';
+        drawHexPath(ctx, cx, cy, hs);
+        ctx.fillStyle = 'rgba(241, 196, 15, 0.4)';
         ctx.fill();
-        ctx.strokeStyle = 'rgba(231, 76, 60, 0.8)';
-        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(241, 196, 15, 0.9)';
+        ctx.lineWidth = 4;
         ctx.stroke();
-        
-        // Draw pulsing ring
-        ctx.beginPath();
-        ctx.arc(cx, cy, hs * 0.45, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(231, 76, 60, 0.5)';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
-        ctx.stroke();
-        ctx.setLineDash([]);
         ctx.restore();
         return;
     }
@@ -3454,6 +3444,11 @@ function placeRobber(targetHexKey) {
     // Sync in multiplayer
     if (multiplayerClient && isMultiplayer) {
         multiplayerClient.sendGameAction('place-robber', { hexKey: targetHexKey, targetPlayerId: target.ownerPlayerId });
+        
+        // After placing robber, automatically end turn and pass to next player
+        setTimeout(() => {
+            handleEndTurn();
+        }, 500);
     }
     
     return true;
