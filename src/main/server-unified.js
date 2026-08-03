@@ -982,60 +982,65 @@ io.on('connection', (socket) => {
 
     // Handle end turn
     socket.on('end-turn', ({ roomCode, playerId }) => {
-        const room = rooms.get(roomCode);
-        if (!room || room.gamePhase !== 'regular-turn') return;
-        
-        // Verify it's this player's turn
-        const currentPlayerId = room.turnOrder[room.currentTurnIndex];
-        if (currentPlayerId !== playerId) {
-            socket.emit('action-error', { message: 'Зараз не ваш хід!' });
-            return;
-        }
-        
-        // Reset turn state
-        room.turnState = {
-            diceRolled: false,
-            actionsLocked: true
-        };
-        
-        // Move to next player
-        room.currentTurnIndex = (room.currentTurnIndex + 1) % room.turnOrder.length;
-        
-        // Sync buildings to ALL players before notifying next turn
-        syncBuildingsToRoom(roomCode, room);
-        
-        // Notify the player who ended their turn
-        io.to(playerId).emit('turn-ended', {
-            nextPlayerId: room.turnOrder[room.currentTurnIndex]
-        });
-        
-        // Notify the next player it's their turn
-        const nextPlayerId = room.turnOrder[room.currentTurnIndex];
-        io.to(nextPlayerId).emit('your-turn', {
-            playerId: nextPlayerId,
-            mustRollDice: true
-        });
-        
-        // Notify others who is playing now
-        for (let i = 0; i < room.turnOrder.length; i++) {
-            const pid = room.turnOrder[i];
-            if (pid !== nextPlayerId && pid !== playerId) {
-                io.to(pid).emit('waiting-for-turn', {
-                    currentPlayerId: nextPlayerId,
-                    yourPosition: i
-                });
+        try {
+            const room = rooms.get(roomCode);
+            if (!room || room.gamePhase !== 'regular-turn') return;
+            
+            // Verify it's this player's turn
+            const currentPlayerId = room.turnOrder[room.currentTurnIndex];
+            if (currentPlayerId !== playerId) {
+                socket.emit('action-error', { message: 'Зараз не ваш хід!' });
+                return;
             }
+            
+            // Reset turn state
+            room.turnState = {
+                diceRolled: false,
+                actionsLocked: true
+            };
+            
+            // Move to next player
+            room.currentTurnIndex = (room.currentTurnIndex + 1) % room.turnOrder.length;
+            
+            // Sync buildings to ALL players before notifying next turn
+            syncBuildingsToRoom(roomCode, room);
+            
+            // Notify the player who ended their turn
+            io.to(playerId).emit('turn-ended', {
+                nextPlayerId: room.turnOrder[room.currentTurnIndex]
+            });
+            
+            // Notify the next player it's their turn
+            const nextPlayerId = room.turnOrder[room.currentTurnIndex];
+            io.to(nextPlayerId).emit('your-turn', {
+                playerId: nextPlayerId,
+                mustRollDice: true
+            });
+            
+            // Notify others who is playing now
+            for (let i = 0; i < room.turnOrder.length; i++) {
+                const pid = room.turnOrder[i];
+                if (pid !== nextPlayerId && pid !== playerId) {
+                    io.to(pid).emit('waiting-for-turn', {
+                        currentPlayerId: nextPlayerId,
+                        yourPosition: i
+                    });
+                }
+            }
+            
+            // Broadcast game-state-sync to ALL players in the room as a fallback
+            // This ensures that even if your-turn event is lost (e.g., sent to old socket ID),
+            // the next player will still receive the game state and know it's their turn
+            io.to(roomCode).emit('game-state-sync', {
+                gamePhase: room.gamePhase,
+                currentTurnPlayerId: nextPlayerId,
+                turnOrder: room.turnOrder,
+                buildings: getBuildingsArray(room)
+            });
+        } catch (error) {
+            console.error('Error in end-turn handler:', error);
+            socket.emit('action-error', { message: 'Помилка завершення ходу' });
         }
-        
-        // Broadcast game-state-sync to ALL players in the room as a fallback
-        // This ensures that even if your-turn event is lost (e.g., sent to old socket ID),
-        // the next player will still receive the game state and know it's their turn
-        io.to(roomCode).emit('game-state-sync', {
-            gamePhase: room.gamePhase,
-            currentTurnPlayerId: nextPlayerId,
-            turnOrder: room.turnOrder,
-            buildings: getBuildingsArray(room)
-        });
     });
 
     // Sync a building action to all players (with validation)
@@ -1202,6 +1207,11 @@ io.on('connection', (socket) => {
                 type: 'robber-placed',
                 robber: room.robber,
                 gameState: room.gameState
+            });
+            
+            // Also emit robber-synced event for clients to update their local state
+            io.to(roomCode).emit('robber-synced', {
+                robber: room.robber
             });
         }
         else if (action === 'activate-knight') {
