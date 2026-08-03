@@ -49,6 +49,7 @@ class MultiplayerClient {
         });
 
         return new Promise((resolve, reject) => {
+            let initialConnection = true;
             const timeout = setTimeout(() => {
                 console.error('Таймаут підключення після 30 секунд');
                 if (this.socket) {
@@ -84,32 +85,54 @@ class MultiplayerClient {
                 } catch (e) {
                     console.warn('onAny not supported or failed:', e);
                 }
+                // If this is a reconnection (not initial), request game state sync
+                if (!initialConnection && this.roomCode) {
+                    console.log('[Reconnect] Requesting game state sync after reconnection');
+                    let oldPlayerId = null;
+                    try {
+                        oldPlayerId = sessionStorage.getItem('multiplayerPlayerId');
+                    } catch (e) {}
+                    this.socket.emit('request-game-state', {
+                        roomCode: this.roomCode,
+                        oldPlayerId: oldPlayerId
+                    });
+                }
+                initialConnection = false;
                 resolve();
             });
 
             this.socket.on('connect_error', (error) => {
                 console.error('Помилка підключення:', error);
-                // Disconnect the socket to stop Socket.IO from continuing to
-                // reconnect internally. This is important when we want to
-                // try a fallback server URL (e.g., cloud server) instead.
-                if (this.socket) {
-                    this.socket.disconnect();
+                // Only disconnect and reject during initial connection attempt
+                // After initial connection, let Socket.IO handle reconnection automatically
+                if (initialConnection) {
+                    if (this.socket) {
+                        this.socket.disconnect();
+                    }
+                    clearTimeout(timeout);
+                    reject(error);
                 }
-                clearTimeout(timeout);
-                reject(error);
+                // During reconnection, don't disconnect — let Socket.IO retry
             });
 
             this.socket.on('reconnect_attempt', (attempt) => {
                 console.log('Спроба перепідключення:', attempt);
             });
 
+            this.socket.on('reconnect', (attempt) => {
+                console.log('Перепідключено до сервера після', attempt, 'спроб');
+                this.connected = true;
+            });
+
             this.socket.on('reconnect_failed', () => {
-                if (this.socket) {
-                    this.socket.disconnect();
+                if (initialConnection) {
+                    if (this.socket) {
+                        this.socket.disconnect();
+                    }
+                    clearTimeout(timeout);
+                    reject(new Error('Не вдалося підключитися до сервера після 20 спроб.\nПеревірте:\n1. Сервер запущений (npm start)\n2. Порт 3000 не заблокований фаєрволом\n3. Обидва гравці в одній мережі (для локальної гри)'));
                 }
-                clearTimeout(timeout);
                 console.error('Не вдалося перепідключитися');
-                reject(new Error('Не вдалося підключитися до сервера після 20 спроб.\nПеревірте:\n1. Сервер запущений (npm start)\n2. Порт 3000 не заблокований фаєрволом\n3. Обидва гравці в одній мережі (для локальної гри)'));
             });
 
             this.socket.on('disconnect', (reason) => {

@@ -11,7 +11,10 @@ const io = socketIo(server, {
     cors: {
         origin: "*",
         methods: ["GET", "POST"]
-    }
+    },
+    pingInterval: 15000, // Send ping every 15s to keep connection alive
+    pingTimeout: 30000,  // Consider connection dead after 30s without pong
+    transports: ['websocket', 'polling']
 });
 
 // Serve static files for browser testing (local mode only)
@@ -159,6 +162,15 @@ function syncBuildingsToRoom(roomCode, room) {
 // Socket.IO connection handling
 io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
+    
+    // Global error handler for this socket
+    socket.on('error', (error) => {
+        console.error('Socket error for', socket.id, ':', error);
+    });
+    
+    socket.on('disconnect', (reason) => {
+        console.log('Player disconnected:', socket.id, 'Reason:', reason);
+    });
 
     // Create room
     socket.on('create-room', ({ roomName, playerName, maxPlayers, color }) => {
