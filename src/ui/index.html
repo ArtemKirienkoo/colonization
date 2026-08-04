@@ -3480,10 +3480,8 @@ function placeRobber(targetHexKey) {
     if (multiplayerClient && isMultiplayer) {
         multiplayerClient.sendGameAction('place-robber', { hexKey: targetHexKey, targetPlayerId: target.ownerPlayerId });
         
-        // After placing robber, automatically end turn and pass to next player
-        setTimeout(() => {
-            handleEndTurn();
-        }, 500);
+        // Don't automatically end turn - let the player click the button manually
+        // The turn will end when player clicks "Завершити хід" button
     }
     
     return true;
@@ -4142,6 +4140,16 @@ function registerMultiplayerHandlers(client) {
                     showMessage('🎲 Розбійник розміщено, але у гравця менше 7 карт');
                 }
             }
+        }
+    });
+    
+    // Handle robber position sync from server
+    client.onRobberSynced((data) => {
+        console.log('Robber synced:', data);
+        if (data && data.robber) {
+            gameState.robber.hexKey = data.robber.hexKey;
+            gameState.robber.placedBy = data.robber.placedBy;
+            renderMap(mapData, canvas, mapHexSize);
         }
     });
     
