@@ -444,6 +444,11 @@ class MultiplayerClient {
         this._safeOn('building-synced', callback);
     }
 
+    // Handle robber position synced from server
+    onRobberSynced(callback) {
+        this._safeOn('robber-synced', callback);
+    }
+
     // Handle game state sync (for reconnection)
     onGameStateSync(callback) {
         this._safeOn('game-state-sync', callback);

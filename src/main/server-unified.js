@@ -373,6 +373,11 @@ io.on('connection', (socket) => {
         if (room.buildings) {
             socket.emit('sync-buildings', { buildings: getBuildingsArray(room) });
         }
+        
+        // Send current robber state
+        if (room.robber) {
+            socket.emit('robber-synced', { robber: room.robber });
+        }
 
         // Send game state based on current phase
         if (room.gamePhase === 'dice-roll') {
@@ -487,6 +492,11 @@ io.on('connection', (socket) => {
         if (room.gameState) socket.emit('game-started', { mapSeed: room.gameState });
         if (room.buildings) {
             socket.emit('sync-buildings', { buildings: getBuildingsArray(room) });
+        }
+        
+        // Send current robber state
+        if (room.robber) {
+            socket.emit('robber-synced', { robber: room.robber });
         }
         
         // Send dev card hands for all players
