@@ -1532,12 +1532,17 @@ function canPlaceSettlement(vk) {
         return true;
     }
     
-    // Regular gameplay: check distance from ALL settlements (uses full hex topology, not roads)
-    if (gameState.settlements.size === 0) return true;
-    for (const [evk] of gameState.settlements) { 
+    // Regular gameplay: check distance from MY OWN settlements only (uses full hex topology, not roads)
+    // Rule: settlements of DIFFERENT players CAN be adjacent (1 edge apart)
+    // Rule: settlements of the SAME player must be at least 2 edges apart
+    let hasMySettlement = false;
+    for (const [evk, bld] of gameState.settlements) { 
+        if (bld.playerId !== myPlayerId) continue; // Skip other players' settlements
+        hasMySettlement = true;
         const len = roadPathLength(evk, vk, fullGraph); 
         if (len>=0 && len<2) return false; 
     }
+    if (!hasMySettlement) return true;
     if(isVertexOnOpponentRoad(vk)) return false;
     
     // Also check that the vertex is connected to MY road network (can't build isolated settlements)
@@ -2995,7 +3000,8 @@ function activateKnightCard(index){
             // Move robber to desert
             const desertHex = findDesertHex();
             if (desertHex) {
-                gameState.robber.hexKey = hexKey(desertHex);
+                const desertHexKey = hexKey(desertHex);
+                gameState.robber.hexKey = desertHexKey;
                 gameState.robber.placedBy = myPlayerId;
                 card.used = true;
                 gameState.cardInProgress = false;
@@ -3010,7 +3016,10 @@ function activateKnightCard(index){
                 renderMap(mapData, canvas, mapHexSize);
                 
                 if (multiplayerClient && isMultiplayer) {
+                    // Sync knight activation to server
                     multiplayerClient.sendGameAction('activate-knight', { cardId: card.id });
+                    // Sync robber position to desert so ALL players see it
+                    multiplayerClient.sendGameAction('place-robber', { hexKey: desertHexKey, fromKnight: true });
                 }
                 return;
             }
@@ -4181,9 +4190,20 @@ function registerMultiplayerHandlers(client) {
             // Re-render map to show updated robber position
             renderMap(mapData, canvas, mapHexSize);
             
-            // Re-enable end turn button if it's our turn
-            if (isMyTurn && !robberMode && !gameState.cardInProgress) {
-                endTurnBtn.disabled = false;
+            // Re-enable roll, trade, and end turn buttons (only if it's our turn)
+            if (isMyTurn) {
+                const rollBtn = document.getElementById('rollBtn');
+                if (rollBtn) { rollBtn.disabled = false; rollBtn.style.opacity = '1'; rollBtn.style.cursor = 'pointer'; }
+                const tradeBtn = document.getElementById('tradeBtn');
+                if (tradeBtn) { tradeBtn.disabled = false; tradeBtn.style.opacity = '1'; tradeBtn.style.cursor = 'pointer'; }
+                
+                const endTurnBtn = document.getElementById('endTurnBtn');
+                if (endTurnBtn && !robberMode && !gameState.cardInProgress) {
+                    endTurnBtn.disabled = false;
+                    endTurnBtn.style.opacity = '1';
+                    endTurnBtn.style.cursor = 'pointer';
+                    endTurnBtn.textContent = '✅ Завершити хід';
+                }
             }
             
             console.log('[UI] Robber placed successfully at:', data.robber.hexKey);

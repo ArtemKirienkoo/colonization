@@ -274,12 +274,12 @@ class MultiplayerClient {
     }
 
     // Send game action to other players
-    sendGameAction(action, data) {
-        this._logEmit('game-action', { roomCode: this.roomCode, action, data });
+    sendGameAction(action, payload) {
+        this._logEmit('game-action', { roomCode: this.roomCode, action, payload });
         this.socket.emit('game-action', {
             roomCode: this.roomCode,
             action,
-            data
+            payload
         });
     }
 

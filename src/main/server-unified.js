@@ -138,11 +138,15 @@ function canPlaceSettlementServer(vertexKey, playerId, room) {
     }
 
     for (const [vk2, bld] of room.buildings) {
-        if (bld.type === 'settlement' || bld.type === 'city') {
+        if ((bld.type === 'settlement' || bld.type === 'city') && bld.playerId === playerId) {
+            // Rule: settlements of the SAME player must be at least 2 edges apart
+            // Rule: settlements of DIFFERENT players CAN be adjacent (1 edge apart)
             if (vk2 === vertexKey) return false;
             if (neighborKeys.includes(vk2)) return false;
         }
     }
+    // Check if vertex is already occupied by ANY player
+    if (room.buildings.has(vertexKey)) return false;
     return true;
 }
 // ===== END HELPER FUNCTIONS =====
@@ -1070,6 +1074,42 @@ io.on('connection', (socket) => {
             return;
         }
         
+        // VALIDATION: During initial build, only current builder can place
+        if (room.gamePhase === 'initial-build') {
+            const currentBuilderId = room.initialBuildOrder[room.currentInitialBuildIndex].playerId;
+            if (currentBuilderId !== socket.id) {
+                socket.emit('action-error', { message: 'Зараз не ваш хід!' });
+                return;
+            }
+        }
+        // VALIDATION: During regular turn phase, check if it's this player's turn
+        if (room.gamePhase === 'regular-turn') {
+            const currentPlayerId = room.turnOrder[room.currentTurnIndex];
+            if (currentPlayerId !== socket.id) {
+                socket.emit('action-error', { message: 'Зараз не ваш хід!' });
+                return;
+            }
+        }
+        
+        // Check if dice has been rolled (only during regular turn, not initial-build)
+        if (room.gamePhase === 'regular-turn' && room.turnState && room.turnState.actionsLocked) {
+            socket.emit('action-error', { message: 'Спочатку киньте кубики!' });
+            return;
+        }
+        
+        // VALIDATION: During initial build, check limits
+        if (room.gamePhase === 'initial-build') {
+            const progress = room.initialBuildProgress.get(socket.id) || { settlements: 0, roads: 0 };
+            if (type === 'settlement' && progress.settlements >= 1) {
+                socket.emit('action-error', { message: 'Ви вже побудували 1 поселення під час початкового будівництва!' });
+                return;
+            }
+            if (type === 'road' && progress.roads >= 2) {
+                socket.emit('action-error', { message: 'Ви вже побудували 2 дороги під час початкового будівництва!' });
+                return;
+            }
+        }
+        
         // SERVER-SIDE VALIDATION: Check topology rules
         if (room.topology) {
             if (type === 'road') {
@@ -1098,42 +1138,6 @@ io.on('connection', (socket) => {
                     return;
                 }
             }
-        }
-        
-        // VALIDATION: During initial build, check limits
-        if (room.gamePhase === 'initial-build') {
-            const progress = room.initialBuildProgress.get(socket.id) || { settlements: 0, roads: 0 };
-            if (type === 'settlement' && progress.settlements >= 1) {
-                socket.emit('action-error', { message: 'Ви вже побудували 1 поселення під час початкового будівництва!' });
-                return;
-            }
-            if (type === 'road' && progress.roads >= 2) {
-                socket.emit('action-error', { message: 'Ви вже побудували 2 дороги під час початкового будівництва!' });
-                return;
-            }
-        }
-        
-        // VALIDATION: During initial build, only current builder can place
-        if (room.gamePhase === 'initial-build') {
-            const currentBuilderId = room.initialBuildOrder[room.currentInitialBuildIndex].playerId;
-            if (currentBuilderId !== socket.id) {
-                socket.emit('action-error', { message: 'Зараз не ваш хід!' });
-                return;
-            }
-        }
-        // VALIDATION: During regular turn phase, check if it's this player's turn
-        if (room.gamePhase === 'regular-turn') {
-            const currentPlayerId = room.turnOrder[room.currentTurnIndex];
-            if (currentPlayerId !== socket.id) {
-                socket.emit('action-error', { message: 'Зараз не ваш хід!' });
-                return;
-            }
-        }
-        
-        // Check if dice has been rolled (only during regular turn, not initial-build)
-        if (room.gamePhase === 'regular-turn' && room.turnState && room.turnState.actionsLocked) {
-            socket.emit('action-error', { message: 'Спочатку киньте кубики!' });
-            return;
         }
         
         // Store building with player info for validation
