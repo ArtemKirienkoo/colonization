@@ -1216,6 +1216,62 @@ io.on('connection', (socket) => {
                 placedBy: socket.id
             };
             
+            // ===== RESOURCE THEFT =====
+            // When robber is placed on a hex belonging to another player,
+            // check if that player has 7+ cards in hand and steal a random one
+            const targetPlayerId = payload.targetPlayerId;
+            if (targetPlayerId && targetPlayerId !== socket.id) {
+                // Initialize player resources if needed
+                if (!room.playerResources) {
+                    room.playerResources = new Map();
+                }
+                if (!room.playerResources.has(targetPlayerId)) {
+                    room.playerResources.set(targetPlayerId, { wood: 0, brick: 0, geese: 0, water: 0, stone: 0 });
+                }
+                if (!room.playerResources.has(socket.id)) {
+                    room.playerResources.set(socket.id, { wood: 0, brick: 0, geese: 0, water: 0, stone: 0 });
+                }
+                
+                const fromResources = room.playerResources.get(targetPlayerId);
+                const toResources = room.playerResources.get(socket.id);
+                
+                // Count total resources of the target player
+                const totalResources = fromResources.wood + fromResources.brick + fromResources.geese + 
+                                      fromResources.water + fromResources.stone;
+                
+                // Only steal if target has 7 or more resources
+                let stolenResource = null;
+                if (totalResources >= 7) {
+                    // Find resources that the target player has
+                    const availableResources = [];
+                    if (fromResources.wood > 0) availableResources.push('wood');
+                    if (fromResources.brick > 0) availableResources.push('brick');
+                    if (fromResources.geese > 0) availableResources.push('geese');
+                    if (fromResources.water > 0) availableResources.push('water');
+                    if (fromResources.stone > 0) availableResources.push('stone');
+                    
+                    // If target has resources, steal one randomly
+                    if (availableResources.length > 0) {
+                        const randomIndex = Math.floor(Math.random() * availableResources.length);
+                        stolenResource = availableResources[randomIndex];
+                        
+                        // Transfer resource
+                        fromResources[stolenResource]--;
+                        toResources[stolenResource]++;
+                    }
+                }
+                
+                // Broadcast theft result to ALL players
+                io.to(roomCode).emit('resource-stolen', {
+                    fromPlayerId: targetPlayerId,
+                    toPlayerId: socket.id,
+                    resource: stolenResource,
+                    success: stolenResource !== null,
+                    hasEnoughCards: totalResources >= 7,
+                    playerId: socket.id
+                });
+            }
+            
             // Broadcast to all players
             io.to(roomCode).emit('game-state-update', {
                 type: 'robber-placed',
@@ -1337,8 +1393,7 @@ io.on('connection', (socket) => {
             }
             
             // Broadcast to all players that a resource was stolen
-            io.to(roomCode).emit('game-state-update', {
-                type: 'resource-stolen',
+            io.to(roomCode).emit('resource-stolen', {
                 fromPlayerId: fromPlayerId,
                 toPlayerId: toPlayerId,
                 resource: stolenResource,

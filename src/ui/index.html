@@ -3475,10 +3475,8 @@ function placeRobber(targetHexKey) {
     // Render map to show updated robber position
     renderMap(mapData, canvas, mapHexSize);
     
-    // Steal a random resource from the target player (if they have 7+ cards)
-    stealRandomResource(target.ownerPlayerId, myPlayerId);
-    
     // Sync in multiplayer - DON'T reset robberMode yet, wait for server confirmation
+    // The server handles resource theft automatically when placing the robber
     if (multiplayerClient && isMultiplayer) {
         multiplayerClient.sendGameAction('place-robber', { hexKey: targetHexKey, targetPlayerId: target.ownerPlayerId });
         
@@ -4168,8 +4166,10 @@ function registerMultiplayerHandlers(client) {
         } else {
             // No resources to steal
             if (data.toPlayerId === myPlayerId) {
-                if (data.hasEnoughCards) {
+                if (!data.hasEnoughCards) {
                     showMessage('🎲 Розбійник розміщено, але у гравця менше 7 карт');
+                } else {
+                    showMessage('🎲 Розбійник розміщено, але у гравця немає ресурсів для крадіжки');
                 }
             }
         }
