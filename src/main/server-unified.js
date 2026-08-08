@@ -632,8 +632,17 @@ io.on('connection', (socket) => {
             room.initialBuildRoundComplete = false;
             room.buildings = new Map();
             
-            // Initialize robber and dev card state
-            room.robber = { hexKey: null, placedBy: null };
+            // Initialize robber on desert hex (desert is always at center 0,0,0 in generateMap)
+            let desertHexKey = '0,0,0';
+            if (room.gameState && room.gameState.resources) {
+                for (const [key, res] of Object.entries(room.gameState.resources)) {
+                    if (res === 'desert') {
+                        desertHexKey = key;
+                        break;
+                    }
+                }
+            }
+            room.robber = { hexKey: desertHexKey, placedBy: null };
             room.devCardHands = new Map();
             room.knightCards = new Map();
             room.playerResources = new Map();

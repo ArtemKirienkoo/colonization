@@ -4179,9 +4179,12 @@ function registerMultiplayerHandlers(client) {
     client.onRobberSynced((data) => {
         console.log('Robber synced:', data);
         if (data && data.robber) {
-            // Update local robber state
-            gameState.robber.hexKey = data.robber.hexKey;
-            gameState.robber.placedBy = data.robber.placedBy;
+            // Only update local robber state if server has a valid hexKey
+            // (don't overwrite local desert position with null from server)
+            if (data.robber.hexKey) {
+                gameState.robber.hexKey = data.robber.hexKey;
+                gameState.robber.placedBy = data.robber.placedBy;
+            }
             
             // Exit robber mode and re-enable controls
             robberMode = false;
