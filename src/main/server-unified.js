@@ -1315,6 +1315,22 @@ io.on('connection', (socket) => {
                 });
             }
         }
+        else if (action === 'activate-roads') {
+            // Track roads card usage on server - use devCardHands
+            const playerHand = room.devCardHands.get(socket.id) || [];
+            const roadsCard = playerHand.find(c => c.type === 'roads' && !c.used);
+            
+            if (roadsCard) {
+                roadsCard.used = true;
+                
+                // Broadcast to all players
+                io.to(roomCode).emit('game-state-update', {
+                    type: 'roads-activated',
+                    playerId: socket.id,
+                    gameState: room.gameState
+                });
+            }
+        }
         else if (action === 'monopoly') {
             // ===== SERVER-SIDE RESOURCE TRANSFER =====
             if (!room.playerResources) {

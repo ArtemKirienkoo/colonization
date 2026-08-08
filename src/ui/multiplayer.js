@@ -459,6 +459,11 @@ class MultiplayerClient {
         this._safeOn('knight-activated', callback);
     }
 
+    // Handle roads card activated event
+    onRoadsActivated(callback) {
+        this._safeOn('roads-activated', callback);
+    }
+
     // Handle resource stolen event
     onResourceStolen(callback) {
         this._safeOn('resource-stolen', callback);

@@ -2972,6 +2972,11 @@ function activateRoadBuilding(index){
     gameState.roadBuildingMode=2;
     buildMode='road';
     document.querySelectorAll('.build-btn').forEach(b=>b.classList.remove('active'));
+    
+    // Sync roads card activation to server so it stays used after turn passes
+    if (multiplayerClient && isMultiplayer) {
+        multiplayerClient.sendGameAction('activate-roads', { cardId: card.id });
+    }
 }
 
 function activateKnightCard(index){
@@ -4264,6 +4269,20 @@ function registerMultiplayerHandlers(client) {
                 knightCard.used = true;
                 updateDevHandDisplay();
                 showMessage('⚔️ Рицар використано!');
+            }
+        }
+    });
+
+    // Update local dev card hand when server confirms roads card activation
+    client.onRoadsActivated((data) => {
+        console.log('Roads card activated:', data);
+        if (data.playerId === myPlayerId) {
+            // Find the roads card in my hand and mark it as used
+            const roadsCard = gameState.devHand.find(c => c.type === 'roads' && !c.used);
+            if (roadsCard) {
+                roadsCard.used = true;
+                updateDevHandDisplay();
+                showMessage('🛤️ Карта "Дороги" використана!');
             }
         }
     });
