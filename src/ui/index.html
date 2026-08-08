@@ -3038,6 +3038,7 @@ function activateKnightCard(index){
 function activateYearOfPlenty(index){
     const card=gameState.devHand[index];
     if(card.used) return;
+    card.used=true;
     gameState.cardInProgress=true;
     showMessage('🌾 Оберіть 2 ресурси для отримання');
     updateAllUI();

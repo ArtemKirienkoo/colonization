@@ -1331,6 +1331,48 @@ io.on('connection', (socket) => {
                 });
             }
         }
+        else if (action === 'activate-plenty') {
+            // Track Year of Plenty card usage on server - use devCardHands
+            const playerHand = room.devCardHands.get(socket.id) || [];
+            const plentyCard = playerHand.find(c => c.type === 'plenty' && !c.used);
+            
+            if (plentyCard) {
+                plentyCard.used = true;
+                
+                // Add chosen resources to server-side player resources
+                if (payload.resources && Array.isArray(payload.resources)) {
+                    if (!room.playerResources) {
+                        room.playerResources = new Map();
+                    }
+                    if (!room.playerResources.has(socket.id)) {
+                        room.playerResources.set(socket.id, { wood: 0, brick: 0, geese: 0, water: 0, stone: 0 });
+                    }
+                    const playerRes = room.playerResources.get(socket.id);
+                    for (const res of payload.resources) {
+                        if (playerRes[res] !== undefined) {
+                            playerRes[res]++;
+                        }
+                    }
+                }
+                
+                // Broadcast to all players
+                io.to(roomCode).emit('game-state-update', {
+                    type: 'plenty-activated',
+                    playerId: socket.id,
+                    gameState: room.gameState
+                });
+            }
+        }
+        else if (action === 'sync-resources') {
+            // Client updated its own resources locally (trading, building, year of plenty, etc.)
+            // Sync the full resource state to the server so theft and buying work correctly
+            if (payload && payload.resources) {
+                if (!room.playerResources) {
+                    room.playerResources = new Map();
+                }
+                room.playerResources.set(socket.id, { ...payload.resources });
+            }
+        }
         else if (action === 'monopoly') {
             // ===== SERVER-SIDE RESOURCE TRANSFER =====
             if (!room.playerResources) {
