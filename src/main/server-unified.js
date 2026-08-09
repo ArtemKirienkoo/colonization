@@ -1293,7 +1293,7 @@ io.on('connection', (socket) => {
                 robber: room.robber
             });
         }
-        else if (action === 'activate-knight' || action === 'activate-roads' || action === 'activate-plenty' || action === 'monopoly') {
+        else if (action === 'activate-knight') {
             // ===== SERVER-SIDE TURN VALIDATION FOR DEV CARDS =====
             // Dev cards can only be used during the player's own turn AFTER rolling the dice
             if (room.gamePhase !== 'regular-turn') {
@@ -1305,16 +1305,11 @@ io.on('connection', (socket) => {
                 socket.emit('action-error', { message: 'Зараз не ваш хід!' });
                 return;
             }
-            if (!room.turnState || !room.turnState.diceRolled) {
+            if (!room.turnState || !room.turnState.diceRolled || room.turnState.actionsLocked) {
                 socket.emit('action-error', { message: 'Спочатку киньте кубики!' });
                 return;
             }
-            if (room.turnState.actionsLocked) {
-                socket.emit('action-error', { message: 'Спочатку киньте кубики!' });
-                return;
-            }
-        }
-        else if (action === 'activate-knight') {
+            
             // Track knight usage on server - use devCardHands
             const playerHand = room.devCardHands.get(socket.id) || [];
             const knightCard = playerHand.find(c => c.type === 'knight' && !c.used);
@@ -1341,6 +1336,21 @@ io.on('connection', (socket) => {
             }
         }
         else if (action === 'activate-roads') {
+            // ===== SERVER-SIDE TURN VALIDATION FOR DEV CARDS =====
+            if (room.gamePhase !== 'regular-turn') {
+                socket.emit('action-error', { message: 'Карти розвитку можна використовувати тільки під час гри!' });
+                return;
+            }
+            const currentPlayerId = room.turnOrder[room.currentTurnIndex];
+            if (currentPlayerId !== socket.id) {
+                socket.emit('action-error', { message: 'Зараз не ваш хід!' });
+                return;
+            }
+            if (!room.turnState || !room.turnState.diceRolled || room.turnState.actionsLocked) {
+                socket.emit('action-error', { message: 'Спочатку киньте кубики!' });
+                return;
+            }
+            
             // Track roads card usage on server - use devCardHands
             const playerHand = room.devCardHands.get(socket.id) || [];
             const roadsCard = playerHand.find(c => c.type === 'roads' && !c.used);
@@ -1361,6 +1371,21 @@ io.on('connection', (socket) => {
             }
         }
         else if (action === 'activate-plenty') {
+            // ===== SERVER-SIDE TURN VALIDATION FOR DEV CARDS =====
+            if (room.gamePhase !== 'regular-turn') {
+                socket.emit('action-error', { message: 'Карти розвитку можна використовувати тільки під час гри!' });
+                return;
+            }
+            const currentPlayerId = room.turnOrder[room.currentTurnIndex];
+            if (currentPlayerId !== socket.id) {
+                socket.emit('action-error', { message: 'Зараз не ваш хід!' });
+                return;
+            }
+            if (!room.turnState || !room.turnState.diceRolled || room.turnState.actionsLocked) {
+                socket.emit('action-error', { message: 'Спочатку киньте кубики!' });
+                return;
+            }
+            
             // Track Year of Plenty card usage on server - use devCardHands
             const playerHand = room.devCardHands.get(socket.id) || [];
             const plentyCard = playerHand.find(c => c.type === 'plenty' && !c.used);
@@ -1403,6 +1428,21 @@ io.on('connection', (socket) => {
             }
         }
         else if (action === 'monopoly') {
+            // ===== SERVER-SIDE TURN VALIDATION FOR DEV CARDS =====
+            if (room.gamePhase !== 'regular-turn') {
+                socket.emit('action-error', { message: 'Карти розвитку можна використовувати тільки під час гри!' });
+                return;
+            }
+            const currentPlayerId = room.turnOrder[room.currentTurnIndex];
+            if (currentPlayerId !== socket.id) {
+                socket.emit('action-error', { message: 'Зараз не ваш хід!' });
+                return;
+            }
+            if (!room.turnState || !room.turnState.diceRolled || room.turnState.actionsLocked) {
+                socket.emit('action-error', { message: 'Спочатку киньте кубики!' });
+                return;
+            }
+            
             // ===== SERVER-SIDE RESOURCE TRANSFER =====
             if (!room.playerResources) {
                 room.playerResources = new Map();
