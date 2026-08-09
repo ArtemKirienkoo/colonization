@@ -3021,8 +3021,6 @@ function activateKnightCard(index){
                 const desertHexKey = hexKey(desertHex);
                 gameState.robber.hexKey = desertHexKey;
                 gameState.robber.placedBy = myPlayerId;
-                card.used = true;
-                gameState.cardInProgress = false;
                 
                 // Update knight count for largest army tracking
                 const currentKnights = gameState.knightCards.get(myPlayerId) || 0;
@@ -3034,10 +3032,14 @@ function activateKnightCard(index){
                 renderMap(mapData, canvas, mapHexSize);
                 
                 if (multiplayerClient && isMultiplayer) {
-                    // Sync knight activation to server
+                    // Sync knight activation to server - card will be marked as used when robber is placed
                     multiplayerClient.sendGameAction('activate-knight', { cardId: card.id });
                     // Sync robber position to desert so ALL players see it
                     multiplayerClient.sendGameAction('place-robber', { hexKey: desertHexKey, fromKnight: true });
+                } else {
+                    // Single player - mark card as used immediately
+                    card.used = true;
+                    gameState.cardInProgress = false;
                 }
                 return;
             }
@@ -3881,6 +3883,7 @@ let myPlayerId = null;
 let mySocketId = null;
 let initialPhaseBuildings = new Map();
 let robberMode = false; // Block all actions when robber needs to be placed
+let robberModeFromKnight = false; // Track if robber mode was triggered by a knight card
 let largestArmyHolder = null; // Track who has the largest army medal
 
 // Check for multiplayer map in sessionStorage first

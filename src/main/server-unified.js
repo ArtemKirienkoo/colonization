@@ -1229,6 +1229,21 @@ io.on('connection', (socket) => {
             // When robber is placed on a hex belonging to another player,
             // check if that player has 7+ cards in hand and steal a random one
             const targetPlayerId = payload.targetPlayerId;
+            
+            // If this is from a knight card, mark it as used now
+            if (payload.fromKnight && room.pendingKnightCards && room.pendingKnightCards.has(socket.id)) {
+                const knightCard = room.pendingKnightCards.get(socket.id);
+                knightCard.used = true;
+                
+                // Update knight count for largest army tracking
+                if (!room.knightCards.has(socket.id)) {
+                    room.knightCards.set(socket.id, 0);
+                }
+                room.knightCards.set(socket.id, room.knightCards.get(socket.id) + 1);
+                
+                // Clear pending knight card
+                room.pendingKnightCards.delete(socket.id);
+            }
             if (targetPlayerId && targetPlayerId !== socket.id) {
                 // Initialize player resources if needed
                 if (!room.playerResources) {
@@ -1312,26 +1327,29 @@ io.on('connection', (socket) => {
             
             // Track knight usage on server - use devCardHands
             const playerHand = room.devCardHands.get(socket.id) || [];
-            const knightCard = playerHand.find(c => c.type === 'knight' && !c.used);
+            const knightCard = payload && payload.cardId 
+                ? playerHand.find(c => c.id === payload.cardId && !c.used) 
+                : playerHand.find(c => c.type === 'knight' && !c.used);
             
             if (knightCard) {
-                knightCard.used = true;
-                
-                // Update knight count for largest army tracking
-                if (!room.knightCards.has(socket.id)) {
-                    room.knightCards.set(socket.id, 0);
+                // Store pending knight card - don't mark as used yet
+                // Card will be marked as used when robber is successfully placed
+                if (!room.pendingKnightCards) {
+                    room.pendingKnightCards = new Map();
                 }
-                room.knightCards.set(socket.id, room.knightCards.get(socket.id) + 1);
+                room.pendingKnightCards.set(socket.id, knightCard);
                 
-                // Broadcast to all players
+                // Broadcast to all players that knight activation started
                 io.to(roomCode).emit('game-state-update', {
                     type: 'knight-activated',
                     playerId: socket.id,
+                    cardId: knightCard.id,
                     gameState: room.gameState
                 });
                 // Also emit direct event for client handlers
                 io.to(roomCode).emit('knight-activated', {
-                    playerId: socket.id
+                    playerId: socket.id,
+                    cardId: knightCard.id
                 });
             }
         }
@@ -1353,7 +1371,9 @@ io.on('connection', (socket) => {
             
             // Track roads card usage on server - use devCardHands
             const playerHand = room.devCardHands.get(socket.id) || [];
-            const roadsCard = playerHand.find(c => c.type === 'roads' && !c.used);
+            const roadsCard = payload && payload.cardId 
+                ? playerHand.find(c => c.id === payload.cardId && !c.used) 
+                : playerHand.find(c => c.type === 'roads' && !c.used);
             
             if (roadsCard) {
                 roadsCard.used = true;
@@ -1362,11 +1382,13 @@ io.on('connection', (socket) => {
                 io.to(roomCode).emit('game-state-update', {
                     type: 'roads-activated',
                     playerId: socket.id,
+                    cardId: roadsCard.id,
                     gameState: room.gameState
                 });
                 // Also emit direct event for client handlers
                 io.to(roomCode).emit('roads-activated', {
-                    playerId: socket.id
+                    playerId: socket.id,
+                    cardId: roadsCard.id
                 });
             }
         }
@@ -1469,6 +1491,13 @@ io.on('connection', (socket) => {
             if (stolenCount > 0) {
                 targetResources[resource] -= stolenCount;
                 myResources[resource] += stolenCount;
+            }
+            
+            // Mark the monopoly card as used in server dev card hand
+            const monoPlayerHand = room.devCardHands.get(socket.id) || [];
+            const monoCard = monoPlayerHand.find(c => c.type === 'monopoly' && !c.used);
+            if (monoCard) {
+                monoCard.used = true;
             }
             
             // Broadcast monopoly result to all players
