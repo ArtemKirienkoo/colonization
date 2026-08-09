@@ -3149,65 +3149,100 @@ function activateYearOfPlenty(index){
             showMessage('🌾 Ресурси успішно отримано!');
             updateAllUI();
             syncResourcesToServer();
+            
+            // Send plenty activation to server so card stays used after sync-dev-cards
+            if (multiplayerClient && isMultiplayer) {
+                multiplayerClient.sendGameAction('activate-plenty', {
+                    resources: selected
+                });
+            }
         }
     });
     updateYopUI();
 }
+function applyMonopolyEffect(targetPlayerId, resourceType) {
+    // Single player monopoly effect - take all resources of the selected type from AI opponent
+    // In single player, we simulate taking resources from the "bank" or AI
+    const resourceCount = gameState.resourceCards[resourceType] || 0;
+    
+    // In single player, we'll just add a fixed amount based on the resource type
+    // (since there's no real opponent to steal from)
+    const monopolyAmount = 3; // Fixed amount for single player
+    gameState.resourceCards[resourceType] += monopolyAmount;
+    
+    showMessage('👑 Монополія! Отримано ' + monopolyAmount + ' ' + RESOURCES[resourceType].name + '!');
+    updateAllUI();
+    syncResourcesToServer();
+}
+
 function activateMonopoly(index){
     const card=gameState.devHand[index];
     if(card.used)return;
     gameState.cardInProgress=true;
-    showMessage('👑 Оберіть гравця для монополії');
+    showMessage('👑 Оберіть ресурс для монополії');
     updateAllUI();
     
     const modal=document.createElement('div');
     modal.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:flex;justify-content:center;align-items:center;z-index:2000;';
     const mc=document.createElement('div');
-    mc.style.cssText='background:rgba(26,26,46,0.95);border:2px solid #f39c12;border-radius:12px;padding:20px;color:#fff;font-family:\'Segoe UI\',Tahoma,Geneva,Verdana,sans-serif;max-width:480px;width:90%;box-shadow:0 0 30px rgba(243,156,18,0.5);';
+    mc.style.cssText='background:rgba(26,26,46,0.95);border:2px solid #f39c12;border-radius:12px;padding:20px;color:#fff;font-family:\'Segoe UI\',Tahoma,Geneva,Verdana,sans-serif;max-width:580px;width:90%;box-shadow:0 0 30px rgba(243,156,18,0.5);';
     
-    // Step 1: Select target player
-    let playersHtml = '';
-    if (isMultiplayer && multiplayerClient) {
-        const otherPlayers = multiplayerClient.players.filter(p => p.id !== myPlayerId);
-        if (otherPlayers.length > 0) {
-            playersHtml = '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:12px;">';
-            otherPlayers.forEach(p => {
-                playersHtml += '<div class="yop-res-option" data-player="'+p.id+'" style="padding:10px 14px;border-radius:6px;cursor:pointer;background:rgba(243,156,18,0.15);border:2px solid rgba(243,156,18,0.3);text-align:center;min-width:100px;"><div style="font-size:1.2em;">👤</div><div style="font-size:0.7em;color:#ccc;">'+p.name+'</div></div>';
-            });
-            playersHtml += '</div>';
-        } else {
-            playersHtml = '<p style="color:#ccc;margin-bottom:12px;">Немає інших гравців</p>';
-        }
-    } else {
-        playersHtml = '<p style="color:#ccc;margin-bottom:12px;">Монополія доступна тільки в мультиплеєрі</p>';
-    }
-    
-    let h='<h3 style="text-align:center;color:#f39c12;margin-bottom:15px;">👑 МОНОПОЛІЯ</h3><p style="text-align:center;color:#ccc;margin-bottom:12px;">Крок 1: Оберіть гравця</p>' + playersHtml + '<div style="text-align:center;"><button id="monoCancel" style="padding:6px 15px;background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:6px;cursor:pointer;">Скасувати</button></div>';
+    // Step 1: Select resource type (ALL players will give this resource)
+    const resources=['wood','brick','geese','water','stone'];
+    let h='<h3 style="text-align:center;color:#f39c12;margin-bottom:15px;">👑 МОНОПОЛІЯ</h3><p style="text-align:center;color:#ccc;margin-bottom:12px;">Оберіть ресурс. Всі інші гравці віддадуть вам ВСІ свої картки цього ресурсу.</p><div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:12px;">';
+    const rcClasses={wood:'wood-card',brick:'brick-card',geese:'geese-card',water:'water-card',stone:'stone-card'};
+    resources.forEach(r=>{
+        h+='<div class="yop-res-option" data-r="'+r+'" style="padding:10px 14px;border-radius:6px;cursor:pointer;background:rgba(243,156,18,0.15);border:2px solid rgba(243,156,18,0.3);text-align:center;min-width:80px;"><div style="font-size:1.5em;">'+RESOURCES[r].icon+'</div><div style="font-size:0.7em;color:#ccc;">'+RESOURCES[r].name+'</div></div>';
+    });
+    h+='</div>';
+    h+='<div style="text-align:center;"><button id="monoCancel" style="padding:6px 15px;background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:6px;cursor:pointer;">Скасувати</button></div>';
     
     mc.innerHTML=h;
     modal.appendChild(mc);
     document.body.appendChild(modal);
     
-    let selectedPlayer = null;
-    
-    const playerOptions = mc.querySelectorAll('.yop-res-option[data-player]');
-    playerOptions.forEach(opt => {
+    let selectedResource = null;
+    const options = mc.querySelectorAll('.yop-res-option');
+    options.forEach(opt => {
         opt.addEventListener('click', function() {
-            if (selectedPlayer) {
-                const prev = modal.querySelector('[data-player="'+selectedPlayer+'"]');
+            const resource = this.dataset.r;
+            
+            if (selectedResource) {
+                const prev = mc.querySelector('[data-r="'+selectedResource+'"]');
                 if (prev) {
                     prev.classList.remove('selected');
                     prev.style.background = 'rgba(243,156,18,0.15)';
                     prev.style.borderColor = 'rgba(243,156,18,0.3)';
                 }
             }
-            selectedPlayer = this.dataset.player;
+            selectedResource = resource;
             this.classList.add('selected');
             this.style.background = 'rgba(243,156,18,0.35)';
             this.style.borderColor = '#f1c40f';
             
-            // Show resource selection
-            showMonopolyResourceSelection(modal, selectedPlayer, card);
+            // Confirm monopoly
+            if (selectedResource) {
+                // Mark card as used IMMEDIATELY for visual feedback
+                card.used = true;
+                gameState.cardInProgress = false;
+                modal.remove();
+                updateAllUI();
+                
+                // Send monopoly action to server - server handles the actual count from ALL players
+                if (isMultiplayer && multiplayerClient) {
+                    multiplayerClient.sendGameAction('monopoly', {
+                        resource: selectedResource
+                    });
+                    showMessage('👑 Монополія! Всі гравці віддають вам всі '+RESOURCES[selectedResource].name+'!');
+                } else {
+                    // Single player - apply the effect immediately (take from "bank")
+                    const monopolyAmount = 3; // Fixed amount for single player
+                    gameState.resourceCards[selectedResource] += monopolyAmount;
+                    showMessage('👑 Монополія! Отримано ' + monopolyAmount + ' ' + RESOURCES[selectedResource].name + '!');
+                    updateAllUI();
+                    syncResourcesToServer();
+                }
+            }
         });
     });
     
@@ -3271,6 +3306,12 @@ function showMonopolyResourceSelection(modal, targetPlayerId, card) {
     
     document.getElementById('monoConfirm').addEventListener('click',()=>{
         if (selectedResource) {
+            // Mark card as used IMMEDIATELY for visual feedback
+            card.used = true;
+            gameState.cardInProgress = false;
+            modal.remove();
+            updateAllUI(); // Update UI immediately to show card as "used"
+            
             // Send monopoly action to server - server handles the actual count
             if (isMultiplayer && multiplayerClient) {
                 multiplayerClient.sendGameAction('monopoly', {
@@ -3278,12 +3319,10 @@ function showMonopolyResourceSelection(modal, targetPlayerId, card) {
                     resource: selectedResource
                 });
                 showMessage('👑 Монополія! Захоплено всі '+RESOURCES[selectedResource].name+' у гравця!');
+            } else {
+                // Single player - apply the effect immediately
+                applyMonopolyEffect(targetPlayerId, selectedResource);
             }
-            
-            card.used = true;
-            gameState.cardInProgress = false;
-            modal.remove();
-            updateAllUI();
         }
     });
     
@@ -4262,19 +4301,42 @@ function registerMultiplayerHandlers(client) {
     client.onMonopolyCompleted((data) => {
         console.log('Monopoly completed:', data);
         if (data.playerId === myPlayerId) {
-            // Update my resources
+            // I used the monopoly - update my resources from server
             if (data.myResources) {
                 gameState.resourceCards = { ...data.myResources };
             }
             showMessage('👑 Монополія! Захоплено ' + data.stolenCount + ' ' + RESOURCES[data.resource].name + '!');
             updateAllUI();
-        } else if (data.targetPlayerId === myPlayerId) {
-            // My resources were stolen
-            if (data.targetResources) {
-                gameState.resourceCards = { ...data.targetResources };
+        } else if (data.stolenFrom && data.stolenFrom[myPlayerId] !== undefined) {
+            // My resources were stolen by another player's monopoly
+            const stolenCount = data.stolenFrom[myPlayerId] || 0;
+            if (stolenCount > 0) {
+                gameState.resourceCards[data.resource] = (gameState.resourceCards[data.resource] || 0) - stolenCount;
+                showMessage('😢 У вас захоплено ' + stolenCount + ' ' + RESOURCES[data.resource].name + ' монополією!');
+                updateAllUI();
             }
-            showMessage('😢 У вас захоплено ' + data.stolenCount + ' ' + RESOURCES[data.resource].name + ' монополією!');
-            updateAllUI();
+        }
+    });
+    
+    // Handle full resource sync from server (monopoly, trade, etc.)
+    client.onResourcesSynced((data) => {
+        console.log('Resources synced:', data);
+        if (data && data.resources && data.resources[myPlayerId]) {
+            gameState.resourceCards = { ...data.resources[myPlayerId] };
+            updateResourceCardsDisplay();
+        }
+    });
+    
+    // Handle Year of Plenty activation from server
+    client.onPlentyActivated((data) => {
+        console.log('Plenty activated:', data);
+        if (data.playerId === myPlayerId) {
+            // Find the plenty card in my hand and mark it as used
+            const plentyCard = gameState.devHand.find(c => c.type === 'plenty' && !c.used);
+            if (plentyCard) {
+                plentyCard.used = true;
+                updateDevHandDisplay();
+            }
         }
     });
     
@@ -4602,8 +4664,10 @@ function handleMultiplayerAction(action, data) {
 // Update players list display
 function updatePlayersList(players) {
     console.log('Updating players list:', players);
-    // This can be extended to show a players panel in the game
-    // For now, just log to console
+    // Update the multiplayer client's players list
+    if (multiplayerClient && players) {
+        multiplayerClient.players = players;
+    }
 }
 
 // Send game action to other players

@@ -479,6 +479,14 @@ class MultiplayerClient {
         this._safeOn('monopoly-completed', callback);
     }
 
+    onPlentyActivated(callback) {
+        this._safeOn('plenty-activated', callback);
+    }
+
+    onResourcesSynced(callback) {
+        this._safeOn('resources-synced', callback);
+    }
+
     // Handle dev cards sync (for reconnection)
     onSyncDevCards(callback) {
         this._safeOn('sync-dev-cards', callback);

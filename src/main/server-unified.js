@@ -1439,6 +1439,17 @@ io.on('connection', (socket) => {
                     playerId: socket.id,
                     gameState: room.gameState
                 });
+                // Also emit direct event for client handlers
+                io.to(roomCode).emit('plenty-activated', {
+                    playerId: socket.id
+                });
+                
+                // Sync dev cards to all players so the used status is preserved
+                const devCardHandsData = {};
+                for (const [pid, hand] of room.devCardHands) {
+                    devCardHandsData[pid] = hand;
+                }
+                io.to(roomCode).emit('sync-dev-cards', { devCardHands: devCardHandsData });
             }
         }
         else if (action === 'sync-resources') {
@@ -1468,31 +1479,44 @@ io.on('connection', (socket) => {
             }
             
             // ===== SERVER-SIDE RESOURCE TRANSFER =====
+            // Monopoly: ALL other players give ALL their resources of the selected type
             if (!room.playerResources) {
                 room.playerResources = new Map();
             }
             
-            const targetPlayerId = payload.targetPlayerId;
             const resource = payload.resource;
+            if (!resource || !['wood', 'brick', 'geese', 'water', 'stone'].includes(resource)) {
+                socket.emit('action-error', { message: 'Невірний тип ресурсу!' });
+                return;
+            }
             
-            // Initialize resources for both players if needed
+            // Initialize my resources if needed
             if (!room.playerResources.has(socket.id)) {
                 room.playerResources.set(socket.id, { wood: 0, brick: 0, geese: 0, water: 0, stone: 0 });
             }
-            if (!room.playerResources.has(targetPlayerId)) {
-                room.playerResources.set(targetPlayerId, { wood: 0, brick: 0, geese: 0, water: 0, stone: 0 });
-            }
-            
-            const targetResources = room.playerResources.get(targetPlayerId);
             const myResources = room.playerResources.get(socket.id);
             
-            // Calculate how many resources to steal
-            const stolenCount = targetResources[resource] || 0;
+            // Collect resources from ALL other players
+            let totalStolen = 0;
+            const stolenFrom = {}; // playerId -> stolenCount
             
-            // Transfer ALL resources of this type
-            if (stolenCount > 0) {
-                targetResources[resource] -= stolenCount;
-                myResources[resource] += stolenCount;
+            for (const player of room.players) {
+                if (player.id === socket.id) continue; // Skip self
+                
+                // Initialize player resources if needed
+                if (!room.playerResources.has(player.id)) {
+                    room.playerResources.set(player.id, { wood: 0, brick: 0, geese: 0, water: 0, stone: 0 });
+                }
+                const playerRes = room.playerResources.get(player.id);
+                
+                // Take ALL resources of this type
+                const stolenCount = playerRes[resource] || 0;
+                if (stolenCount > 0) {
+                    playerRes[resource] -= stolenCount;
+                    myResources[resource] += stolenCount;
+                    totalStolen += stolenCount;
+                    stolenFrom[player.id] = stolenCount;
+                }
             }
             
             // Mark the monopoly card as used in server dev card hand
@@ -1506,21 +1530,26 @@ io.on('connection', (socket) => {
             io.to(roomCode).emit('game-state-update', {
                 type: 'monopoly-completed',
                 playerId: socket.id,
-                targetPlayerId: targetPlayerId,
                 resource: resource,
-                stolenCount: stolenCount,
-                targetResources: targetResources,
+                stolenCount: totalStolen,
+                stolenFrom: stolenFrom,
                 myResources: myResources
             });
             // Also emit direct event for client handlers
             io.to(roomCode).emit('monopoly-completed', {
                 playerId: socket.id,
-                targetPlayerId: targetPlayerId,
                 resource: resource,
-                stolenCount: stolenCount,
-                targetResources: targetResources,
+                stolenCount: totalStolen,
+                stolenFrom: stolenFrom,
                 myResources: myResources
             });
+            
+            // Sync updated resources to all players
+            const resourcesData = {};
+            for (const [pid, res] of room.playerResources) {
+                resourcesData[pid] = res;
+            }
+            io.to(roomCode).emit('resources-synced', { resources: resourcesData });
         }
         else if (action === 'steal-resource') {
             // Handle robber stealing a random resource
