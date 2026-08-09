@@ -1590,6 +1590,15 @@ function deductResources(t) {
     } 
     updateResourceCardsDisplay();
     updateDevHandDisplay(); 
+    syncResourcesToServer(); 
+}
+
+// Sync local resource counts to the server so server-side validation
+// (e.g. buying dev cards) uses the same numbers the player sees.
+function syncResourcesToServer() {
+    if (multiplayerClient && isMultiplayer && myPlayerId) {
+        multiplayerClient.sendGameAction('sync-resources', { resources: { ...gameState.resourceCards } });
+    }
 }
 
 function generateHexRing(r) { 
@@ -2908,6 +2917,10 @@ function confirmActivateDevCard(index){
         showMessage('Спочатку завершіть поточну дію!');
         return;
     }
+    if(isMultiplayer&&!canPerformMultiplayerActions()){
+        showMessage(isMyTurn&&!canPerformActions?'Спочатку киньте кубики!':'Зараз не ваш хід!');
+        return;
+    }
     const card=gameState.devHand[index];
     if(card.used)return;
     const info=getDevCardInfo(card.type);
@@ -3133,6 +3146,7 @@ function activateYearOfPlenty(index){
             modal.remove();
             showMessage('🌾 Ресурси успішно отримано!');
             updateAllUI();
+            syncResourcesToServer();
         }
     });
     updateYopUI();
@@ -3371,6 +3385,7 @@ function openTradeModal(){
                 gameState.resourceCards[sgr]-=c;
                 gameState.resourceCards[srr]++;
                 updateResourceCardsDisplay();
+                syncResourcesToServer();
                 modal.remove();
             }
         });

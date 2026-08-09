@@ -1293,6 +1293,27 @@ io.on('connection', (socket) => {
                 robber: room.robber
             });
         }
+        else if (action === 'activate-knight' || action === 'activate-roads' || action === 'activate-plenty' || action === 'monopoly') {
+            // ===== SERVER-SIDE TURN VALIDATION FOR DEV CARDS =====
+            // Dev cards can only be used during the player's own turn AFTER rolling the dice
+            if (room.gamePhase !== 'regular-turn') {
+                socket.emit('action-error', { message: 'Карти розвитку можна використовувати тільки під час гри!' });
+                return;
+            }
+            const currentPlayerId = room.turnOrder[room.currentTurnIndex];
+            if (currentPlayerId !== socket.id) {
+                socket.emit('action-error', { message: 'Зараз не ваш хід!' });
+                return;
+            }
+            if (!room.turnState || !room.turnState.diceRolled) {
+                socket.emit('action-error', { message: 'Спочатку киньте кубики!' });
+                return;
+            }
+            if (room.turnState.actionsLocked) {
+                socket.emit('action-error', { message: 'Спочатку киньте кубики!' });
+                return;
+            }
+        }
         else if (action === 'activate-knight') {
             // Track knight usage on server - use devCardHands
             const playerHand = room.devCardHands.get(socket.id) || [];
@@ -1313,6 +1334,10 @@ io.on('connection', (socket) => {
                     playerId: socket.id,
                     gameState: room.gameState
                 });
+                // Also emit direct event for client handlers
+                io.to(roomCode).emit('knight-activated', {
+                    playerId: socket.id
+                });
             }
         }
         else if (action === 'activate-roads') {
@@ -1328,6 +1353,10 @@ io.on('connection', (socket) => {
                     type: 'roads-activated',
                     playerId: socket.id,
                     gameState: room.gameState
+                });
+                // Also emit direct event for client handlers
+                io.to(roomCode).emit('roads-activated', {
+                    playerId: socket.id
                 });
             }
         }
@@ -1405,6 +1434,15 @@ io.on('connection', (socket) => {
             // Broadcast monopoly result to all players
             io.to(roomCode).emit('game-state-update', {
                 type: 'monopoly-completed',
+                playerId: socket.id,
+                targetPlayerId: targetPlayerId,
+                resource: resource,
+                stolenCount: stolenCount,
+                targetResources: targetResources,
+                myResources: myResources
+            });
+            // Also emit direct event for client handlers
+            io.to(roomCode).emit('monopoly-completed', {
                 playerId: socket.id,
                 targetPlayerId: targetPlayerId,
                 resource: resource,
@@ -1507,6 +1545,13 @@ io.on('connection', (socket) => {
             // Broadcast to all players
             io.to(roomCode).emit('game-state-update', {
                 type: 'dev-card-purchased',
+                playerId: playerId,
+                card: card,
+                remainingDeckCount: room.devCardDeck.length,
+                playerResources: playerRes
+            });
+            // Also emit direct event for client handlers
+            io.to(roomCode).emit('dev-card-purchased', {
                 playerId: playerId,
                 card: card,
                 remainingDeckCount: room.devCardDeck.length,
