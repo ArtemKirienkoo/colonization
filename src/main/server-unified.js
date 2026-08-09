@@ -1332,8 +1332,10 @@ io.on('connection', (socket) => {
                 : playerHand.find(c => c.type === 'knight' && !c.used);
             
             if (knightCard) {
-                // Store pending knight card - don't mark as used yet
-                // Card will be marked as used when robber is successfully placed
+                // Mark card as used immediately to prevent reuse
+                knightCard.used = true;
+                
+                // Store pending knight card for tracking
                 if (!room.pendingKnightCards) {
                     room.pendingKnightCards = new Map();
                 }
