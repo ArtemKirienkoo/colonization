@@ -1077,8 +1077,16 @@ io.on('connection', (socket) => {
         const key = data.edgeKey || data.vertexKey;
         if (!key) return;
         
-        // VALIDATION: Check if building spot is already taken
-        if (room.buildings.has(key)) {
+        // VALIDATION: For cities, check if it's the player's own settlement first
+        if (type === 'city') {
+            const existing = room.buildings.get(key);
+            if (!existing || existing.playerId !== socket.id || existing.type !== 'settlement') {
+                socket.emit('action-error', { message: 'Не можна покращити це місто!' });
+                return;
+            }
+        }
+        // VALIDATION: Check if building spot is already taken (for non-city buildings)
+        else if (room.buildings.has(key)) {
             socket.emit('action-error', { message: 'Це місце вже зайняте!' });
             return;
         }
