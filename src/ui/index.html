@@ -1280,17 +1280,25 @@ function computeDevCardVP() {
     return v; 
 }
 function countKnights() { 
-    return gameState.devHand.filter(c => c.type === 'knight' && !c.used).length; 
+    // Count PLAYED (used) knights - these count toward largest army
+    return gameState.knightCards.get(myPlayerId) || 0;
+}
+function getLargestArmyThreshold() {
+    // If someone holds the largest army, others need +1 to take it
+    if (largestArmyHolder && largestArmyHolder !== myPlayerId) {
+        return LARGEST_ARMY_THRESHOLD + 1;
+    }
+    return LARGEST_ARMY_THRESHOLD;
 }
 function hasLargestArmy() { 
-    const myKnights = countKnights();
-    return myKnights >= LARGEST_ARMY_THRESHOLD && largestArmyHolder === myPlayerId; 
+    if (largestArmyHolder !== myPlayerId) return false;
+    return countKnights() >= LARGEST_ARMY_THRESHOLD; 
 }
 function checkLargestArmy() {
     const myKnights = countKnights();
+    const threshold = getLargestArmyThreshold();
     
-    // Only track MY knights (unused/active in hand), not other players'
-    if (myKnights >= LARGEST_ARMY_THRESHOLD) {
+    if (myKnights >= threshold) {
         if (largestArmyHolder !== myPlayerId) {
             largestArmyHolder = myPlayerId;
             showMessage('⚔️ Ви отримали найбільше військо! +2 ПО');
@@ -1300,6 +1308,35 @@ function checkLargestArmy() {
         if (largestArmyHolder === myPlayerId) {
             largestArmyHolder = null;
             showMessage('⚔️ Найбільше військо втрачено');
+            updateBuildStats();
+        }
+    }
+}
+function getLongestRoadThreshold() {
+    // If someone holds the longest road, others need +1 to take it
+    if (longestRoadHolder && longestRoadHolder !== myPlayerId) {
+        return LONGEST_ROAD_THRESHOLD + 1;
+    }
+    return LONGEST_ROAD_THRESHOLD;
+}
+function hasLongestRoad() { 
+    if (longestRoadHolder !== myPlayerId) return false;
+    return computeLongestRoadLength() >= LONGEST_ROAD_THRESHOLD; 
+}
+function checkLongestRoad() {
+    const myRoadLength = computeLongestRoadLength();
+    const threshold = getLongestRoadThreshold();
+    
+    if (myRoadLength >= threshold) {
+        if (longestRoadHolder !== myPlayerId) {
+            longestRoadHolder = myPlayerId;
+            showMessage('🛤️ Ви отримали найдовшу дорогу! +2 ПО');
+            updateBuildStats();
+        }
+    } else {
+        if (longestRoadHolder === myPlayerId) {
+            longestRoadHolder = null;
+            showMessage('🛤️ Найдовша дорога втрачена');
             updateBuildStats();
         }
     }
@@ -1372,9 +1409,6 @@ function computeLongestRoadLength() {
         }
     }
     return longestSegment;
-}
-function hasLongestRoad() { 
-    return computeLongestRoadLength() >= LONGEST_ROAD_THRESHOLD; 
 }
 function computeVictoryPoints() { 
     let v = computeBaseVP()+computeDevCardVP(); 
@@ -2615,6 +2649,7 @@ canvas.addEventListener('click', (e) => {
             }
             renderMap(mapData, canvas, mapHexSize);
             updateBuildStats();
+            checkLongestRoad();
             if (multiplayerClient && isMultiplayer) {
                 multiplayerClient.syncBuild('road', { edgeKey: builtEdgeKey, color: myPlayerColor });
             }
@@ -2626,6 +2661,7 @@ canvas.addEventListener('click', (e) => {
             });
             renderMap(mapData, canvas, mapHexSize);
             updateBuildStats();
+            checkLongestRoad();
             if (multiplayerClient && isMultiplayer) {
                 multiplayerClient.syncBuild('road', { edgeKey: hoverEdge, color: myPlayerColor });
             }
@@ -2985,6 +3021,7 @@ function activateRoadBuilding(index){
     gameState.roadBuildingMode=2;
     buildMode='road';
     document.querySelectorAll('.build-btn').forEach(b=>b.classList.remove('active'));
+    updateAllUI(); // Update UI immediately to show card as "used"
     
     // Sync roads card activation to server so it stays used after turn passes
     if (multiplayerClient && isMultiplayer) {
@@ -3924,6 +3961,7 @@ let initialPhaseBuildings = new Map();
 let robberMode = false; // Block all actions when robber needs to be placed
 let robberModeFromKnight = false; // Track if robber mode was triggered by a knight card
 let largestArmyHolder = null; // Track who has the largest army medal
+let longestRoadHolder = null; // Track who has the longest road medal
 
 // Check for multiplayer map in sessionStorage first
 let data = null;
