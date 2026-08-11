@@ -1417,21 +1417,9 @@ io.on('connection', (socket) => {
             if (plentyCard) {
                 plentyCard.used = true;
                 
-                // Add chosen resources to server-side player resources
-                if (payload.resources && Array.isArray(payload.resources)) {
-                    if (!room.playerResources) {
-                        room.playerResources = new Map();
-                    }
-                    if (!room.playerResources.has(socket.id)) {
-                        room.playerResources.set(socket.id, { wood: 0, brick: 0, geese: 0, water: 0, stone: 0 });
-                    }
-                    const playerRes = room.playerResources.get(socket.id);
-                    for (const res of payload.resources) {
-                        if (playerRes[res] !== undefined) {
-                            playerRes[res]++;
-                        }
-                    }
-                }
+                // NOTE: Resources are NOT added here because the client already
+                // syncs them via 'sync-resources' action. Adding them again here
+                // would DOUBLE the resources on the server side.
                 
                 // Broadcast to all players
                 io.to(roomCode).emit('game-state-update', {
