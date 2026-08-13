@@ -1130,10 +1130,14 @@ io.on('connection', (socket) => {
         // SERVER-SIDE VALIDATION: Check topology rules
         if (room.topology) {
             if (type === 'road') {
-                // Don't build if not connected to player's network
-                if (!isEdgeConnectedServer(key, socket.id, room)) {
-                    socket.emit('action-error', { message: 'Дорога не з\'єднана з вашою мережею!' });
-                    return;
+                // During initial build, skip connectivity validation for roads so that
+                // road counting is handled purely by initialBuildProgress tracking
+                if (room.gamePhase !== 'initial-build') {
+                    // Don't build if not connected to player's network
+                    if (!isEdgeConnectedServer(key, socket.id, room)) {
+                        socket.emit('action-error', { message: 'Дорога не з\'єднана з вашою мережею!' });
+                        return;
+                    }
                 }
             } else if (type === 'settlement') {
                 // Don't build if too close to other settlements

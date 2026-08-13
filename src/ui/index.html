@@ -1280,19 +1280,23 @@ function computeDevCardVP() {
     return v; 
 }
 function countKnights() { 
-    // Count PLAYED (used) knights - these count toward largest army
-    return gameState.knightCards.get(myPlayerId) || 0;
+    // Count ACTIVE (unused) knights - these are ready to be played and count toward largest army
+    return gameState.devHand.filter(c => c.type === 'knight' && !c.used).length;
+}
+function countKnightsForPlayer(playerId) {
+    if (playerId === myPlayerId) return countKnights();
+    const hand = gameState.devCardHands.get(playerId);
+    if (hand && Array.isArray(hand)) return hand.filter(c => c.type === 'knight' && !c.used).length;
+    return 0;
 }
 function getLargestArmyThreshold() {
-    // If someone holds the largest army, others need +1 to take it
-    if (largestArmyHolder && largestArmyHolder !== myPlayerId) {
-        return LARGEST_ARMY_THRESHOLD + 1;
-    }
-    return LARGEST_ARMY_THRESHOLD;
+    // Escalation: after the medal is stolen N times, everyone needs 3 + N knights to hold it.
+    // Whoever reaches the threshold first takes the medal, and the next steal will need +1 more.
+    return LARGEST_ARMY_THRESHOLD + largestArmyLevel;
 }
 function hasLargestArmy() { 
-    if (largestArmyHolder !== myPlayerId) return false;
-    return countKnights() >= LARGEST_ARMY_THRESHOLD; 
+    // Use escalated threshold so victory points check respects the escalation mechanic
+    return countKnights() >= getLargestArmyThreshold(); 
 }
 function checkLargestArmy() {
     const myKnights = countKnights();
@@ -1313,11 +1317,8 @@ function checkLargestArmy() {
     }
 }
 function getLongestRoadThreshold() {
-    // If someone holds the longest road, others need +1 to take it
-    if (longestRoadHolder && longestRoadHolder !== myPlayerId) {
-        return LONGEST_ROAD_THRESHOLD + 1;
-    }
-    return LONGEST_ROAD_THRESHOLD;
+    // Escalation: after the medal is stolen N times, everyone needs 5 + N roads to hold it.
+    return LONGEST_ROAD_THRESHOLD + longestRoadLevel;
 }
 function hasLongestRoad() { 
     if (longestRoadHolder !== myPlayerId) return false;
@@ -1344,16 +1345,25 @@ function checkLongestRoad() {
 function computeLongestRoadLength() {
     if (!gameState.roads || gameState.roads.size === 0 || !edgeGeom || !edgeGeom.edges) return 0;
     const getCoordKey = (pos) => `${Math.round(pos.x * 1000)},${Math.round(pos.y * 1000)}`;
-    const settlementKeys = new Set();
+    
+    // MY settlements: the road can pass THROUGH these (they don't break the road)
+    const mySettlementKeys = new Set();
+    // OPPONENT settlements: these BLOCK the road path (break the road)
+    const opponentSettlementKeys = new Set();
     for (const [vk, bld] of gameState.settlements) {
         const vert = vertexGeom.get(vk);
-        if (vert && vert.pos) {
-            settlementKeys.add(getCoordKey(vert.pos));
+        if (!vert || !vert.pos) continue;
+        const key = getCoordKey(vert.pos);
+        if (bld.playerId === myPlayerId) {
+            mySettlementKeys.add(key);
+        } else {
+            opponentSettlementKeys.add(key);
         }
     }
+    
+    // Build graph of MY roads only: nodeKey -> [{ nextKey, edgeKey }]
     const roadGraph = new Map();
     for (const [ek, roadData] of gameState.roads) {
-        // Рахуємо тільки дороги поточного гравця
         if (!roadData || roadData.playerId !== myPlayerId) continue;
         const edge = edgeGeom.edges.get(ek);
         if (!edge) continue;
@@ -1365,50 +1375,45 @@ function computeLongestRoadLength() {
         roadGraph.get(keyB).push({ nextKey: keyA, edgeKey: ek });
     }
     if (roadGraph.size === 0) return 0;
-    if (settlementKeys.size === 0) {
-        // Рахуємо тільки дороги поточного гравця
+    
+    // If I have no settlements, my longest road is simply my road count
+    if (mySettlementKeys.size === 0) {
         let myRoadCount = 0;
         for (const [, roadData] of gameState.roads) {
             if (roadData && roadData.playerId === myPlayerId) myRoadCount++;
         }
         return myRoadCount;
     }
-    let longestSegment = 0;
-    for (const startKey of settlementKeys) {
-        if (!roadGraph.has(startKey)) continue;
-        const neighbors = roadGraph.get(startKey) || [];
-        for (const neighbor of neighbors) {
-            let currentKey = neighbor.nextKey;
-            let visitedEdges = new Set([neighbor.edgeKey]);
-            let segmentLength = 1;
-            if (settlementKeys.has(currentKey)) {
-                longestSegment = Math.max(longestSegment, 1);
-                continue;
-            }
-            while (true) {
-                const nextNeighbors = roadGraph.get(currentKey) || [];
-                let nextEdge = null;
-                for (const n of nextNeighbors) {
-                    if (!visitedEdges.has(n.edgeKey)) {
-                        nextEdge = n;
-                        break;
-                    }
-                }
-                if (!nextEdge) {
-                    longestSegment = Math.max(longestSegment, segmentLength);
-                    break;
-                }
-                if (settlementKeys.has(nextEdge.nextKey)) {
-                    longestSegment = Math.max(longestSegment, segmentLength + 1);
-                    break;
-                }
-                visitedEdges.add(nextEdge.edgeKey);
-                currentKey = nextEdge.nextKey;
-                segmentLength++;
-            }
+    
+    // DFS: find the longest simple path in a small graph (max 15 edges).
+    // A path CAN pass through MY OWN settlements (they don't break the road),
+    // but CANNOT pass through OPPONENT settlements (they break the road).
+    // Nodes cannot be repeated (simple path), which correctly handles branches
+    // and returns the longest chain even when a junction has multiple outgoing roads.
+    let best = 0;
+    const visitedNodes = new Set();
+    
+    function dfs(nodeKey, length) {
+        if (length > best) best = length;
+        const neighbors = roadGraph.get(nodeKey) || [];
+        for (const nb of neighbors) {
+            if (visitedNodes.has(nb.nextKey)) continue;
+            if (opponentSettlementKeys.has(nb.nextKey)) continue; // opponent settlement blocks the path
+            visitedNodes.add(nb.nextKey);
+            dfs(nb.nextKey, length + 1);
+            visitedNodes.delete(nb.nextKey);
         }
     }
-    return longestSegment;
+    
+    // Start DFS from every MY settlement node that has roads attached
+    for (const startKey of mySettlementKeys) {
+        if (!roadGraph.has(startKey)) continue;
+        visitedNodes.add(startKey);
+        dfs(startKey, 0);
+        visitedNodes.delete(startKey);
+    }
+    
+    return best;
 }
 function computeVictoryPoints() { 
     let v = computeBaseVP()+computeDevCardVP(); 
@@ -1455,7 +1460,8 @@ function updateResourceCardsDisplay() {
 }
 function updateDevHandDisplay() {
     const hand = document.getElementById('devHand'); hand.innerHTML = '';
-    document.getElementById('dev-count').textContent = '('+gameState.devHand.length+')';
+    const deckCount = isMultiplayer ? devDeckRemaining : gameState.devDeck.length;
+    document.getElementById('dev-count').textContent = '(' + deckCount + ')';
     const buyBtn = document.getElementById('buyDevBtn'), cards = gameState.resourceCards;
     const canBuy = cards.stone>=1 && cards.geese>=1 && cards.water>=1 && gameState.devDeck.length>0;
     buyBtn.classList.toggle('disabled', !canBuy);
@@ -3962,6 +3968,9 @@ let robberMode = false; // Block all actions when robber needs to be placed
 let robberModeFromKnight = false; // Track if robber mode was triggered by a knight card
 let largestArmyHolder = null; // Track who has the largest army medal
 let longestRoadHolder = null; // Track who has the longest road medal
+let devDeckRemaining = 25; // How many dev cards are left in the shared deck
+let largestArmyLevel = 0; // How many times the army medal was stolen (escalation counter)
+let longestRoadLevel = 0; // How many times the road medal was stolen (escalation counter)
 
 // Check for multiplayer map in sessionStorage first
 let data = null;
@@ -4387,6 +4396,8 @@ function registerMultiplayerHandlers(client) {
             if (knightCard) {
                 knightCard.used = true;
                 updateDevHandDisplay();
+                checkLargestArmy();
+                updateBuildStats();
                 showMessage('⚔️ Рицар використано!');
             }
         }
@@ -5344,6 +5355,7 @@ function handleBuildingSynced(data) {
     
     renderMap(mapData, canvas, mapHexSize);
     updateBuildStats();
+    checkLongestRoad();
 }
 
 // Check if initial phase is complete for current player
