@@ -750,7 +750,7 @@
                         <div class="medal-icon army-icon">⚔️</div>
                         <div class="medal-info">
                             <div class="medal-title">НАЙБІЛЬШЕ ВІЙСЬКО</div>
-                            <div class="medal-stats">Рицарів: <span class="medal-count" id="army-count">0</span>/3</div>
+                            <div class="medal-stats">Рицарів: <span class="medal-count" id="army-count">0</span>/<span id="army-threshold">3</span></div>
                         </div>
                         <div class="medal-vp">+2 ПО</div>
                     </div>
@@ -758,7 +758,7 @@
                         <div class="medal-icon road-icon">🛤️</div>
                         <div class="medal-info">
                             <div class="medal-title">НАЙДОВША ДОРОГА</div>
-                            <div class="medal-stats">Доріг: <span class="medal-count" id="road-count">0</span>/5</div>
+                            <div class="medal-stats">Доріг: <span class="medal-count" id="road-count">0</span>/<span id="road-threshold">5</span></div>
                         </div>
                         <div class="medal-vp">+2 ПО</div>
                     </div>
@@ -1280,13 +1280,21 @@ function computeDevCardVP() {
     return v; 
 }
 function countKnights() { 
-    // Count ACTIVE (unused) knights - these are ready to be played and count toward largest army
-    return gameState.devHand.filter(c => c.type === 'knight' && !c.used).length;
+    // In multiplayer, use SERVER-authoritative knight count (played knights)
+    if (isMultiplayer) {
+        return gameState.knightCards.get(myPlayerId) || 0;
+    }
+    // Single player: count USED (played) knights, not unused ones
+    return gameState.devHand.filter(c => c.type === 'knight' && c.used).length;
 }
 function countKnightsForPlayer(playerId) {
     if (playerId === myPlayerId) return countKnights();
+    // Use server-authoritative knight counts for other players
+    if (isMultiplayer) {
+        return gameState.knightCards.get(playerId) || 0;
+    }
     const hand = gameState.devCardHands.get(playerId);
-    if (hand && Array.isArray(hand)) return hand.filter(c => c.type === 'knight' && !c.used).length;
+    if (hand && Array.isArray(hand)) return hand.filter(c => c.type === 'knight' && c.used).length;
     return 0;
 }
 function getLargestArmyThreshold() {
@@ -1295,15 +1303,26 @@ function getLargestArmyThreshold() {
     return LARGEST_ARMY_THRESHOLD + largestArmyLevel;
 }
 function hasLargestArmy() { 
-    // Use escalated threshold so victory points check respects the escalation mechanic
+    // Only the current medal holder gets +2 VP
+    if (largestArmyHolder !== myPlayerId) return false;
     return countKnights() >= getLargestArmyThreshold(); 
 }
 function checkLargestArmy() {
+    // In multiplayer, the server is authoritative for medal ownership.
+    // The server broadcasts medals-synced which updates largestArmyHolder/Level.
+    // This client-side function is only used for single-player mode.
+    if (isMultiplayer) return;
+    
     const myKnights = countKnights();
     const threshold = getLargestArmyThreshold();
     
     if (myKnights >= threshold) {
         if (largestArmyHolder !== myPlayerId) {
+            // Escalation: when a new player takes the medal, the threshold increases
+            // so the next steal requires +1 more knight
+            if (largestArmyHolder !== null) {
+                largestArmyLevel++;
+            }
             largestArmyHolder = myPlayerId;
             showMessage('⚔️ Ви отримали найбільше військо! +2 ПО');
             updateBuildStats();
@@ -1322,14 +1341,24 @@ function getLongestRoadThreshold() {
 }
 function hasLongestRoad() { 
     if (longestRoadHolder !== myPlayerId) return false;
-    return computeLongestRoadLength() >= LONGEST_ROAD_THRESHOLD; 
+    return computeLongestRoadLength() >= getLongestRoadThreshold(); 
 }
 function checkLongestRoad() {
+    // In multiplayer, the server is authoritative for medal ownership.
+    // The server broadcasts medals-synced which updates longestRoadHolder/Level.
+    // This client-side function is only used for single-player mode.
+    if (isMultiplayer) return;
+    
     const myRoadLength = computeLongestRoadLength();
     const threshold = getLongestRoadThreshold();
     
     if (myRoadLength >= threshold) {
         if (longestRoadHolder !== myPlayerId) {
+            // Escalation: when a new player takes the medal, the threshold increases
+            // so the next steal requires +1 more road
+            if (longestRoadHolder !== null) {
+                longestRoadLevel++;
+            }
             longestRoadHolder = myPlayerId;
             showMessage('🛤️ Ви отримали найдовшу дорогу! +2 ПО');
             updateBuildStats();
@@ -1346,19 +1375,15 @@ function computeLongestRoadLength() {
     if (!gameState.roads || gameState.roads.size === 0 || !edgeGeom || !edgeGeom.edges) return 0;
     const getCoordKey = (pos) => `${Math.round(pos.x * 1000)},${Math.round(pos.y * 1000)}`;
     
-    // MY settlements: the road can pass THROUGH these (they don't break the road)
-    const mySettlementKeys = new Set();
-    // OPPONENT settlements: these BLOCK the road path (break the road)
-    const opponentSettlementKeys = new Set();
+    // ALL settlements (own and opponent) act as SEPARATORS that BREAK the road.
+    // The longest road is the longest CONTIGUOUS SEGMENT between settlements.
+    // A segment can start at a settlement (or a dead end) and end at a settlement
+    // (or a dead end), but it can NEVER pass THROUGH a settlement.
+    const separatorKeys = new Set(); // All settlement positions (own + opponent)
     for (const [vk, bld] of gameState.settlements) {
         const vert = vertexGeom.get(vk);
         if (!vert || !vert.pos) continue;
-        const key = getCoordKey(vert.pos);
-        if (bld.playerId === myPlayerId) {
-            mySettlementKeys.add(key);
-        } else {
-            opponentSettlementKeys.add(key);
-        }
+        separatorKeys.add(getCoordKey(vert.pos));
     }
     
     // Build graph of MY roads only: nodeKey -> [{ nextKey, edgeKey }]
@@ -1376,20 +1401,9 @@ function computeLongestRoadLength() {
     }
     if (roadGraph.size === 0) return 0;
     
-    // If I have no settlements, my longest road is simply my road count
-    if (mySettlementKeys.size === 0) {
-        let myRoadCount = 0;
-        for (const [, roadData] of gameState.roads) {
-            if (roadData && roadData.playerId === myPlayerId) myRoadCount++;
-        }
-        return myRoadCount;
-    }
-    
-    // DFS: find the longest simple path in a small graph (max 15 edges).
-    // A path CAN pass through MY OWN settlements (they don't break the road),
-    // but CANNOT pass through OPPONENT settlements (they break the road).
-    // Nodes cannot be repeated (simple path), which correctly handles branches
-    // and returns the longest chain even when a junction has multiple outgoing roads.
+    // DFS: find the longest simple path that does NOT pass through settlements.
+    // When we reach a settlement node, the road INTO it is counted as the segment
+    // end (+1), but we cannot continue past it.
     let best = 0;
     const visitedNodes = new Set();
     
@@ -1398,19 +1412,24 @@ function computeLongestRoadLength() {
         const neighbors = roadGraph.get(nodeKey) || [];
         for (const nb of neighbors) {
             if (visitedNodes.has(nb.nextKey)) continue;
-            if (opponentSettlementKeys.has(nb.nextKey)) continue; // opponent settlement blocks the path
+            if (separatorKeys.has(nb.nextKey)) {
+                // Reached a settlement - this is the END of the segment.
+                // Count the road that leads into it, and do NOT go through it.
+                if (length + 1 > best) best = length + 1;
+                continue;
+            }
             visitedNodes.add(nb.nextKey);
             dfs(nb.nextKey, length + 1);
             visitedNodes.delete(nb.nextKey);
         }
     }
     
-    // Start DFS from every MY settlement node that has roads attached
-    for (const startKey of mySettlementKeys) {
-        if (!roadGraph.has(startKey)) continue;
-        visitedNodes.add(startKey);
-        dfs(startKey, 0);
-        visitedNodes.delete(startKey);
+    // Start DFS from EVERY node in the graph. Starting from each node (including
+    // settlement nodes) ensures every possible segment is measured correctly.
+    for (const [nodeKey] of roadGraph) {
+        visitedNodes.add(nodeKey);
+        dfs(nodeKey, 0);
+        visitedNodes.delete(nodeKey);
     }
     
     return best;
@@ -1446,6 +1465,10 @@ function updateBuildStats() {
     
     document.getElementById('army-count').textContent = countKnights();
     document.getElementById('road-count').textContent = computeLongestRoadLength();
+    const armyThresholdEl = document.getElementById('army-threshold');
+    if (armyThresholdEl) armyThresholdEl.textContent = getLargestArmyThreshold();
+    const roadThresholdEl = document.getElementById('road-threshold');
+    if (roadThresholdEl) roadThresholdEl.textContent = getLongestRoadThreshold();
     document.getElementById('medal-army').classList.toggle('active-army', hasLargestArmy());
     document.getElementById('medal-road').classList.toggle('active-road', hasLongestRoad());
 }
@@ -3179,9 +3202,15 @@ function activateYearOfPlenty(index){
         }
     });
     document.getElementById('yopCancel').addEventListener('click',()=>{
+        // Cancel the card action - restore the card to unused state
+        card.used = false;
         gameState.cardInProgress=false;
         modal.remove();
         updateAllUI();
+        // Sync cancellation to server so card stays usable this turn
+        if (multiplayerClient && isMultiplayer) {
+            multiplayerClient.sendGameAction('cancel-dev-card', { cardId: card.id });
+        }
     });
     document.getElementById('yopConfirm').addEventListener('click',()=>{
         if(selected.length===2){
@@ -3290,10 +3319,27 @@ function activateMonopoly(index){
     });
     
     document.getElementById('monoCancel').addEventListener('click',()=>{
+        // Cancel the monopoly card action - restore the card to unused state
+        card.used = false;
         gameState.cardInProgress=false;
         modal.remove();
+        updateAllUI();
+        // Sync cancellation to server so card stays usable this turn
+        if (multiplayerClient && isMultiplayer) {
+            multiplayerClient.sendGameAction('cancel-dev-card', { cardId: card.id });
+        }
     });
-    modal.addEventListener('click',(e)=>{if(e.target===modal){gameState.cardInProgress=false;modal.remove();}});
+    modal.addEventListener('click',(e)=>{
+        if(e.target===modal){
+            card.used = false;
+            gameState.cardInProgress=false;
+            modal.remove();
+            updateAllUI();
+            if (multiplayerClient && isMultiplayer) {
+                multiplayerClient.sendGameAction('cancel-dev-card', { cardId: card.id });
+            }
+        }
+    });
 }
 
 function showMonopolyResourceSelection(modal, targetPlayerId, card) {
@@ -4339,8 +4385,22 @@ function registerMultiplayerHandlers(client) {
                 showMessage('📜 Отримано: ' + info.icon + ' ' + info.name);
             }
             
+            // Update remaining deck counter (server is authoritative)
+            if (typeof data.remainingDeckCount === 'number') {
+                devDeckRemaining = data.remainingDeckCount;
+                // Sync the local single-player deck length for buy-button validation
+                gameState.devDeck.length = devDeckRemaining;
+            }
+            
             updateAllUI();
             renderMap(mapData, canvas, mapHexSize);
+        } else {
+            // Other players' purchases also reduce the shared deck
+            if (typeof data.remainingDeckCount === 'number') {
+                devDeckRemaining = data.remainingDeckCount;
+                gameState.devDeck.length = devDeckRemaining;
+                updateDevHandDisplay();
+            }
         }
     });
     
@@ -4396,7 +4456,12 @@ function registerMultiplayerHandlers(client) {
             if (knightCard) {
                 knightCard.used = true;
                 updateDevHandDisplay();
-                checkLargestArmy();
+                // In multiplayer, the server broadcasts medals-synced which
+                // updates knight counts and medal ownership authoritatively.
+                // checkLargestArmy() is only for single-player mode.
+                if (!isMultiplayer) {
+                    checkLargestArmy();
+                }
                 updateBuildStats();
                 showMessage('⚔️ Рицар використано!');
             }
@@ -4427,8 +4492,43 @@ function registerMultiplayerHandlers(client) {
                 gameState.devHand = myHand;
                 updateDevHandDisplay();
                 console.log('Dev hand synced:', gameState.devHand.length, 'cards');
+                // In multiplayer, the server broadcasts medals via medals-synced.
+                // checkLargestArmy() is only for single-player mode.
+                if (!isMultiplayer) {
+                    checkLargestArmy();
+                }
+                updateBuildStats();
+            }
+            
+            // Update remaining deck count if server included it
+            if (typeof data.remainingDeckCount === 'number') {
+                devDeckRemaining = data.remainingDeckCount;
+                gameState.devDeck.length = devDeckRemaining;
+                updateDevHandDisplay();
             }
         }
+    });
+    
+    // Handle authoritative medals sync (largest army / longest road with escalation)
+    client.onMedalsSynced((data) => {
+        console.log('Medals synced:', data);
+        if (data && data.largestArmy) {
+            largestArmyHolder = data.largestArmy.holderId;
+            largestArmyLevel = data.largestArmy.level || 0;
+        }
+        if (data && data.longestRoad) {
+            longestRoadHolder = data.longestRoad.holderId;
+            longestRoadLevel = data.longestRoad.level || 0;
+        }
+        // Store server-authoritative knight counts for ALL players
+        if (data && data.knightCards) {
+            gameState.knightCards = new Map(Object.entries(data.knightCards));
+        }
+        // Store server-authoritative road lengths for ALL players
+        if (data && data.roadLengths) {
+            gameState.roadLengths = data.roadLengths;
+        }
+        updateBuildStats();
     });
     client.onRegularGameStart((data) => {
         console.log('Regular game start:', data);

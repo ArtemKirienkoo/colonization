@@ -492,6 +492,11 @@ class MultiplayerClient {
         this._safeOn('sync-dev-cards', callback);
     }
 
+    // Handle authoritative medals sync (largest army / longest road with escalation)
+    onMedalsSynced(callback) {
+        this._safeOn('medals-synced', callback);
+    }
+
     // Request game state sync from server
     requestGameStateSync() {
         if (this.socket && this.roomCode) {

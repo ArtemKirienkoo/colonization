@@ -163,6 +163,153 @@ function syncBuildingsToRoom(roomCode, room) {
     return buildingsData;
 }
 
+// ===== MEDALS (LARGEST ARMY / LONGEST ROAD) - SERVER-SIDE AUTHORITATIVE =====
+const ARMY_BASE_THRESHOLD = 3;
+const ROAD_BASE_THRESHOLD = 5;
+
+// Compute a player's longest contiguous road on the server (mirrors client logic)
+function computeLongestRoadServer(room, playerId) {
+    if (!room.buildings || !room.topology || !room.topology.edges || !room.topology.vertices) return 0;
+    const edgeMap = new Map(room.topology.edges);
+    const vertexMap = new Map(room.topology.vertices);
+    const getCoordKey = (pos) => `${Math.round(pos.x * 1000)},${Math.round(pos.y * 1000)}`;
+
+    // All settlements/cities break roads
+    const separatorKeys = new Set();
+    for (const [vk, bld] of room.buildings) {
+        if (bld.type !== 'settlement' && bld.type !== 'city') continue;
+        const vData = vertexMap.get(vk);
+        if (vData && vData.pos) separatorKeys.add(getCoordKey(vData.pos));
+    }
+
+    // Build graph of this player's roads only
+    const roadGraph = new Map();
+    for (const [ek, bld] of room.buildings) {
+        if (bld.type !== 'road' || bld.playerId !== playerId) continue;
+        const edge = edgeMap.get(ek);
+        if (!edge || !edge.va || !edge.vb) continue;
+        const keyA = getCoordKey(edge.va), keyB = getCoordKey(edge.vb);
+        if (!roadGraph.has(keyA)) roadGraph.set(keyA, []);
+        if (!roadGraph.has(keyB)) roadGraph.set(keyB, []);
+        roadGraph.get(keyA).push({ nextKey: keyB });
+        roadGraph.get(keyB).push({ nextKey: keyA });
+    }
+    if (roadGraph.size === 0) return 0;
+
+    let best = 0;
+    const visited = new Set();
+    function dfs(nodeKey, length) {
+        if (length > best) best = length;
+        for (const nb of roadGraph.get(nodeKey) || []) {
+            if (visited.has(nb.nextKey)) continue;
+            if (separatorKeys.has(nb.nextKey)) {
+                if (length + 1 > best) best = length + 1;
+                continue;
+            }
+            visited.add(nb.nextKey);
+            dfs(nb.nextKey, length + 1);
+            visited.delete(nb.nextKey);
+        }
+    }
+    for (const [nodeKey] of roadGraph) {
+        visited.add(nodeKey);
+        dfs(nodeKey, 0);
+        visited.delete(nodeKey);
+    }
+    return best;
+}
+
+// Recompute and persist the largest army medal (with escalation), broadcast to room
+function updateLargestArmy(room, roomCode) {
+    if (!room.largestArmy) room.largestArmy = { holderId: null, level: 0 };
+    const entry = room.largestArmy;
+    const threshold = ARMY_BASE_THRESHOLD + entry.level;
+
+    // Find the player with the most knights reaching the current threshold
+    let bestId = null, bestCount = 0;
+    for (const [pid, count] of room.knightCards) {
+        const inRoom = room.players.some(p => p.id === pid);
+        if (inRoom && count >= threshold && count > bestCount) {
+            bestId = pid;
+            bestCount = count;
+        }
+    }
+
+    if (bestId) {
+        if (bestId !== entry.holderId) {
+            // A new player steals the medal -> escalate the threshold
+            if (entry.holderId !== null) entry.level++;
+            entry.holderId = bestId;
+        }
+    } else {
+        // No one currently reaches the threshold
+        if (entry.holderId !== null) {
+            const holderCount = room.knightCards.get(entry.holderId) || 0;
+            if (holderCount < ARMY_BASE_THRESHOLD + entry.level) {
+                entry.holderId = null;
+            }
+        }
+    }
+
+    broadcastMedals(room, roomCode);
+}
+
+// Recompute and persist the longest road medal (with escalation), broadcast to room
+function updateLongestRoad(room, roomCode) {
+    if (!room.longestRoad) room.longestRoad = { holderId: null, level: 0 };
+    const entry = room.longestRoad;
+    const threshold = ROAD_BASE_THRESHOLD + entry.level;
+
+    let bestId = null, bestCount = 0;
+    for (const p of room.players) {
+        const len = computeLongestRoadServer(room, p.id);
+        if (len >= threshold && len > bestCount) {
+            bestId = p.id;
+            bestCount = len;
+        }
+    }
+
+    if (bestId) {
+        if (bestId !== entry.holderId) {
+            if (entry.holderId !== null) entry.level++;
+            entry.holderId = bestId;
+        }
+    } else {
+        if (entry.holderId !== null) {
+            const holderLen = computeLongestRoadServer(room, entry.holderId);
+            if (holderLen < ROAD_BASE_THRESHOLD + entry.level) {
+                entry.holderId = null;
+            }
+        }
+    }
+
+    broadcastMedals(room, roomCode);
+}
+
+// Broadcast the authoritative medal state to all players in the room
+function broadcastMedals(room, roomCode) {
+    const medals = {
+        largestArmy: room.largestArmy || { holderId: null, level: 0 },
+        longestRoad: room.longestRoad || { holderId: null, level: 0 }
+    };
+    // Send authoritative knight counts for ALL players so the client can display
+    // the correct threshold and who currently holds the medal
+    const knightCardsData = {};
+    if (room.knightCards) {
+        for (const [pid, count] of room.knightCards) {
+            knightCardsData[pid] = count;
+        }
+    }
+    medals.knightCards = knightCardsData;
+    // Send authoritative road lengths for ALL players
+    const roadLengthsData = {};
+    for (const p of room.players) {
+        roadLengthsData[p.id] = computeLongestRoadServer(room, p.id);
+    }
+    medals.roadLengths = roadLengthsData;
+    io.to(roomCode).emit('medals-synced', medals);
+}
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
@@ -223,7 +370,9 @@ io.on('connection', (socket) => {
             // ===== NEW: Robber and Dev Card state =====
             robber: { hexKey: null, placedBy: null }, // {hexKey: 'q,r,s', placedBy: playerId}
             devCardHands: new Map(), // playerId -> array of dev cards
-            knightCards: new Map() // playerId -> count of active knights
+            knightCards: new Map(), // playerId -> count of active knights
+            largestArmy: { holderId: null, level: 0 }, // who holds largest army medal + escalation level
+            longestRoad: { holderId: null, level: 0 } // who holds longest road medal + escalation level
         };
         
         rooms.set(roomCode, room);
@@ -1191,6 +1340,11 @@ io.on('connection', (socket) => {
         
         // Also sync buildings to ALL players so everyone sees the update
         syncBuildingsToRoom(roomCode, room);
+        
+        // If a road was placed, recompute the longest road medal (with escalation)
+        if (type === 'road') {
+            updateLongestRoad(room, roomCode);
+        }
     });
 
     // Handle game actions
@@ -1255,6 +1409,9 @@ io.on('connection', (socket) => {
                 
                 // Clear pending knight card
                 room.pendingKnightCards.delete(socket.id);
+                
+                // Recompute the largest army medal (with escalation) and broadcast
+                updateLargestArmy(room, roomCode);
             }
             if (targetPlayerId && targetPlayerId !== socket.id) {
                 // Initialize player resources if needed
@@ -1606,6 +1763,35 @@ io.on('connection', (socket) => {
                 hasEnoughCards: totalResources >= 7,
                 playerId: socket.id
             });
+        }
+        else if (action === 'cancel-dev-card') {
+            // Player cancelled a dev card action - restore the card to unused state
+            const playerId = socket.id;
+            const playerHand = room.devCardHands.get(playerId) || [];
+            const card = payload && payload.cardId
+                ? playerHand.find(c => c.id === payload.cardId)
+                : (payload && payload.cardType
+                    ? playerHand.find(c => c.type === payload.cardType && c.used)
+                    : null);
+            
+            if (card) {
+                card.used = false;
+                
+                // If this was a pending knight card, remove the pending state
+                if (card.type === 'knight' && room.pendingKnightCards && room.pendingKnightCards.has(playerId)) {
+                    room.pendingKnightCards.delete(playerId);
+                }
+                
+                // Sync dev cards to all players so the restored state is preserved
+                const devCardHandsData = {};
+                for (const [pid, hand] of room.devCardHands) {
+                    devCardHandsData[pid] = hand;
+                }
+                io.to(roomCode).emit('sync-dev-cards', { 
+                    devCardHands: devCardHandsData,
+                    remainingDeckCount: room.devCardDeck ? room.devCardDeck.length : 0
+                });
+            }
         }
         else if (action === 'buy-dev-card') {
             // ===== SERVER-SIDE DEV CARD PURCHASE =====
