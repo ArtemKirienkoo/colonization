@@ -1306,7 +1306,7 @@ function countKnights() {
         return gameState.knightCards.get(myPlayerId) || 0;
     }
     // Single player: count USED (played) knights, not unused ones
-    return gameState.devHand.filter(c => c.type === 'knight' && c.used).length;
+    return gameState.devHand.filter(c => c.type === 'knight' && !c.used).length;
 }
 function countKnightsForPlayer(playerId) {
     if (playerId === myPlayerId) return countKnights();
