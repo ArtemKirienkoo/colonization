@@ -210,6 +210,27 @@
             display: none;
         }
         .medal.active-army .medal-vp, .medal.active-road .medal-vp { display: block; }
+        .medal-stats .escalated {
+            color: #ff6b6b !important;
+            font-weight: bold;
+            text-shadow: 0 0 8px rgba(255, 107, 107, 0.6);
+            animation: escalation-pulse 0.8s ease-in-out 2;
+        }
+        @keyframes escalation-pulse {
+            0% { transform: scale(1); color: #ff6b6b; }
+            50% { transform: scale(1.45); color: #ff0000; text-shadow: 0 0 14px rgba(255, 0, 0, 0.8); }
+            100% { transform: scale(1); color: #ff6b6b; }
+        }
+        .medal.escalated-army {
+            border-color: #ff4444 !important;
+            box-shadow: 0 0 18px rgba(255, 68, 68, 0.4) !important;
+            background: linear-gradient(135deg, rgba(255, 68, 68, 0.22), rgba(255, 68, 68, 0.08)) !important;
+        }
+        .medal.escalated-road {
+            border-color: #ff8800 !important;
+            box-shadow: 0 0 18px rgba(255, 136, 0, 0.4) !important;
+            background: linear-gradient(135deg, rgba(255, 136, 0, 0.22), rgba(255, 136, 0, 0.08)) !important;
+        }
 
         /* ===== RESOURCE CARDS ===== */
         .resource-cards-box {
@@ -1465,12 +1486,33 @@ function updateBuildStats() {
     
     document.getElementById('army-count').textContent = countKnights();
     document.getElementById('road-count').textContent = computeLongestRoadLength();
+    
+    // ВІЗУАЛЬНИЙ ПОРІГ: використовуємо СЕРВЕР-авторитетний поріг у мультиплеєрі,
+    // щоб число оновлювалось відповідно до поточного володаря медалі.
+    // Приклад: якщо гравець має 3 лицарі як володар, іншим потрібно 4 — і трекінг показує 4.
+    const armyThreshold = (isMultiplayer && serverArmyThreshold !== null) ? serverArmyThreshold : getLargestArmyThreshold();
+    const roadThreshold = (isMultiplayer && serverRoadThreshold !== null) ? serverRoadThreshold : getLongestRoadThreshold();
+    
     const armyThresholdEl = document.getElementById('army-threshold');
-    if (armyThresholdEl) armyThresholdEl.textContent = getLargestArmyThreshold();
+    if (armyThresholdEl) {
+        armyThresholdEl.textContent = armyThreshold;
+        // Підсвічуємо ескалацію: якщо потрібно більше, ніж базова кількість
+        armyThresholdEl.classList.toggle('escalated', armyThreshold > LARGEST_ARMY_THRESHOLD);
+    }
     const roadThresholdEl = document.getElementById('road-threshold');
-    if (roadThresholdEl) roadThresholdEl.textContent = getLongestRoadThreshold();
-    document.getElementById('medal-army').classList.toggle('active-army', hasLargestArmy());
-    document.getElementById('medal-road').classList.toggle('active-road', hasLongestRoad());
+    if (roadThresholdEl) {
+        roadThresholdEl.textContent = roadThreshold;
+        // Підсвічуємо ескалацію: якщо потрібно більше, ніж базова кількість
+        roadThresholdEl.classList.toggle('escalated', roadThreshold > LONGEST_ROAD_THRESHOLD);
+    }
+    
+    const armyMedal = document.getElementById('medal-army');
+    const roadMedal = document.getElementById('medal-road');
+    armyMedal.classList.toggle('active-army', hasLargestArmy());
+    roadMedal.classList.toggle('active-road', hasLongestRoad());
+    // Підсвічуємо всю медаль при ескалації (коли хтось перехопив медаль і поріг зріс)
+    armyMedal.classList.toggle('escalated-army', armyThreshold > LARGEST_ARMY_THRESHOLD);
+    roadMedal.classList.toggle('escalated-road', roadThreshold > LONGEST_ROAD_THRESHOLD);
 }
 function updateResourceCardsDisplay() { 
     const e = id => document.getElementById(id);
@@ -4017,6 +4059,8 @@ let longestRoadHolder = null; // Track who has the longest road medal
 let devDeckRemaining = 25; // How many dev cards are left in the shared deck
 let largestArmyLevel = 0; // How many times the army medal was stolen (escalation counter)
 let longestRoadLevel = 0; // How many times the road medal was stolen (escalation counter)
+let serverArmyThreshold = null; // Server-authoritative knight threshold for visual display (multiplayer)
+let serverRoadThreshold = null; // Server-authoritative road threshold for visual display (multiplayer)
 
 // Check for multiplayer map in sessionStorage first
 let data = null;
@@ -4527,6 +4571,13 @@ function registerMultiplayerHandlers(client) {
         // Store server-authoritative road lengths for ALL players
         if (data && data.roadLengths) {
             gameState.roadLengths = data.roadLengths;
+        }
+        // Store server-authoritative visual thresholds (how many knights/roads a challenger needs)
+        if (data && typeof data.armyThreshold === 'number') {
+            serverArmyThreshold = data.armyThreshold;
+        }
+        if (data && typeof data.roadThreshold === 'number') {
+            serverRoadThreshold = data.roadThreshold;
         }
         updateBuildStats();
     });

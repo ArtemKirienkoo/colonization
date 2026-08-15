@@ -219,35 +219,60 @@ function computeLongestRoadServer(room, playerId) {
     return best;
 }
 
+// Helper: count available (unused) knight cards in a player's hand
+function getAvailableKnightCount(room, playerId) {
+    const hand = room.devCardHands.get(playerId) || [];
+    return hand.filter(c => c.type === 'knight' && !c.used).length;
+}
+
 // Recompute and persist the largest army medal (with escalation), broadcast to room
 function updateLargestArmy(room, roomCode) {
     if (!room.largestArmy) room.largestArmy = { holderId: null, level: 0 };
     const entry = room.largestArmy;
-    const threshold = ARMY_BASE_THRESHOLD + entry.level;
 
-    // Find the player with the most knights reaching the current threshold
-    let bestId = null, bestCount = 0;
-    for (const [pid, count] of room.knightCards) {
-        const inRoom = room.players.some(p => p.id === pid);
-        if (inRoom && count >= threshold && count > bestCount) {
-            bestId = pid;
-            bestCount = count;
+    // Compute available (unused) knight counts from dev card hands
+    const knightCounts = {};
+    for (const p of room.players) {
+        knightCounts[p.id] = getAvailableKnightCount(room, p.id);
+    }
+
+    // If a holder exists, check whether they still hold enough knights
+    if (entry.holderId !== null) {
+        const holderCount = knightCounts[entry.holderId] || 0;
+        const holderMinThreshold = ARMY_BASE_THRESHOLD + entry.level;
+        if (holderCount < holderMinThreshold) {
+            // Holder no longer meets the minimum -> release the medal
+            entry.holderId = null;
         }
     }
 
-    if (bestId) {
-        if (bestId !== entry.holderId) {
-            // A new player steals the medal -> escalate the threshold
-            if (entry.holderId !== null) entry.level++;
+    if (entry.holderId === null) {
+        // No holder: first one to reach the base threshold takes the medal
+        let bestId = null, bestCount = 0;
+        for (const [pid, count] of Object.entries(knightCounts)) {
+            if (count >= ARMY_BASE_THRESHOLD && count > bestCount) {
+                bestId = pid;
+                bestCount = count;
+            }
+        }
+        if (bestId) {
             entry.holderId = bestId;
+            entry.level = 0;
         }
     } else {
-        // No one currently reaches the threshold
-        if (entry.holderId !== null) {
-            const holderCount = room.knightCards.get(entry.holderId) || 0;
-            if (holderCount < ARMY_BASE_THRESHOLD + entry.level) {
-                entry.holderId = null;
+        // Holder exists: to steal, a challenger must have MORE knights than the holder
+        const holderCount = knightCounts[entry.holderId] || 0;
+        let bestId = null, bestCount = 0;
+        for (const [pid, count] of Object.entries(knightCounts)) {
+            if (pid !== entry.holderId && count > holderCount && count > bestCount) {
+                bestId = pid;
+                bestCount = count;
             }
+        }
+        if (bestId) {
+            // Someone steals the medal -> escalate
+            entry.level++;
+            entry.holderId = bestId;
         }
     }
 
@@ -258,28 +283,50 @@ function updateLargestArmy(room, roomCode) {
 function updateLongestRoad(room, roomCode) {
     if (!room.longestRoad) room.longestRoad = { holderId: null, level: 0 };
     const entry = room.longestRoad;
-    const threshold = ROAD_BASE_THRESHOLD + entry.level;
 
-    let bestId = null, bestCount = 0;
+    // Compute each player's longest road
+    const roadLengths = {};
     for (const p of room.players) {
-        const len = computeLongestRoadServer(room, p.id);
-        if (len >= threshold && len > bestCount) {
-            bestId = p.id;
-            bestCount = len;
+        roadLengths[p.id] = computeLongestRoadServer(room, p.id);
+    }
+
+    // If a holder exists, check whether they still hold the required minimum
+    if (entry.holderId !== null) {
+        const holderLen = roadLengths[entry.holderId] || 0;
+        const holderMinThreshold = ROAD_BASE_THRESHOLD + entry.level;
+        if (holderLen < holderMinThreshold) {
+            // Holder no longer meets the minimum -> release the medal
+            entry.holderId = null;
         }
     }
 
-    if (bestId) {
-        if (bestId !== entry.holderId) {
-            if (entry.holderId !== null) entry.level++;
+    if (entry.holderId === null) {
+        // No holder: first one to reach the base threshold takes the medal
+        let bestId = null, bestLen = 0;
+        for (const [pid, len] of Object.entries(roadLengths)) {
+            if (len >= ROAD_BASE_THRESHOLD && len > bestLen) {
+                bestId = pid;
+                bestLen = len;
+            }
+        }
+        if (bestId) {
             entry.holderId = bestId;
+            entry.level = 0;
         }
     } else {
-        if (entry.holderId !== null) {
-            const holderLen = computeLongestRoadServer(room, entry.holderId);
-            if (holderLen < ROAD_BASE_THRESHOLD + entry.level) {
-                entry.holderId = null;
+        // Holder exists: to steal, a challenger must have a LONGER road than the holder
+        const holderLen = roadLengths[entry.holderId] || 0;
+        let bestId = null, bestLen = 0;
+        for (const [pid, len] of Object.entries(roadLengths)) {
+            if (pid !== entry.holderId && len > holderLen && len > bestLen) {
+                bestId = pid;
+                bestLen = len;
             }
+        }
+        if (bestId) {
+            // Someone steals the medal -> escalate
+            entry.level++;
+            entry.holderId = bestId;
         }
     }
 
@@ -292,21 +339,32 @@ function broadcastMedals(room, roomCode) {
         largestArmy: room.largestArmy || { holderId: null, level: 0 },
         longestRoad: room.longestRoad || { holderId: null, level: 0 }
     };
-    // Send authoritative knight counts for ALL players so the client can display
-    // the correct threshold and who currently holds the medal
+    // Send authoritative AVAILABLE (unused) knight counts for ALL players so the client can
+    // display the correct threshold and who currently holds the medal
     const knightCardsData = {};
-    if (room.knightCards) {
-        for (const [pid, count] of room.knightCards) {
-            knightCardsData[pid] = count;
+    if (room.devCardHands) {
+        for (const [pid, hand] of room.devCardHands) {
+            knightCardsData[pid] = hand.filter(c => c.type === 'knight' && !c.used).length;
         }
     }
     medals.knightCards = knightCardsData;
+
     // Send authoritative road lengths for ALL players
     const roadLengthsData = {};
     for (const p of room.players) {
         roadLengthsData[p.id] = computeLongestRoadServer(room, p.id);
     }
     medals.roadLengths = roadLengthsData;
+
+    // Thresholds for VISUAL display: how many a challenger needs to steal the medal
+    const armyHolderId = medals.largestArmy.holderId;
+    const armyHolderCount = armyHolderId ? (knightCardsData[armyHolderId] || 0) : 0;
+    medals.armyThreshold = armyHolderId ? armyHolderCount + 1 : ARMY_BASE_THRESHOLD;
+
+    const roadHolderId = medals.longestRoad.holderId;
+    const roadHolderCount = roadHolderId ? (roadLengthsData[roadHolderId] || 0) : 0;
+    medals.roadThreshold = roadHolderId ? roadHolderCount + 1 : ROAD_BASE_THRESHOLD;
+
     io.to(roomCode).emit('medals-synced', medals);
 }
 
@@ -1341,10 +1399,11 @@ io.on('connection', (socket) => {
         // Also sync buildings to ALL players so everyone sees the update
         syncBuildingsToRoom(roomCode, room);
         
-        // If a road was placed, recompute the longest road medal (with escalation)
-        if (type === 'road') {
-            updateLongestRoad(room, roomCode);
-        }
+        // Recompute the longest road medal (with escalation) whenever ANY building is placed,
+        // because a new settlement/city can break the holder's longest road.
+        // Например: if the holder builds a settlement in the middle of their longest road,
+        // the road segments get split and the medal must be recalculated.
+        updateLongestRoad(room, roomCode);
     });
 
     // Handle game actions
