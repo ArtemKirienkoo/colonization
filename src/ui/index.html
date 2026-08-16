@@ -1498,15 +1498,15 @@ function updateBuildStats() {
     if (armyThresholdEl) {
         // Для власника медалі показуємо ЙОГО власну кількість (5/5), а не поріг для суперників (5/6)
         armyThresholdEl.textContent = isArmyHolder ? countKnights() : armyThreshold;
-        // Підсвічуємо ескалацію ТІЛЬКИ для власника медалі
-        armyThresholdEl.classList.toggle('escalated', isArmyHolder && armyThreshold > LARGEST_ARMY_THRESHOLD);
+        // Число завжди залишається білим (без червоного підсвічування)
+        armyThresholdEl.classList.remove('escalated');
     }
     const roadThresholdEl = document.getElementById('road-threshold');
     if (roadThresholdEl) {
         // Для власника медалі показуємо ЙОГО власну кількість (5/5), а не поріг для суперників (5/6)
         roadThresholdEl.textContent = isRoadHolder ? computeLongestRoadLength() : roadThreshold;
-        // Підсвічуємо ескалацію ТІЛЬКИ для власника медалі
-        roadThresholdEl.classList.toggle('escalated', isRoadHolder && roadThreshold > LONGEST_ROAD_THRESHOLD);
+        // Число завжди залишається білим (без червоного підсвічування)
+        roadThresholdEl.classList.remove('escalated');
     }
     
     const armyMedal = document.getElementById('medal-army');
