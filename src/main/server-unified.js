@@ -92,6 +92,10 @@ function isEdgeConnectedServer(edgeKey, playerId, room) {
     }
     // ======================================
 
+    // Cannot place a road on an edge that borders an OPPONENT settlement
+    if (vkA && room.buildings.has(vkA) && room.buildings.get(vkA).playerId !== playerId) return false;
+    if (vkB && room.buildings.has(vkB) && room.buildings.get(vkB).playerId !== playerId) return false;
+
     if (vkA && isMyServerVertex(vkA, playerId, room)) return true;
     if (vkB && isMyServerVertex(vkB, playerId, room)) return true;
     
@@ -1923,6 +1927,10 @@ io.on('connection', (socket) => {
                 devCardHandsData[pid] = hand;
             }
             io.to(roomCode).emit('sync-dev-cards', { devCardHands: devCardHandsData });
+
+            // Recompute the largest army medal (with escalation) and broadcast,
+            // so the client gets updated UNUSED knight counts for army tracking.
+            updateLargestArmy(room, roomCode);
         }
     });
 

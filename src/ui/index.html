@@ -1301,21 +1301,18 @@ function computeDevCardVP() {
     return v; 
 }
 function countKnights() { 
-    // In multiplayer, use SERVER-authoritative knight count (played knights)
-    if (isMultiplayer) {
-        return gameState.knightCards.get(myPlayerId) || 0;
-    }
-    // Single player: count USED (played) knights, not unused ones
+    // Count UNUSED (unplayed) knight cards in hand.
+    // Used knights are NOT counted.
     return gameState.devHand.filter(c => c.type === 'knight' && !c.used).length;
 }
 function countKnightsForPlayer(playerId) {
     if (playerId === myPlayerId) return countKnights();
-    // Use server-authoritative knight counts for other players
+    // Use server-authoritative UNUSED knight counts for other players
     if (isMultiplayer) {
         return gameState.knightCards.get(playerId) || 0;
     }
     const hand = gameState.devCardHands.get(playerId);
-    if (hand && Array.isArray(hand)) return hand.filter(c => c.type === 'knight' && c.used).length;
+    if (hand && Array.isArray(hand)) return hand.filter(c => c.type === 'knight' && !c.used).length;
     return 0;
 }
 function getLargestArmyThreshold() {
@@ -1493,26 +1490,32 @@ function updateBuildStats() {
     const armyThreshold = (isMultiplayer && serverArmyThreshold !== null) ? serverArmyThreshold : getLargestArmyThreshold();
     const roadThreshold = (isMultiplayer && serverRoadThreshold !== null) ? serverRoadThreshold : getLongestRoadThreshold();
     
+    // Чи я поточний володар медалі
+    const isArmyHolder = hasLargestArmy();
+    const isRoadHolder = hasLongestRoad();
+    
     const armyThresholdEl = document.getElementById('army-threshold');
     if (armyThresholdEl) {
-        armyThresholdEl.textContent = armyThreshold;
-        // Підсвічуємо ескалацію: якщо потрібно більше, ніж базова кількість
-        armyThresholdEl.classList.toggle('escalated', armyThreshold > LARGEST_ARMY_THRESHOLD);
+        // Для власника медалі показуємо ЙОГО власну кількість (5/5), а не поріг для суперників (5/6)
+        armyThresholdEl.textContent = isArmyHolder ? countKnights() : armyThreshold;
+        // Підсвічуємо ескалацію ТІЛЬКИ для власника медалі
+        armyThresholdEl.classList.toggle('escalated', isArmyHolder && armyThreshold > LARGEST_ARMY_THRESHOLD);
     }
     const roadThresholdEl = document.getElementById('road-threshold');
     if (roadThresholdEl) {
-        roadThresholdEl.textContent = roadThreshold;
-        // Підсвічуємо ескалацію: якщо потрібно більше, ніж базова кількість
-        roadThresholdEl.classList.toggle('escalated', roadThreshold > LONGEST_ROAD_THRESHOLD);
+        // Для власника медалі показуємо ЙОГО власну кількість (5/5), а не поріг для суперників (5/6)
+        roadThresholdEl.textContent = isRoadHolder ? computeLongestRoadLength() : roadThreshold;
+        // Підсвічуємо ескалацію ТІЛЬКИ для власника медалі
+        roadThresholdEl.classList.toggle('escalated', isRoadHolder && roadThreshold > LONGEST_ROAD_THRESHOLD);
     }
     
     const armyMedal = document.getElementById('medal-army');
     const roadMedal = document.getElementById('medal-road');
-    armyMedal.classList.toggle('active-army', hasLargestArmy());
-    roadMedal.classList.toggle('active-road', hasLongestRoad());
-    // Підсвічуємо всю медаль при ескалації (коли хтось перехопив медаль і поріг зріс)
-    armyMedal.classList.toggle('escalated-army', armyThreshold > LARGEST_ARMY_THRESHOLD);
-    roadMedal.classList.toggle('escalated-road', roadThreshold > LONGEST_ROAD_THRESHOLD);
+    armyMedal.classList.toggle('active-army', isArmyHolder);
+    roadMedal.classList.toggle('active-road', isRoadHolder);
+    // Підсвічуємо всю медаль при ескалації ТІЛЬКИ для власника медалі
+    armyMedal.classList.toggle('escalated-army', isArmyHolder && armyThreshold > LARGEST_ARMY_THRESHOLD);
+    roadMedal.classList.toggle('escalated-road', isRoadHolder && roadThreshold > LONGEST_ROAD_THRESHOLD);
 }
 function updateResourceCardsDisplay() { 
     const e = id => document.getElementById(id);
@@ -2540,6 +2543,19 @@ function isEdgeValidForRoad(ek){
     if(mapData)[mapData.center,...mapData.ring1,...mapData.ring2].forEach(h=>ls.add(hexKey(h)));
     return ls.has(hexKey(e.hex1))||ls.has(hexKey(e.hex2));
 }
+function isEdgeBorderingOpponentSettlement(ek){
+    const e=edgeGeom.edges.get(ek);
+    if(!e)return false;
+    const p2v=new Map();
+    for(const[vk,vert]of vertexGeom){
+        const pk=Math.round(vert.pos.x*1000)+','+Math.round(vert.pos.y*1000);p2v.set(pk,vk);
+    }
+    const va=Math.round(e.va.x*1000)+','+Math.round(e.va.y*1000),vb=Math.round(e.vb.x*1000)+','+Math.round(e.vb.y*1000),a=p2v.get(va),b=p2v.get(vb);
+    // If either endpoint of this edge has an OPPONENT settlement, the road cannot be placed here
+    if (a && gameState.settlements.has(a) && gameState.settlements.get(a).playerId !== myPlayerId) return true;
+    if (b && gameState.settlements.has(b) && gameState.settlements.get(b).playerId !== myPlayerId) return true;
+    return false;
+}
 function isEdgeConnected(ek){
     const e=edgeGeom.edges.get(ek);
     if(!e)return false;const p2v=new Map();
@@ -2547,6 +2563,9 @@ function isEdgeConnected(ek){
         const pk=Math.round(vert.pos.x*1000)+','+Math.round(vert.pos.y*1000);p2v.set(pk,vk);
     }
     const va=Math.round(e.va.x*1000)+','+Math.round(e.va.y*1000),vb=Math.round(e.vb.x*1000)+','+Math.round(e.vb.y*1000),a=p2v.get(va),b=p2v.get(vb);
+    
+    // Cannot place a road on an edge that borders an OPPONENT settlement
+    if (isEdgeBorderingOpponentSettlement(ek)) return false;
     
     // During initial phase, only check connection to MY settlements
     if (initialPhase.active && initialPhase.phase === 'initial-build') {
@@ -3000,7 +3019,6 @@ function buyDevCard(){
     if (isMultiplayer && multiplayerClient) {
         // Send buy request to server
         multiplayerClient.sendGameAction('buy-dev-card', {});
-        showMessage('📜 Очікування підтвердження...');
     } else {
         // Single player - buy directly
         audioManager.playCardSound();
