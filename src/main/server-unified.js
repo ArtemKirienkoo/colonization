@@ -372,6 +372,111 @@ function broadcastMedals(room, roomCode) {
     io.to(roomCode).emit('medals-synced', medals);
 }
 
+// NEW: Check if any player has reached 10 victory points
+function checkVictory(roomCode, room) {
+    // Check each player's victory points
+    for (const [playerId, vp] of room.playerVP) {
+        if (vp >= 10) {
+            // Player has reached 10 VP and wins the game
+            room.winnerId = playerId;
+            room.status = 'game-over';
+            
+            // Broadcast victory to all players in the room
+            io.to(roomCode).emit('game-over', {
+                winnerId: playerId,
+                message: `Гравець ${room.players.find(p => p.id === playerId)?.name} переміг!`,
+                players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
+            });
+            
+            // Stop the game - no more turns
+            return;
+        }
+    }
+}
+
+// Reset room for a new game (restart)
+function resetRoomForRestart(roomCode, room) {
+    // Reset all game state
+    room.status = 'in-game';
+    room.gamePhase = 'dice-roll';
+    room.diceRolls = new Map();
+    room.initialBuildOrder = [];
+    room.currentInitialBuildIndex = 0;
+    room.initialBuildRoundComplete = false;
+    room.turnOrder = [];
+    room.currentTurnIndex = 0;
+    room.turnState = {
+        diceRolled: false,
+        actionsLocked: true
+    };
+    room.buildings = new Map();
+    room.topology = null;
+    room.robber = { hexKey: null, placedBy: null };
+    room.devCardHands = new Map();
+    room.knightCards = new Map();
+    room.largestArmy = { holderId: null, level: 0 };
+    room.longestRoad = { holderId: null, level: 0 };
+    room.winnerId = null;
+    room.restartReady = new Set();
+    room.restarting = false;
+    room.playerVP = new Map();
+    room.playerResources = new Map();
+    room.pendingKnightCards = new Map();
+    room.gameState = null;
+    
+    // Initialize player resources for all players
+    for (const p of room.players) {
+        room.playerResources.set(p.id, { wood: 0, brick: 0, geese: 0, water: 0, stone: 0 });
+        room.devCardHands.set(p.id, []);
+        room.knightCards.set(p.id, 0);
+        room.playerVP.set(p.id, 0);
+    }
+    
+    // Initialize dev card deck
+    room.devCardDeck = createDevCardDeck();
+    
+    // Deal initial dev cards to players (3 cards each)
+    const cardsPerPlayer = 3;
+    for (let p = 0; p < room.players.length; p++) {
+        const playerId = room.players[p].id;
+        for (let i = 0; i < cardsPerPlayer; i++) {
+            if (room.devCardDeck.length > 0) {
+                const card = room.devCardDeck.pop();
+                card.used = false;
+                card.ownerId = playerId;
+                room.devCardHands.get(playerId).push(card);
+            }
+        }
+    }
+    
+    // Find desert hex for robber initial position
+    let desertHexKey = '0,0,0';
+    if (room.gameState && room.gameState.resources) {
+        for (const [key, res] of Object.entries(room.gameState.resources)) {
+            if (res === 'desert') {
+                desertHexKey = key;
+                break;
+            }
+        }
+    }
+    room.robber = { hexKey: desertHexKey, placedBy: null };
+    
+    // Notify all players that restart is happening
+    io.to(roomCode).emit('restart-started', {
+        message: 'Гра перезапускається!',
+        players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
+    });
+    
+    // Send new game state
+    io.to(roomCode).emit('game-started', { mapSeed: room.gameState || {} });
+    io.to(roomCode).emit('start-dice-phase', {
+        players: room.players.map(p => ({ id: p.id, name: p.name }))
+    });
+    
+    // Update room list
+    io.emit('rooms-list', getRoomsList());
+}
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
@@ -434,7 +539,11 @@ io.on('connection', (socket) => {
             devCardHands: new Map(), // playerId -> array of dev cards
             knightCards: new Map(), // playerId -> count of active knights
             largestArmy: { holderId: null, level: 0 }, // who holds largest army medal + escalation level
-            longestRoad: { holderId: null, level: 0 } // who holds longest road medal + escalation level
+            longestRoad: { holderId: null, level: 0 }, // who holds longest road medal + escalation level
+            winnerId: null, // player who reached 10 VP (game over)
+            restartReady: new Set(), // player IDs who clicked "Play Again"
+            restarting: false, // true while restarting (waiting for new map)
+            playerVP: new Map() // playerId -> current victory points (synced from client)
         };
         
         rooms.set(roomCode, room);
@@ -1224,6 +1333,9 @@ io.on('connection', (socket) => {
             robberHexKey: robberHexKey
         });
         
+        // Check for victory (player reached 10 VP) after resource collection
+        checkVictory(roomCode, room);
+        
         // Sync buildings after dice roll (in case robber moved, etc.)
         syncBuildingsToRoom(roomCode, room);
     });
@@ -1932,6 +2044,66 @@ io.on('connection', (socket) => {
             // so the client gets updated UNUSED knight counts for army tracking.
             updateLargestArmy(room, roomCode);
         }
+    });
+
+    // Sync victory points from client (server-authoritative check)
+    socket.on('sync-vp', ({ roomCode, playerId, vp }) => {
+        const room = rooms.get(roomCode);
+        if (!room) return;
+        
+        // Only accept VP updates from the player themselves
+        if (playerId !== socket.id) return;
+        
+        // Store VP on server
+        if (!room.playerVP) room.playerVP = new Map();
+        room.playerVP.set(playerId, vp);
+        
+        // Broadcast VP update to all players
+        io.to(roomCode).emit('vp-synced', {
+            playerId,
+            vp,
+            playerVP: Object.fromEntries(room.playerVP)
+        });
+        
+        // Check for victory
+        checkVictory(roomCode, room);
+    });
+
+    // Player votes to restart the game
+    socket.on('restart-vote', ({ roomCode }) => {
+        const room = rooms.get(roomCode);
+        if (!room) return;
+        
+        // Check if game is over
+        if (room.status !== 'game-over') return;
+        
+        // Add player to restart ready set
+        room.restartReady.add(socket.id);
+        
+        // Broadcast updated restart votes to all players
+        io.to(roomCode).emit('restart-votes-updated', {
+            readyCount: room.restartReady.size,
+            totalPlayers: room.players.length,
+            readyPlayers: Array.from(room.restartReady),
+            players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
+        });
+        
+        // Check if all players voted to restart
+        if (room.restartReady.size >= room.players.length) {
+            // All players ready - restart the game
+            resetRoomForRestart(roomCode, room);
+        }
+    });
+
+    // Host forces restart (or restart after all votes)
+    socket.on('restart-game', ({ roomCode }) => {
+        const room = rooms.get(roomCode);
+        if (!room) return;
+        
+        // Only host can force restart
+        if (room.host !== socket.id) return;
+        
+        resetRoomForRestart(roomCode, room);
     });
 
     // Leave room explicitly

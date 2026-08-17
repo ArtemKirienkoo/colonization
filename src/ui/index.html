@@ -4753,6 +4753,236 @@ function registerMultiplayerHandlers(client) {
             // ===== КІНЕЦЬ ДОДАНОЇ ЛОГІКИ =====
         }
     });
+    
+    // ===== GAME OVER / VICTORY HANDLERS =====
+    client.onGameOver((data) => {
+        console.log('Game over:', data);
+        showGameOverOverlay(data);
+    });
+    
+    // Handle victory points synced from server
+    client.onVPSynced((data) => {
+        console.log('VP synced:', data);
+        if (data && data.playerVP) {
+            // Update local VP display if it's my VP
+            if (data.playerId === myPlayerId && typeof data.vp === 'number') {
+                const ve = document.getElementById('stat-vp');
+                if (ve) ve.textContent = data.vp;
+            }
+        }
+    });
+    
+    // Handle restart votes updated
+    client.onRestartVotesUpdated((data) => {
+        console.log('Restart votes updated:', data);
+        updateRestartVotesUI(data);
+    });
+    
+    // Handle restart started
+    client.onRestartStarted((data) => {
+        console.log('Restart started:', data);
+        // Hide game over overlay
+        const overlay = document.getElementById('gameOverOverlay');
+        if (overlay) overlay.style.display = 'none';
+        
+        // Reset local game state
+        gameState.roads.clear();
+        gameState.settlements.clear();
+        gameState.resourceCards = { wood: 0, brick: 0, geese: 0, water: 0, stone: 0 };
+        gameState.devHand = [];
+        gameState.devDeck = createDevDeck();
+        gameState.robber = { hexKey: null, placedBy: null };
+        gameState.knightCards = new Map();
+        gameState.devCardHands = new Map();
+        gameState.cardInProgress = false;
+        gameState.roadBuildingMode = 0;
+        
+        // Reset medals
+        largestArmyHolder = null;
+        longestRoadHolder = null;
+        largestArmyLevel = 0;
+        longestRoadLevel = 0;
+        serverArmyThreshold = null;
+        serverRoadThreshold = null;
+        
+        // Reset turn state
+        isMyTurn = false;
+        hasRolledThisTurn = false;
+        canPerformActions = false;
+        turnOrder = [];
+        currentTurnPlayerId = null;
+        
+        // Reset initial phase
+        initialPhase = {
+            active: false,
+            phase: 'none',
+            currentPlayerId: null,
+            buildOrder: [],
+            currentIndex: 0,
+            round: 0,
+            diceRolls: new Map(),
+            myRoll: null,
+            canBuild: false
+        };
+        
+        // Reset UI
+        updateAllUI();
+        setBuildMode('none');
+        
+        // Reset dice display
+        const d1 = document.getElementById('die1');
+        const d2 = document.getElementById('die2');
+        if (d1) d1.innerHTML = '<span class="die-value">⚄</span>';
+        if (d2) d2.innerHTML = '<span class="die-value">⚅</span>';
+        document.getElementById('total').textContent = 'Сума: 0';
+        
+        // Reset end turn button
+        const endTurnBtn = document.getElementById('endTurnBtn');
+        if (endTurnBtn) {
+            endTurnBtn.textContent = '✅ Завершити хід';
+            endTurnBtn.disabled = true;
+            endTurnBtn.style.opacity = '0.5';
+            endTurnBtn.style.cursor = 'not-allowed';
+            endTurnBtn.onclick = null;
+        }
+        
+        // Reset roll button
+        const rollBtn = document.getElementById('rollBtn');
+        if (rollBtn) {
+            rollBtn.disabled = true;
+            rollBtn.style.opacity = '0.5';
+            rollBtn.style.cursor = 'not-allowed';
+        }
+        
+        // Reset trade button
+        const tradeBtn = document.getElementById('tradeBtn');
+        if (tradeBtn) {
+            tradeBtn.disabled = true;
+            tradeBtn.style.opacity = '0.5';
+            tradeBtn.style.cursor = 'not-allowed';
+        }
+        
+        // Reset build buttons
+        document.querySelectorAll('.build-btn').forEach(b => b.classList.remove('active'));
+        
+        // Reset robber mode
+        robberMode = false;
+        
+        // Re-render map
+        if (mapData) {
+            renderMap(mapData, canvas, mapHexSize);
+        }
+        
+        showMessage('🔄 Гра перезапускається!');
+    });
+    
+    // Handle player disconnected (during game)
+    client.onPlayerDisconnected((data) => {
+        console.log('Player disconnected:', data);
+        if (data && data.playerId) {
+            const player = multiplayerClient?.players?.find(p => p.id === data.playerId);
+            const name = player ? player.name : 'Гравець ' + data.playerId.slice(0, 4);
+            showMessage('⚠️ ' + name + ' відключився від гри');
+        }
+    });
+    
+    // Handle host disconnected (during game)
+    client.onHostDisconnected((data) => {
+        console.log('Host disconnected:', data);
+        showMessage('⚠️ Хазяїн тимчасово відключився. Очікування перепідключення...');
+    });
+}
+
+// ===== GAME OVER OVERLAY FUNCTIONS =====
+let hasVotedRestart = false;
+
+function showGameOverOverlay(data) {
+    const overlay = document.getElementById('gameOverOverlay');
+    if (!overlay) return;
+    
+    const isWinner = data.winnerId === myPlayerId;
+    const icon = document.getElementById('gameOverIcon');
+    const title = document.getElementById('gameOverTitle');
+    const message = document.getElementById('gameOverMessage');
+    
+    if (isWinner) {
+        icon.textContent = '🏆';
+        title.textContent = 'ПЕРЕМОГА!';
+        title.style.color = '#f1c40f';
+        message.textContent = 'Вітаємо! Ви досягли 10 переможних очок!';
+    } else {
+        icon.textContent = '💀';
+        title.textContent = 'ПОРАЗКА';
+        title.style.color = '#e74c3c';
+        const winner = data.players?.find(p => p.id === data.winnerId);
+        const winnerName = winner ? winner.name : 'Інший гравець';
+        message.textContent = winnerName + ' досяг 10 переможних очок!';
+    }
+    
+    // Reset voting state
+    hasVotedRestart = false;
+    const voteBtn = document.getElementById('voteRestartBtn');
+    if (voteBtn) {
+        voteBtn.disabled = false;
+        voteBtn.style.opacity = '1';
+        voteBtn.style.cursor = 'pointer';
+        voteBtn.textContent = '✅ Зіграти ще раз';
+    }
+    
+    // Initialize votes list with all players
+    const votesList = document.getElementById('restartVotesList');
+    if (votesList && data.players) {
+        votesList.innerHTML = '';
+        data.players.forEach(p => {
+            const div = document.createElement('div');
+            div.style.cssText = 'display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.9em;';
+            const isMe = p.id === myPlayerId;
+            div.innerHTML = '<span style="color: ' + (isMe ? '#f1c40f' : '#fff') + '; font-weight: ' + (isMe ? 'bold' : 'normal') + ';">' + (isMe ? 'Ви' : p.name) + '</span><span style="margin-left: auto; color: #666;">⏳</span>';
+            div.id = 'restart-vote-' + p.id;
+            votesList.appendChild(div);
+        });
+    }
+    
+    const status = document.getElementById('restartVotesStatus');
+    if (status) {
+        status.textContent = 'Голосування: 0/' + (data.players?.length || 0);
+    }
+    
+    // Show overlay
+    overlay.style.display = 'flex';
+    
+    // Block all game interactions
+    document.body.classList.add('is-paused');
+}
+
+function updateRestartVotesUI(data) {
+    const votesList = document.getElementById('restartVotesList');
+    const status = document.getElementById('restartVotesStatus');
+    const voteBtn = document.getElementById('voteRestartBtn');
+    
+    if (votesList && data.players) {
+        votesList.innerHTML = '';
+        data.players.forEach(p => {
+            const hasVoted = data.readyPlayers?.includes(p.id);
+            const div = document.createElement('div');
+            div.style.cssText = 'display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.9em;';
+            const isMe = p.id === myPlayerId;
+            div.innerHTML = '<span style="color: ' + (isMe ? '#f1c40f' : '#fff') + '; font-weight: ' + (isMe ? 'bold' : 'normal') + ';">' + (isMe ? 'Ви' : p.name) + '</span><span style="margin-left: auto; color: ' + (hasVoted ? '#27ae60' : '#666') + ';">' + (hasVoted ? '✅' : '⏳') + '</span>';
+            votesList.appendChild(div);
+        });
+    }
+    
+    if (status) {
+        status.textContent = 'Голосування: ' + data.readyCount + '/' + data.totalPlayers;
+    }
+    
+    // If I already voted, disable the button
+    if (hasVotedRestart && voteBtn) {
+        voteBtn.disabled = true;
+        voteBtn.style.opacity = '0.5';
+        voteBtn.style.cursor = 'not-allowed';
+        voteBtn.textContent = '✅ Ви проголосували';
+    }
 }
 
 // ===== SINGLE PLAYER INITIAL PHASE =====
@@ -5659,6 +5889,75 @@ window.addEventListener('resize', () => {
         renderMap(mapData, canvas, newHexSize);
     }
 });
+
+// ===== GAME OVER BUTTON HANDLERS =====
+// Vote to restart the game
+document.getElementById('voteRestartBtn').addEventListener('click', () => {
+    audioManager.playClickSound();
+    if (hasVotedRestart) return;
+    
+    hasVotedRestart = true;
+    const voteBtn = document.getElementById('voteRestartBtn');
+    if (voteBtn) {
+        voteBtn.disabled = true;
+        voteBtn.style.opacity = '0.5';
+        voteBtn.style.cursor = 'not-allowed';
+        voteBtn.textContent = '✅ Ви проголосували';
+    }
+    
+    if (multiplayerClient && isMultiplayer) {
+        multiplayerClient.voteRestart();
+    }
+});
+
+// Exit to splash screen
+document.getElementById('gameOverExitBtn').addEventListener('click', () => {
+    audioManager.playClickSound();
+    if (multiplayerClient && isMultiplayer) {
+        multiplayerClient.leaveRoom();
+    }
+    window.location.href = 'splash.html';
+});
+
+// ===== VICTORY POINTS SYNC =====
+// Sync my victory points to server after any VP change
+function syncMyVP() {
+    if (multiplayerClient && isMultiplayer && myPlayerId) {
+        const vp = computeVictoryPoints();
+        multiplayerClient.syncVP(vp);
+    }
+}
+
+// Override updateBuildStats to also sync VP in multiplayer
+const originalUpdateBuildStats = updateBuildStats;
+updateBuildStats = function() {
+    originalUpdateBuildStats();
+    if (isMultiplayer && myPlayerId) {
+        syncMyVP();
+    }
+};
 </script>
+
+<!-- ===== GAME OVER OVERLAY (VICTORY/DEFEAT) ===== -->
+<div id="gameOverOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 4000; justify-content: center; align-items: center;">
+    <div style="background: rgba(26,26,46,0.98); border: 3px solid #f39c12; border-radius: 20px; padding: 40px; text-align: center; max-width: 500px; box-shadow: 0 0 50px rgba(243,156,18,0.6);">
+        <div id="gameOverIcon" style="font-size: 4em; margin-bottom: 10px;">🏆</div>
+        <h2 id="gameOverTitle" style="color: #f39c12; margin-bottom: 15px; font-size: 2em;">ГРА ЗАКІНЧЕНА</h2>
+        <p id="gameOverMessage" style="color: #ccc; margin-bottom: 20px; font-size: 1.2em;"></p>
+        
+        <!-- Restart voting section -->
+        <div id="restartVotingSection" style="margin-bottom: 20px; padding: 15px; background: rgba(243,156,18,0.08); border-radius: 10px; border: 1px solid rgba(243,156,18,0.2);">
+            <div style="color: #f39c12; font-size: 1.1em; margin-bottom: 10px; font-weight: bold;">🔄 ГОЛОСУВАННЯ ЗА РЕСТАРТ</div>
+            <div id="restartVotesList" style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; text-align: left;"></div>
+            <div id="restartVotesStatus" style="color: #aaa; font-size: 0.9em; margin-bottom: 10px;"></div>
+            <button id="voteRestartBtn" style="padding: 12px 30px; font-size: 1.1em; background: linear-gradient(135deg, #27ae60, #229954); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: all 0.2s;">✅ Зіграти ще раз</button>
+        </div>
+        
+        <div style="display: flex; gap: 10px; justify-content: center;">
+            <button id="gameOverExitBtn" style="padding: 12px 30px; font-size: 1.1em; background: linear-gradient(135deg, #e74c3c, #c0392b); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: all 0.2s;">🚪 Вийти</button>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>

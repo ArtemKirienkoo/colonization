@@ -1,4 +1,4 @@
-// Multiplayer Client for Colonization
+﻿// Multiplayer Client for Colonization
 // This file handles the multiplayer connection and game state synchronization
 
 class MultiplayerClient {
@@ -6,7 +6,7 @@ class MultiplayerClient {
         this.socket = null;
         this.roomCode = null;
         this.isHost = false;
-        this.playerName = 'Гравець';
+        this.playerName = 'Р“СЂР°РІРµС†СЊ';
         this.players = [];
         this.connected = false;
         this.pendingListeners = [];
@@ -30,10 +30,10 @@ class MultiplayerClient {
     connect(serverUrl = 'http://localhost:3000') {
         if (typeof io === 'undefined') {
             console.error('Socket.IO client not loaded');
-            return Promise.reject('Socket.IO клієнт не завантажений');
+            return Promise.reject('Socket.IO РєР»С–С”РЅС‚ РЅРµ Р·Р°РІР°РЅС‚Р°Р¶РµРЅРёР№');
         }
 
-        console.log('Підключення до сервера:', serverUrl);
+        console.log('РџС–РґРєР»СЋС‡РµРЅРЅСЏ РґРѕ СЃРµСЂРІРµСЂР°:', serverUrl);
         
         // Configure Socket.IO with better error handling and retry logic
         this.socket = io(serverUrl, {
@@ -51,26 +51,26 @@ class MultiplayerClient {
         return new Promise((resolve, reject) => {
             let initialConnection = true;
             const timeout = setTimeout(() => {
-                console.error('Таймаут підключення після 30 секунд');
+                console.error('РўР°Р№РјР°СѓС‚ РїС–РґРєР»СЋС‡РµРЅРЅСЏ РїС–СЃР»СЏ 30 СЃРµРєСѓРЅРґ');
                 if (this.socket) {
                     this.socket.disconnect();
                 }
-                reject(new Error('Таймаут підключення. Можливі причини:\n1. Сервер не запущений\n2. Фаєрвол блокує порт 3000\n3. Неправильна адреса сервера'));
+                reject(new Error('РўР°Р№РјР°СѓС‚ РїС–РґРєР»СЋС‡РµРЅРЅСЏ. РњРѕР¶Р»РёРІС– РїСЂРёС‡РёРЅРё:\n1. РЎРµСЂРІРµСЂ РЅРµ Р·Р°РїСѓС‰РµРЅРёР№\n2. Р¤Р°С”СЂРІРѕР» Р±Р»РѕРєСѓС” РїРѕСЂС‚ 3000\n3. РќРµРїСЂР°РІРёР»СЊРЅР° Р°РґСЂРµСЃР° СЃРµСЂРІРµСЂР°'));
             }, 30000);
 
             this.socket.on('connect', () => {
                 clearTimeout(timeout);
                 this.connected = true;
-                console.log('Підключено до сервера:', this.socket.id);
+                console.log('РџС–РґРєР»СЋС‡РµРЅРѕ РґРѕ СЃРµСЂРІРµСЂР°:', this.socket.id);
                 try {
                     const existingPlayerId = sessionStorage.getItem('multiplayerPlayerId');
                     if (!existingPlayerId) {
                         sessionStorage.setItem('multiplayerPlayerId', this.socket.id);
                     } else {
-                        console.log('Збережено старий multiplayerPlayerId для reconnect:', existingPlayerId);
+                        console.log('Р—Р±РµСЂРµР¶РµРЅРѕ СЃС‚Р°СЂРёР№ multiplayerPlayerId РґР»СЏ reconnect:', existingPlayerId);
                     }
                 } catch (error) {
-                    console.warn('Не вдалося зберегти multiplayerPlayerId:', error);
+                    console.warn('РќРµ РІРґР°Р»РѕСЃСЏ Р·Р±РµСЂРµРіС‚Рё multiplayerPlayerId:', error);
                 }
                 // Attach any queued listeners registered before socket creation
                 for (const listener of this.pendingListeners) {
@@ -102,7 +102,7 @@ class MultiplayerClient {
             });
 
             this.socket.on('connect_error', (error) => {
-                console.error('Помилка підключення:', error);
+                console.error('РџРѕРјРёР»РєР° РїС–РґРєР»СЋС‡РµРЅРЅСЏ:', error);
                 // Only disconnect and reject during initial connection attempt
                 // After initial connection, let Socket.IO handle reconnection automatically
                 if (initialConnection) {
@@ -112,15 +112,15 @@ class MultiplayerClient {
                     clearTimeout(timeout);
                     reject(error);
                 }
-                // During reconnection, don't disconnect — let Socket.IO retry
+                // During reconnection, don't disconnect вЂ” let Socket.IO retry
             });
 
             this.socket.on('reconnect_attempt', (attempt) => {
-                console.log('Спроба перепідключення:', attempt);
+                console.log('РЎРїСЂРѕР±Р° РїРµСЂРµРїС–РґРєР»СЋС‡РµРЅРЅСЏ:', attempt);
             });
 
             this.socket.on('reconnect', (attempt) => {
-                console.log('Перепідключено до сервера після', attempt, 'спроб');
+                console.log('РџРµСЂРµРїС–РґРєР»СЋС‡РµРЅРѕ РґРѕ СЃРµСЂРІРµСЂР° РїС–СЃР»СЏ', attempt, 'СЃРїСЂРѕР±');
                 this.connected = true;
             });
 
@@ -130,25 +130,25 @@ class MultiplayerClient {
                         this.socket.disconnect();
                     }
                     clearTimeout(timeout);
-                    reject(new Error('Не вдалося підключитися до сервера після 20 спроб.\nПеревірте:\n1. Сервер запущений (npm start)\n2. Порт 3000 не заблокований фаєрволом\n3. Обидва гравці в одній мережі (для локальної гри)'));
+                    reject(new Error('РќРµ РІРґР°Р»РѕСЃСЏ РїС–РґРєР»СЋС‡РёС‚РёСЃСЏ РґРѕ СЃРµСЂРІРµСЂР° РїС–СЃР»СЏ 20 СЃРїСЂРѕР±.\nРџРµСЂРµРІС–СЂС‚Рµ:\n1. РЎРµСЂРІРµСЂ Р·Р°РїСѓС‰РµРЅРёР№ (npm start)\n2. РџРѕСЂС‚ 3000 РЅРµ Р·Р°Р±Р»РѕРєРѕРІР°РЅРёР№ С„Р°С”СЂРІРѕР»РѕРј\n3. РћР±РёРґРІР° РіСЂР°РІС†С– РІ РѕРґРЅС–Р№ РјРµСЂРµР¶С– (РґР»СЏ Р»РѕРєР°Р»СЊРЅРѕС— РіСЂРё)'));
                 }
-                console.error('Не вдалося перепідключитися');
+                console.error('РќРµ РІРґР°Р»РѕСЃСЏ РїРµСЂРµРїС–РґРєР»СЋС‡РёС‚РёСЃСЏ');
             });
 
             this.socket.on('disconnect', (reason) => {
-                console.log('Відключено:', reason);
+                console.log('Р’С–РґРєР»СЋС‡РµРЅРѕ:', reason);
                 this.connected = false;
             });
 
             this.socket.on('error', (error) => {
-                console.error('Socket.IO помилка:', error);
+                console.error('Socket.IO РїРѕРјРёР»РєР°:', error);
             });
         });
     }
 
     // Create a new room
     createRoom(roomName, playerName, maxPlayers, color) {
-        this.playerName = playerName || 'Гравець';
+        this.playerName = playerName || 'Р“СЂР°РІРµС†СЊ';
         this.isHost = true;
 
         return new Promise((resolve, reject) => {
@@ -176,7 +176,7 @@ class MultiplayerClient {
 
     // Join an existing room
     joinRoom(roomCode, playerName, color) {
-        this.playerName = playerName || 'Гравець';
+        this.playerName = playerName || 'Р“СЂР°РІРµС†СЊ';
         this.roomCode = roomCode.toUpperCase();
 
         return new Promise((resolve, reject) => {
@@ -235,7 +235,7 @@ class MultiplayerClient {
         try {
             oldPlayerId = sessionStorage.getItem('multiplayerPlayerId');
         } catch (error) {
-            console.warn('Не вдалося прочитати multiplayerPlayerId:', error);
+            console.warn('РќРµ РІРґР°Р»РѕСЃСЏ РїСЂРѕС‡РёС‚Р°С‚Рё multiplayerPlayerId:', error);
         }
         console.log('[MultiplayerClient] rejoinRoom', { roomCode, isHost, oldPlayerId, socketId: this.socket?.id });
         this._logEmit('rejoin-room', { roomCode, isHost, oldPlayerId });
@@ -495,6 +495,58 @@ class MultiplayerClient {
     // Handle authoritative medals sync (largest army / longest road with escalation)
     onMedalsSynced(callback) {
         this._safeOn('medals-synced', callback);
+    }
+
+    // Handle game over (victory)
+    onGameOver(callback) {
+        this._safeOn('game-over', callback);
+    }
+
+    // Handle victory points synced from server
+    onVPSynced(callback) {
+        this._safeOn('vp-synced', callback);
+    }
+
+    // Handle restart votes updated
+    onRestartVotesUpdated(callback) {
+        this._safeOn('restart-votes-updated', callback);
+    }
+
+    // Handle restart started
+    onRestartStarted(callback) {
+        this._safeOn('restart-started', callback);
+    }
+
+    // Handle player disconnected (during game)
+    onPlayerDisconnected(callback) {
+        this._safeOn('player-disconnected', callback);
+    }
+
+    // Handle host disconnected (during game)
+    onHostDisconnected(callback) {
+        this._safeOn('host-disconnected', callback);
+    }
+
+    // Sync victory points to server
+    syncVP(vp) {
+        this._logEmit('sync-vp', { roomCode: this.roomCode, playerId: this.socket.id, vp });
+        this.socket.emit('sync-vp', {
+            roomCode: this.roomCode,
+            playerId: this.socket.id,
+            vp
+        });
+    }
+
+    // Vote to restart the game
+    voteRestart() {
+        this._logEmit('restart-vote', { roomCode: this.roomCode });
+        this.socket.emit('restart-vote', { roomCode: this.roomCode });
+    }
+
+    // Host forces restart
+    forceRestart() {
+        this._logEmit('restart-game', { roomCode: this.roomCode });
+        this.socket.emit('restart-game', { roomCode: this.roomCode });
     }
 
     // Request game state sync from server
