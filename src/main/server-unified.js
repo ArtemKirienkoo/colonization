@@ -159,17 +159,11 @@ function canPlaceSettlementServer(vertexKey, playerId, room) {
     for (const [vk2, bld] of room.buildings) {
         if ((bld.type === 'settlement' || bld.type === 'city') && bld.playerId === playerId) {
             // Rule: settlements of the SAME player must be at least 2 edges apart
-            // EXCEPTION: if there is NO road directly connecting them (1 edge apart),
-            // they CAN be adjacent. But if a road exists between them, it's blocked.
+            // No exception - minimum 2 edges required between any two settlements of the same player
             if (vk2 === vertexKey) return false;
             if (neighborKeys.includes(vk2)) {
-                // Check if there's a road directly connecting these two vertices
-                const edgeKeyBetween = vk2 < vertexKey ? vk2 + '|' + vertexKey : vertexKey + '|' + vk2;
-                const roadBetween = room.buildings.get(edgeKeyBetween);
-                if (roadBetween && roadBetween.type === 'road') {
-                    return false; // Road exists between them - can't place
-                }
-                // No road between them - allowed to be 1 edge apart
+                // Road exists between them - can't place (2 edges minimum)
+                return false;
             }
         }
     }
@@ -1581,15 +1575,14 @@ io.on('connection', (socket) => {
             });
         }
         else if (action === 'place-robber') {
-            // Update robber position on server — use room.robber (NOT room.gameState.robber)
-            // room.robber is what regular-dice-roll uses for resource collection
-            // Get the player's color for the robber token
-            const robberPlayer = room.players.find(p => p.id === socket.id);
-            room.robber = {
-                hexKey: payload.hexKey,
-                placedBy: socket.id,
-                color: robberPlayer ? robberPlayer.color : null
-            };
+        // Update robber position on server — use room.robber (NOT room.gameState.robber)
+        // room.robber is what regular-dice-roll uses for resource collection
+        // Robber on desert should always be purple, regardless of who placed it
+        room.robber = {
+            hexKey: payload.hexKey,
+            placedBy: socket.id,
+            color: 'purple'
+        };
             
             // ===== RESOURCE THEFT =====
             // When robber is placed on a hex belonging to another player,
