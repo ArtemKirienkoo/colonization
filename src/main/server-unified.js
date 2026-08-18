@@ -458,20 +458,8 @@ function resetRoomForRestart(roomCode, room) {
     
     // Initialize dev card deck
     room.devCardDeck = createDevCardDeck();
-    
-    // Deal initial dev cards to players (3 cards each)
-    const cardsPerPlayer = 3;
-    for (let p = 0; p < room.players.length; p++) {
-        const playerId = room.players[p].id;
-        for (let i = 0; i < cardsPerPlayer; i++) {
-            if (room.devCardDeck.length > 0) {
-                const card = room.devCardDeck.pop();
-                card.used = false;
-                card.ownerId = playerId;
-                room.devCardHands.get(playerId).push(card);
-            }
-        }
-    }
+    // NOTE: No cards are dealt at game start - players must BUY dev cards
+    // with resources (geese + water + stone) during the game.
     
     // Find desert hex for robber initial position
     let desertHexKey = '0,0,0';
@@ -1002,26 +990,14 @@ io.on('connection', (socket) => {
             // Initialize dev card deck (shared among all players)
             room.devCardDeck = createDevCardDeck();
             
-// Initialize dev card hands for all players
+            // Initialize dev card hands for all players
             for (const p of room.players) {
                 room.devCardHands.set(p.id, []);
                 room.knightCards.set(p.id, 0);
                 room.playerResources.set(p.id, { wood: 0, brick: 0, geese: 0, water: 0, stone: 0 });
             }
-            
-            // Deal initial dev cards to players (3 cards each)
-            const cardsPerPlayer = 3;
-            for (let p = 0; p < room.players.length; p++) {
-                const playerId = room.players[p].id;
-                for (let i = 0; i < cardsPerPlayer; i++) {
-                    if (room.devCardDeck.length > 0) {
-                        const card = room.devCardDeck.pop();
-                        card.used = false;
-                        card.ownerId = playerId;
-                        room.devCardHands.get(playerId).push(card);
-                    }
-                }
-            }
+            // NOTE: No cards are dealt at game start - players must BUY dev cards
+            // with resources (geese + water + stone) during the game.
             
             // Send map seed for synchronization
             const mapSeed = room.gameState || {
