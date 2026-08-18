@@ -1578,10 +1578,11 @@ io.on('connection', (socket) => {
         // Update robber position on server — use room.robber (NOT room.gameState.robber)
         // room.robber is what regular-dice-roll uses for resource collection
         // Robber on desert should always be purple, regardless of who placed it
+        const robberPlayer = room.players.find(p => p.id === socket.id);
         room.robber = {
             hexKey: payload.hexKey,
             placedBy: socket.id,
-            color: 'purple'
+            color: robberPlayer ? robberPlayer.color : 'purple'
         };
             
             // ===== RESOURCE THEFT =====
