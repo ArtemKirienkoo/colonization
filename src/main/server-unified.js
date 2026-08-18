@@ -96,6 +96,21 @@ function isEdgeConnectedServer(edgeKey, playerId, room) {
     if (vkA && room.buildings.has(vkA) && room.buildings.get(vkA).playerId !== playerId) return false;
     if (vkB && room.buildings.has(vkB) && room.buildings.get(vkB).playerId !== playerId) return false;
 
+    // NEW: Cannot place a road on an edge that is adjacent to an OPPONENT's road
+    for (const [ek2, bld] of room.buildings) {
+        if (bld.type !== 'road' || bld.playerId === playerId) continue;
+        const edge2 = edgeMap.get(ek2);
+        if (!edge2) continue;
+        
+        const round3 = (n) => Math.round(n * 1000);
+        if ((round3(edge2.va.x) === round3(va.x) && round3(edge2.va.y) === round3(va.y)) ||
+            (round3(edge2.va.x) === round3(vb.x) && round3(edge2.va.y) === round3(vb.y)) ||
+            (round3(edge2.vb.x) === round3(va.x) && round3(edge2.vb.y) === round3(va.y)) ||
+            (round3(edge2.vb.x) === round3(vb.x) && round3(edge2.vb.y) === round3(vb.y))) {
+            return false;
+        }
+    }
+
     if (vkA && isMyServerVertex(vkA, playerId, room)) return true;
     if (vkB && isMyServerVertex(vkB, playerId, room)) return true;
     
@@ -144,9 +159,18 @@ function canPlaceSettlementServer(vertexKey, playerId, room) {
     for (const [vk2, bld] of room.buildings) {
         if ((bld.type === 'settlement' || bld.type === 'city') && bld.playerId === playerId) {
             // Rule: settlements of the SAME player must be at least 2 edges apart
-            // Rule: settlements of DIFFERENT players CAN be adjacent (1 edge apart)
+            // EXCEPTION: if there is NO road directly connecting them (1 edge apart),
+            // they CAN be adjacent. But if a road exists between them, it's blocked.
             if (vk2 === vertexKey) return false;
-            if (neighborKeys.includes(vk2)) return false;
+            if (neighborKeys.includes(vk2)) {
+                // Check if there's a road directly connecting these two vertices
+                const edgeKeyBetween = vk2 < vertexKey ? vk2 + '|' + vertexKey : vertexKey + '|' + vk2;
+                const roadBetween = room.buildings.get(edgeKeyBetween);
+                if (roadBetween && roadBetween.type === 'road') {
+                    return false; // Road exists between them - can't place
+                }
+                // No road between them - allowed to be 1 edge apart
+            }
         }
     }
     // Check if vertex is already occupied by ANY player
@@ -679,13 +703,21 @@ io.on('connection', (socket) => {
         }
         
         if (!existingPlayer) {
-            console.log('[server] rejoin-room: player not found, pushing new player', { roomCode, socketId: socket.id, oldPlayerId });
-            room.players.push({
-                id: socket.id,
-                name: 'Гравець',
-                isHost: isHost,
-                color: 'red'
-            });
+            // Check if there's already a player with this socket.id in the room
+            // (e.g., from a previous connection that wasn't cleaned up)
+            const duplicateBySocket = room.players.find(p => p.id === socket.id);
+            if (duplicateBySocket) {
+                console.log('[server] rejoin-room: player already exists by socket.id, no duplicate created', { roomCode, socketId: socket.id });
+                existingPlayer = duplicateBySocket;
+            } else {
+                console.log('[server] rejoin-room: player not found, pushing new player', { roomCode, socketId: socket.id, oldPlayerId });
+                room.players.push({
+                    id: socket.id,
+                    name: 'Гравець',
+                    isHost: isHost,
+                    color: 'red'
+                });
+            }
         } else {
             console.log('[server] rejoin-room: player found, no duplicate created', { roomCode, socketId: socket.id });
         }
@@ -1575,9 +1607,12 @@ io.on('connection', (socket) => {
         else if (action === 'place-robber') {
             // Update robber position on server — use room.robber (NOT room.gameState.robber)
             // room.robber is what regular-dice-roll uses for resource collection
+            // Get the player's color for the robber token
+            const robberPlayer = room.players.find(p => p.id === socket.id);
             room.robber = {
                 hexKey: payload.hexKey,
-                placedBy: socket.id
+                placedBy: socket.id,
+                color: robberPlayer ? robberPlayer.color : null
             };
             
             // ===== RESOURCE THEFT =====

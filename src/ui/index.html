@@ -925,15 +925,15 @@ const RESOURCE_TYPES = ['wood', 'brick', 'geese', 'water', 'stone'];
 const RESOURCE_DISTRIBUTION = [4, 3, 4, 4, 3];
 const RESOURCE_NAMES_UA = { wood:'Дерево', brick:'Цегла', geese:'Гуси', water:'Вода', stone:'Камінь' };
 const DEV_CARD_TYPES = {
-    knight: { name: 'Рицар', icon: '⚔️', cls: 'knight' },
-    plenty: { name: 'Рік достатку', icon: '🌾', cls: 'plenty' },
-    monopoly: { name: 'Монополія', icon: '👑', cls: 'monopoly' },
-    roads: { name: 'Дороги', icon: '🛤️', cls: 'roads' },
-    vp_market: { name: 'Ринок', icon: '🏪', cls: 'vp', vp: 1 },
-    vp_library: { name: 'Бібліотека', icon: '📚', cls: 'vp', vp: 1 },
-    vp_cathedral: { name: 'Собор', icon: '⛪', cls: 'vp', vp: 1 },
-    vp_townhall: { name: 'Ратуша', icon: '🏛️', cls: 'vp', vp: 1 },
-    vp_university: { name: 'Університет', icon: '🎓', cls: 'vp', vp: 1 }
+    knight: { name: 'Рицар', icon: '⚔️', cls: 'knight', desc: 'Перемістіть розбійника на будь-який гекс та вкрадіть 1 ресурс у гравця, що межує з ним' },
+    plenty: { name: 'Рік достатку', icon: '🌾', cls: 'plenty', desc: 'Візьміть 2 будь-які ресурси з банку (можна 2 однакові)' },
+    monopoly: { name: 'Монополія', icon: '👑', cls: 'monopoly', desc: 'Всі інші гравці віддають вам ВСІ свої картки обраного ресурсу' },
+    roads: { name: 'Дороги', icon: '🛤️', cls: 'roads', desc: 'Побудуйте 2 дороги безкоштовно (за правилами з\'єднання)' },
+    vp_market: { name: 'Ринок', icon: '🏪', cls: 'vp', vp: 1, desc: 'Карта перемоги: +1 переможне очко' },
+    vp_library: { name: 'Бібліотека', icon: '📚', cls: 'vp', vp: 1, desc: 'Карта перемоги: +1 переможне очко' },
+    vp_cathedral: { name: 'Собор', icon: '⛪', cls: 'vp', vp: 1, desc: 'Карта перемоги: +1 переможне очко' },
+    vp_townhall: { name: 'Ратуша', icon: '🏛️', cls: 'vp', vp: 1, desc: 'Карта перемоги: +1 переможне очко' },
+    vp_university: { name: 'Університет', icon: '🎓', cls: 'vp', vp: 1, desc: 'Карта перемоги: +1 переможне очко' }
 };
 function createDevDeck() {
     const d = [];
@@ -1223,7 +1223,7 @@ let gameState = { roads: new Map(),
     devHand: [], 
     roadBuildingMode: 0, 
     cardInProgress: false,
-    robber: { hexKey: null, placedBy: null }, // {hexKey: 'q,r,s', placedBy: playerId}
+    robber: { hexKey: null, placedBy: null, color: '#a020f0' }, // {hexKey: 'q,r,s', placedBy: playerId, color: playerColor}
     devCardHands: new Map(), // playerId -> array of dev cards
     knightCards: new Map() // playerId -> count of active knights
 };
@@ -1642,13 +1642,20 @@ function canPlaceSettlement(vk) {
     
     // Regular gameplay: check distance from MY OWN settlements only (uses full hex topology, not roads)
     // Rule: settlements of DIFFERENT players CAN be adjacent (1 edge apart)
-    // Rule: settlements of the SAME player must be at least 2 edges apart
+    // Rule: settlements of the SAME player can be 1 edge apart ONLY IF no road directly connects them.
+    //       If a road exists between them, placement is blocked (server enforces this too).
     let hasMySettlement = false;
     for (const [evk, bld] of gameState.settlements) { 
         if (bld.playerId !== myPlayerId) continue; // Skip other players' settlements
         hasMySettlement = true;
         const len = roadPathLength(evk, vk, fullGraph); 
-        if (len>=0 && len<2) return false; 
+        if (len === 1) {
+            // Adjacent vertices - allowed ONLY if there is NO road directly between them
+            const isRoadBetween = roadPathLength(evk, vk, buildSettlementGraph()) === 1;
+            if (isRoadBetween) return false;
+            continue; // Otherwise allow 1-edge placement
+        }
+        if (len >= 0 && len < 2) return false; // Same spot or 0-distance (impossible), block
     }
     if (!hasMySettlement) return true;
     if(isVertexOnOpponentRoad(vk)) return false;
@@ -2108,9 +2115,12 @@ function renderMap(data, canvas, hexSize) {
                 ctx.lineTo(cx-hw,cy-hh+rr);
                 ctx.quadraticCurveTo(cx-hw,cy-hh,cx-hw+rr,cy-hh);
                 ctx.closePath();
-                ctx.fillStyle='#8b5cf6';
+                // Use robber color from server (defaults to purple if not set)
+                const robberColor = gameState.robber.color || '#8b5cf6';
+                const robberBorderColor = robberColor === '#8b5cf6' ? '#6d28d9' : robberColor;
+                ctx.fillStyle=robberColor;
                 ctx.fill();
-                ctx.strokeStyle='#6d28d9';
+                ctx.strokeStyle=robberBorderColor;
                 ctx.lineWidth=2;
                 ctx.stroke();
                 const s=hexSize*0.38,scx=cx,scy=cy+2;
@@ -2345,9 +2355,12 @@ function renderMap(data, canvas, hexSize) {
             ctx.lineTo(rcx-hw,rcy-hh+rr);
             ctx.quadraticCurveTo(rcx-hw,rcy-hh,rcx-hw+rr,rcy-hh);
             ctx.closePath();
-            ctx.fillStyle='#8b5cf6';
+            // Use robber color from server (defaults to purple if not set)
+            const robberColor = gameState.robber.color || '#8b5cf6';
+            const robberBorderColor = robberColor === '#8b5cf6' ? '#6d28d9' : robberColor;
+            ctx.fillStyle=robberColor;
             ctx.fill();
-            ctx.strokeStyle='#6d28d9';
+            ctx.strokeStyle=robberBorderColor;
             ctx.lineWidth=2;
             ctx.stroke();
             // Robber figure (same as desert tile)
@@ -2566,6 +2579,26 @@ function isEdgeConnected(ek){
     
     // Cannot place a road on an edge that borders an OPPONENT settlement
     if (isEdgeBorderingOpponentSettlement(ek)) return false;
+    
+    // NEW: Cannot place a road on an edge that is adjacent to an OPPONENT's road
+    for (const [ek2, roadData] of gameState.roads) {
+        if (roadData.playerId === myPlayerId) continue;
+        const e2 = edgeGeom.edges.get(ek2);
+        if (!e2) continue;
+        const e2va = Math.round(e2.va.x*1000)+','+Math.round(e2.va.y*1000);
+        const e2vb = Math.round(e2.vb.x*1000)+','+Math.round(e2.vb.y*1000);
+        if (va === e2va || va === e2vb || vb === e2va || vb === e2vb) {
+            return false;
+        }
+    }
+    
+    // NEW: Cannot place a road between two of MY OWN settlements that are 1 edge apart
+    // (this would block the "1 edge without road" settlement rule)
+    if (a && b && gameState.settlements.has(a) && gameState.settlements.has(b) &&
+        gameState.settlements.get(a).playerId === myPlayerId &&
+        gameState.settlements.get(b).playerId === myPlayerId) {
+        return false;
+    }
     
     // During initial phase, only check connection to MY settlements
     if (initialPhase.active && initialPhase.phase === 'initial-build') {
@@ -3062,7 +3095,7 @@ function confirmActivateDevCard(index){
     }
     const overlay=document.createElement('div');
     overlay.className='confirm-overlay';
-    overlay.innerHTML='<div class="confirm-box"><h3>'+info.icon+' '+info.name+'</h3><p>Використати цю карту?</p><div class="confirm-btns"><button class="btn-yes" id="confirmYes">✅ Так</button><button class="btn-no" id="confirmNo">❌ Ні</button></div></div>';
+    overlay.innerHTML='<div class="confirm-box"><h3>'+info.icon+' '+info.name+'</h3><p style="color:#f1c40f;font-size:0.9em;margin-bottom:12px;">'+(info.desc||'')+'</p><p>Використати цю карту?</p><div class="confirm-btns"><button class="btn-yes" id="confirmYes">✅ Так</button><button class="btn-no" id="confirmNo">❌ Ні</button></div></div>';
     document.body.appendChild(overlay);
     document.getElementById('confirmYes').addEventListener('click',()=>{
         overlay.remove();
@@ -3105,6 +3138,14 @@ function activateDevCard(index){
 function activateRoadBuilding(index){
     const card=gameState.devHand[index];
     if(card.used)return;
+    
+    // Check if player has at least 2 free road slots (from the 15 limit)
+    const myRoads = countBuildings().roads;
+    if (myRoads + 2 > MAX_ROADS) {
+        showMessage('❌ Недостатньо вільних слотів для доріг! Потрібно мінімум 2 вільні слоти.');
+        return;
+    }
+    
     card.used=true;
     gameState.cardInProgress=true;
     gameState.roadBuildingMode=2;
@@ -3147,6 +3188,7 @@ function activateKnightCard(index){
                 const desertHexKey = hexKey(desertHex);
                 gameState.robber.hexKey = desertHexKey;
                 gameState.robber.placedBy = myPlayerId;
+                gameState.robber.color = '#a020f0'; // Reset to default purple when driven to desert
                 
                 // Update knight count for largest army tracking
                 const currentKnights = gameState.knightCards.get(myPlayerId) || 0;
@@ -4402,6 +4444,10 @@ function registerMultiplayerHandlers(client) {
             if (data.robber.hexKey) {
                 gameState.robber.hexKey = data.robber.hexKey;
                 gameState.robber.placedBy = data.robber.placedBy;
+                // Update robber color from server (matches the player who placed it)
+                if (data.robber.color) {
+                    gameState.robber.color = data.robber.color;
+                }
             }
             
             // Exit robber mode and re-enable controls
