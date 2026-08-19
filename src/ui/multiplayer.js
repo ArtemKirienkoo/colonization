@@ -502,6 +502,11 @@ class MultiplayerClient {
         this._safeOn('game-over', callback);
     }
 
+    // Handle game over blocked (player left during game-over, restart disabled)
+    onGameOverBlocked(callback) {
+        this._safeOn('game-over-blocked', callback);
+    }
+
     // Handle victory points synced from server
     onVPSynced(callback) {
         this._safeOn('vp-synced', callback);

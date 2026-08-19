@@ -4824,6 +4824,12 @@ function registerMultiplayerHandlers(client) {
         updateRestartVotesUI(data);
     });
     
+    // Handle game over blocked (player left during game-over, restart disabled)
+    client.onGameOverBlocked((data) => {
+        console.log('Game over blocked:', data);
+        showGameOverBlocked(data);
+    });
+    
     // Handle restart started
     client.onRestartStarted((data) => {
         console.log('Restart started:', data);
@@ -5028,6 +5034,54 @@ function updateRestartVotesUI(data) {
         voteBtn.style.opacity = '0.5';
         voteBtn.style.cursor = 'not-allowed';
         voteBtn.textContent = '✅ Ви проголосували';
+    }
+}
+
+// Handle game over blocked - a player left during game-over, restart is disabled
+function showGameOverBlocked(data) {
+    const overlay = document.getElementById('gameOverOverlay');
+    if (!overlay) return;
+    
+    // Show the overlay if it's not already visible
+    overlay.style.display = 'flex';
+    document.body.classList.add('is-paused');
+    
+    // Update message with the name of the player who left
+    const message = document.getElementById('gameOverMessage');
+    if (message) {
+        message.textContent = data.message || 'Гравець вийшов з гри. Рестарт неможливий.';
+        message.style.color = '#e74c3c';
+    }
+    
+    // Hide the restart voting section and disable the vote button
+    const votingSection = document.getElementById('restartVotingSection');
+    if (votingSection) votingSection.style.display = 'none';
+    
+    const voteBtn = document.getElementById('voteRestartBtn');
+    if (voteBtn) {
+        voteBtn.disabled = true;
+        voteBtn.style.opacity = '0.5';
+        voteBtn.style.cursor = 'not-allowed';
+        voteBtn.textContent = '🚫 Рестарт недоступний';
+    }
+    
+    // Update the votes list to show remaining players
+    const votesList = document.getElementById('restartVotesList');
+    if (votesList && data.players) {
+        votesList.innerHTML = '';
+        data.players.forEach(p => {
+            const div = document.createElement('div');
+            div.style.cssText = 'display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.9em;';
+            const isMe = p.id === myPlayerId;
+            div.innerHTML = '<span style="color: ' + (isMe ? '#f1c40f' : '#fff') + '; font-weight: ' + (isMe ? 'bold' : 'normal') + ';">' + (isMe ? 'Ви' : p.name) + '</span>';
+            votesList.appendChild(div);
+        });
+    }
+    
+    const status = document.getElementById('restartVotesStatus');
+    if (status) {
+        status.textContent = '🚫 Рестарт заблоковано';
+        status.style.color = '#e74c3c';
     }
 }
 
@@ -5952,17 +6006,61 @@ document.getElementById('voteRestartBtn').addEventListener('click', () => {
     }
     
     if (multiplayerClient && isMultiplayer) {
+        // ===== NEW MAP GENERATION BY HOST ON RESTART =====
+        // If I am the host, generate a NEW map and send it to the server
+        // BEFORE the restart vote completes, so the next game uses a fresh board.
+        if (isHost) {
+            try {
+                const newMapSeed = generateMap();
+                const newSerializedMap = {
+                    center: newMapSeed.center,
+                    ring1: newMapSeed.ring1,
+                    ring2: newMapSeed.ring2,
+                    ring3: newMapSeed.ring3,
+                    resources: Object.fromEntries(newMapSeed.resources),
+                    numbers: Object.fromEntries(newMapSeed.numbers),
+                    ocean: Object.fromEntries(newMapSeed.ocean)
+                };
+                sessionStorage.setItem('multiplayerMap', JSON.stringify(newSerializedMap));
+                
+                // Generate topology for the new map and send it to the server
+                const allHexes = [newMapSeed.center, ...newMapSeed.ring1, ...newMapSeed.ring2, ...newMapSeed.ring3];
+                const newTopology = computeEdgesAndVertices(allHexes, 40);
+                const newTopologyData = {
+                    edges: Array.from(newTopology.edges.entries()).map(([key, val]) => [key, { cx: val.cx, cy: val.cy, va: val.va, vb: val.vb }]),
+                    vertices: Array.from(newTopology.vertices.entries()).map(([key, val]) => [key, { pos: val.pos, hexes: val.hexes }])
+                };
+                
+                // Send the new map and topology to the server
+                multiplayerClient.socket.emit('store-topology', { roomCode: roomCode, topology: newTopologyData });
+                multiplayerClient.storeMap(newSerializedMap);
+                
+                // Also update local mapData so the client renders the new board immediately
+                mapData = deserializeMap(newSerializedMap);
+                if (mapData) {
+                    resizeCanvas();
+                    const hexSize = calculateHexSize();
+                    mapHexSize = hexSize;
+                    renderMap(mapData, canvas, hexSize);
+                }
+                console.log('[Restart] Host generated and sent new map to server');
+            } catch (e) {
+                console.error('[Restart] Failed to generate new map:', e);
+            }
+        }
+        
+        // Send the restart vote AFTER the host has already pushed the new map/topology
         multiplayerClient.voteRestart();
     }
 });
 
-// Exit to splash screen
+// Exit to splash screen (multiplayer lobby)
 document.getElementById('gameOverExitBtn').addEventListener('click', () => {
     audioManager.playClickSound();
     if (multiplayerClient && isMultiplayer) {
         multiplayerClient.leaveRoom();
     }
-    window.location.href = 'splash.html';
+    window.location.href = 'splash.html?mode=multiplayer';
 });
 
 // ===== VICTORY POINTS SYNC =====

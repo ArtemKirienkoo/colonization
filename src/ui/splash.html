@@ -1646,6 +1646,12 @@ document.getElementById('exitRoomBtn').addEventListener('click', () => {
 
         // Load volume settings on page load
         loadVolumeSettings();
+        
+        // Auto-open multiplayer lobby if returning from game with ?mode=multiplayer
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('mode') === 'multiplayer') {
+            document.getElementById('multiplayerBtn').click();
+        }
     </script>
 </body>
 </html>

@@ -414,6 +414,12 @@ function checkVictory(roomCode, room) {
 
 // Reset room for a new game (restart)
 function resetRoomForRestart(roomCode, room) {
+    // If a player left during game-over, restart is blocked
+    if (room.restartBlocked) {
+        console.log('[server] Restart blocked: a player left during game-over');
+        return;
+    }
+    
     // Reset all game state
     room.status = 'in-game';
     room.gamePhase = 'dice-roll';
@@ -428,7 +434,10 @@ function resetRoomForRestart(roomCode, room) {
         actionsLocked: true
     };
     room.buildings = new Map();
-    room.topology = null;
+    // NOTE: room.topology is NOT reset to null here.
+    // If the host sends a NEW topology via 'store-topology' before the restart completes,
+    // that new topology will be used for the next game. Otherwise the previous topology
+    // is retained so server-side validation still works for the reused map.
     room.robber = { hexKey: null, placedBy: null };
     room.devCardHands = new Map();
     room.knightCards = new Map();
@@ -440,7 +449,10 @@ function resetRoomForRestart(roomCode, room) {
     room.playerVP = new Map();
     room.playerResources = new Map();
     room.pendingKnightCards = new Map();
-    room.gameState = null;
+    // NOTE: room.gameState is NOT reset to null here.
+    // If the host sends a NEW map via 'store-map' before voting for restart,
+    // that new map will be used for the next game. Otherwise the previous
+    // map is reused (which still gives players a valid board to play on).
     
     // Initialize player resources for all players
     for (const p of room.players) {
@@ -549,6 +561,7 @@ io.on('connection', (socket) => {
             winnerId: null, // player who reached 10 VP (game over)
             restartReady: new Set(), // player IDs who clicked "Play Again"
             restarting: false, // true while restarting (waiting for new map)
+            restartBlocked: false, // true if a player left during game-over (restart disabled)
             playerVP: new Map() // playerId -> current victory points (synced from client)
         };
         
@@ -2082,6 +2095,12 @@ io.on('connection', (socket) => {
         // Check if game is over
         if (room.status !== 'game-over') return;
         
+        // If restart is blocked (player left), don't accept votes
+        if (room.restartBlocked) {
+            socket.emit('action-error', { message: 'Рестарт заблоковано: гравець вийшов з гри' });
+            return;
+        }
+        
         // Add player to restart ready set
         room.restartReady.add(socket.id);
         
@@ -2108,6 +2127,12 @@ io.on('connection', (socket) => {
         // Only host can force restart
         if (room.host !== socket.id) return;
         
+        // If restart is blocked (player left), don't allow restart
+        if (room.restartBlocked) {
+            socket.emit('action-error', { message: 'Рестарт заблоковано: гравець вийшов з гри' });
+            return;
+        }
+        
         resetRoomForRestart(roomCode, room);
     });
 
@@ -2117,8 +2142,14 @@ io.on('connection', (socket) => {
         if (room) {
             const playerIndex = room.players.findIndex(p => p.id === socket.id);
             if (playerIndex !== -1) {
-                const wasHost = room.host === socket.id;
+            const wasHost = room.host === socket.id;
                 room.players.splice(playerIndex, 1);
+                
+                // If a player leaves during the restart voting phase (game over),
+                // remove them from the ready set so the vote count stays correct.
+                if (room.restartReady && room.restartReady.has(socket.id)) {
+                    room.restartReady.delete(socket.id);
+                }
                 
                 // If host left, delete room and notify all players
                 if (wasHost) {
@@ -2131,6 +2162,20 @@ io.on('connection', (socket) => {
                         playerId: socket.id,
                         players: room.players
                     });
+                    
+                    // If the game is over and a player left, block restart and notify all players
+                    if (room.status === 'game-over' && room.players.length > 0) {
+                        room.restartBlocked = true;
+                        const leftPlayer = room.players.find(p => p.id === socket.id);
+                        const leftPlayerName = leftPlayer ? leftPlayer.name : 'Гравець ' + socket.id.slice(0, 4);
+                        
+                        io.to(roomCode).emit('game-over-blocked', {
+                            message: 'Гравець ' + leftPlayerName + ' вийшов з гри. Рестарт неможливий.',
+                            leftPlayerId: socket.id,
+                            leftPlayerName: leftPlayerName,
+                            players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
+                        });
+                    }
                     
                     // If room is empty, delete it
                     if (room.players.length === 0) {
@@ -2190,6 +2235,18 @@ io.on('connection', (socket) => {
                 socket.to(code).emit('player-disconnected', {
                     playerId: socket.id
                 });
+                
+                // If the game is over and a player disconnects, block restart
+                if (room.status === 'game-over') {
+                    room.restartBlocked = true;
+                    const leftPlayerName = player.name || 'Гравець ' + socket.id.slice(0, 4);
+                    io.to(code).emit('game-over-blocked', {
+                        message: 'Гравець ' + leftPlayerName + ' відключився. Рестарт неможливий.',
+                        leftPlayerId: socket.id,
+                        leftPlayerName: leftPlayerName,
+                        players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
+                    });
+                }
                 
                 // If all players disconnected, delete the room immediately
                 const allDisconnected = room.players.every(p => p.disconnected);
