@@ -1551,7 +1551,7 @@ function buildSettlementGraph() {
         const pk = Math.round(vert.pos.x*1000)+','+Math.round(vert.pos.y*1000); 
         p2v.set(pk, vk); 
     }
-    for (const [ek] in gameState.roads) {
+    for (const [ek] of gameState.roads) {
         const edge = edgeGeom.edges.get(ek); if (!edge) continue;
         const va = Math.round(edge.va.x*1000)+','+Math.round(edge.va.y*1000);
         const vb = Math.round(edge.vb.x*1000)+','+Math.round(edge.vb.y*1000);
@@ -1641,21 +1641,14 @@ function canPlaceSettlement(vk) {
     }
     
     // Regular gameplay: check distance from MY OWN settlements only (uses full hex topology, not roads)
-    // Rule: settlements of DIFFERENT players CAN be adjacent (1 edge apart)
-    // Rule: settlements of the SAME player can be 1 edge apart ONLY IF no road directly connects them.
-    //       If a road exists between them, placement is blocked (server enforces this too).
+    // Rule: settlements of DIFFERENT players CAN be adjacent (1 edge apart) — do NOT change
+    // Rule: settlements of the SAME player must be at least 2 edges apart
     let hasMySettlement = false;
     for (const [evk, bld] of gameState.settlements) { 
-        if (bld.playerId !== myPlayerId) continue; // Skip other players' settlements
+        if (bld.playerId !== myPlayerId) continue; // Skip other players' settlements (they CAN be 1 edge apart)
         hasMySettlement = true;
         const len = roadPathLength(evk, vk, fullGraph); 
-        if (len === 1) {
-            // Adjacent vertices - allowed ONLY if there is NO road directly between them
-            const isRoadBetween = roadPathLength(evk, vk, buildSettlementGraph()) === 1;
-            if (isRoadBetween) return false;
-            continue; // Otherwise allow 1-edge placement
-        }
-        if (len >= 0 && len < 2) return false; // Same spot or 0-distance (impossible), block
+        if (len >= 0 && len < 2) return false; // Own settlement too close (0 or 1 edge) — block
     }
     if (!hasMySettlement) return true;
     if(isVertexOnOpponentRoad(vk)) return false;

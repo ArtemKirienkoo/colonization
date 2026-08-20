@@ -299,6 +299,9 @@ function updateLargestArmy(room, roomCode) {
     }
 
     broadcastMedals(room, roomCode);
+
+    // Check for victory after medal changes (largest army gives +2 VP)
+    checkVictory(roomCode, room);
 }
 
 // Recompute and persist the longest road medal (with escalation), broadcast to room
@@ -353,6 +356,9 @@ function updateLongestRoad(room, roomCode) {
     }
 
     broadcastMedals(room, roomCode);
+
+    // Check for victory after medal changes (longest road gives +2 VP)
+    checkVictory(roomCode, room);
 }
 
 // Broadcast the authoritative medal state to all players in the room
@@ -390,20 +396,63 @@ function broadcastMedals(room, roomCode) {
     io.to(roomCode).emit('medals-synced', medals);
 }
 
+// Compute a player's victory points on the server (authoritative)
+// Includes: settlements (1 VP), cities (2 VP), unused VP dev cards (+1 each),
+// largest army medal (+2), longest road medal (+2)
+function computeVictoryPointsServer(room, playerId) {
+    let vp = 0;
+
+    // 1) Settlements (1 VP) and cities (2 VP) from server-authoritative buildings
+    if (room.buildings) {
+        for (const [, bld] of room.buildings) {
+            if (bld.playerId !== playerId) continue;
+            if (bld.type === 'settlement') vp += 1;
+            else if (bld.type === 'city') vp += 2;
+        }
+    }
+
+    // 2) Victory point dev cards (unused) from server-authoritative hands
+    if (room.devCardHands) {
+        const hand = room.devCardHands.get(playerId) || [];
+        for (const card of hand) {
+            if (card && card.type && card.type.startsWith('vp_') && !card.used) {
+                vp += 1;
+            }
+        }
+    }
+
+    // 3) Largest army medal (+2 VP)
+    if (room.largestArmy && room.largestArmy.holderId === playerId) {
+        vp += 2;
+    }
+
+    // 4) Longest road medal (+2 VP)
+    if (room.longestRoad && room.longestRoad.holderId === playerId) {
+        vp += 2;
+    }
+
+    return vp;
+}
+
 // NEW: Check if any player has reached 10 victory points
 function checkVictory(roomCode, room) {
-    // Check each player's victory points
-    for (const [playerId, vp] of room.playerVP) {
+    // Compute VP authoritatively on the server for each player
+    for (const p of room.players) {
+        const vp = computeVictoryPointsServer(room, p.id);
+        // Store the authoritative VP so clients can sync from it
+        if (!room.playerVP) room.playerVP = new Map();
+        room.playerVP.set(p.id, vp);
+
         if (vp >= 10) {
             // Player has reached 10 VP and wins the game
-            room.winnerId = playerId;
+            room.winnerId = p.id;
             room.status = 'game-over';
             
             // Broadcast victory to all players in the room
             io.to(roomCode).emit('game-over', {
-                winnerId: playerId,
-                message: `Гравець ${room.players.find(p => p.id === playerId)?.name} переміг!`,
-                players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
+                winnerId: p.id,
+                message: `Гравець ${p.name} переміг!`,
+                players: room.players.map(pl => ({ id: pl.id, name: pl.name, color: pl.color }))
             });
             
             // Stop the game - no more turns
@@ -1549,6 +1598,9 @@ io.on('connection', (socket) => {
         // Например: if the holder builds a settlement in the middle of their longest road,
         // the road segments get split and the medal must be recalculated.
         updateLongestRoad(room, roomCode);
+
+        // Check for victory after any building is placed (e.g. building a city to reach 10 VP)
+        checkVictory(roomCode, room);
     });
 
     // Handle game actions
@@ -2061,6 +2113,9 @@ io.on('connection', (socket) => {
             // Recompute the largest army medal (with escalation) and broadcast,
             // so the client gets updated UNUSED knight counts for army tracking.
             updateLargestArmy(room, roomCode);
+
+            // Check for victory after buying a dev card (VP cards give +1 VP)
+            checkVictory(roomCode, room);
         }
     });
 
