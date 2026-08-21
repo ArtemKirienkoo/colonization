@@ -1647,10 +1647,79 @@ document.getElementById('exitRoomBtn').addEventListener('click', () => {
         // Load volume settings on page load
         loadVolumeSettings();
         
-        // Auto-open multiplayer lobby if returning from game with ?mode=multiplayer
+        // Auto-open multiplayer lobby / return to created room if navigating back from the game
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('mode') === 'multiplayer') {
-            document.getElementById('multiplayerBtn').click();
+            const returnCode = urlParams.get('code');
+            const returnHost = urlParams.get('host') === 'true';
+            if (returnCode) {
+                // Return DIRECTLY to the created room window (without showing the rooms list)
+                (async () => {
+                    try {
+                        const serverUrl = await getSelectedServerUrl();
+                        sessionStorage.setItem('serverUrl', serverUrl);
+                        await initMultiplayer(serverUrl);
+
+                        currentRoomCode = returnCode;
+                        isHost = returnHost;
+
+                        // Show the room window with the code
+                        document.getElementById('roomCodeDisplay').textContent = returnCode;
+                        document.getElementById('multiplayerLobbyModal').style.display = 'none';
+                        document.getElementById('roomCreatedModal').style.display = 'flex';
+
+                        // Configure start button: host can start, guest waits
+                        const startGameBtn = document.getElementById('startGameBtn');
+                        if (returnHost) {
+                            if (startGameBtn) startGameBtn.style.display = 'inline-block';
+                            document.getElementById('startGameContainer').innerHTML =
+                                '<button id="startGameBtn" class="mode-btn" style="background: linear-gradient(135deg, #27ae60, #229954);">Почати гру</button>';
+                            document.getElementById('startGameBtn').addEventListener('click', () => {
+                                audioManager.playClickSound();
+                                const mapSeed = generateMap();
+                                const serializedMap = {
+                                    center: mapSeed.center,
+                                    ring1: mapSeed.ring1,
+                                    ring2: mapSeed.ring2,
+                                    ring3: mapSeed.ring3,
+                                    resources: Object.fromEntries(mapSeed.resources),
+                                    numbers: Object.fromEntries(mapSeed.numbers),
+                                    ocean: Object.fromEntries(mapSeed.ocean)
+                                };
+                                sessionStorage.setItem('multiplayerMap', JSON.stringify(serializedMap));
+                                const allHexes = [mapSeed.center, ...mapSeed.ring1, ...mapSeed.ring2, ...mapSeed.ring3];
+                                const topology = computeEdgesAndVertices(allHexes, 40);
+                                const topologyData = {
+                                    edges: Array.from(topology.edges.entries()).map(([key, val]) => [key, { cx: val.cx, cy: val.cy, va: val.va, vb: val.vb }]),
+                                    vertices: Array.from(topology.vertices.entries()).map(([key, val]) => [key, { pos: val.pos, hexes: val.hexes }])
+                                };
+                                mpClient.socket.emit('store-topology', { roomCode: currentRoomCode, topology: topologyData });
+                                mpClient.storeMap(serializedMap);
+                                mpClient.startGame();
+                                document.getElementById('loading').classList.add('active');
+                                setTimeout(() => {
+                                    window.location.href = 'index.html?mode=multiplayer&host=true&code=' + currentRoomCode;
+                                }, 500);
+                            });
+                        } else {
+                            if (startGameBtn) startGameBtn.style.display = 'none';
+                            document.getElementById('startGameContainer').innerHTML =
+                                '<div style="color: #f39c12; font-size: 1.1em; padding: 10px; text-align: center;">Очікування гри...</div>';
+                        }
+
+                        // Rejoin the room - server emits 'player-joined' with the current players list
+                        mpClient.rejoinRoom(returnCode, returnHost);
+
+                        // Clean up URL params so a page refresh doesn't re-trigger
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    } catch (err) {
+                        console.error('Failed to return to room:', err);
+                        document.getElementById('multiplayerBtn').click();
+                    }
+                })();
+            } else {
+                document.getElementById('multiplayerBtn').click();
+            }
         }
     </script>
 </body>

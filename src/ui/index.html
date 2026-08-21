@@ -6051,13 +6051,15 @@ document.addEventListener('click', (e) => {
         return;
     }
     
-    // Exit to splash screen (multiplayer lobby)
+    // Exit to splash screen - RETURN to the created room window (NOT room list, NOT leaving the room)
     if (e.target && e.target.id === 'gameOverExitBtn') {
         audioManager.playClickSound();
-        if (multiplayerClient && isMultiplayer) {
-            multiplayerClient.leaveRoom();
+        // Do NOT leave the room - the player is still connected to it
+        if (isMultiplayer && roomCode) {
+            window.location.href = 'splash.html?mode=multiplayer&code=' + encodeURIComponent(roomCode) + '&host=' + (isHost ? 'true' : 'false');
+        } else {
+            window.location.href = 'splash.html';
         }
-        window.location.href = 'splash.html?mode=multiplayer';
         return;
     }
 });

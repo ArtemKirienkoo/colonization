@@ -779,6 +779,12 @@ io.on('connection', (socket) => {
             socket.emit('robber-synced', { robber: room.robber });
         }
 
+        // Send updated players list so the client can rebuild the room window (lobby)
+        socket.emit('player-joined', {
+            player: room.players.find(p => p.id === socket.id) || null,
+            players: room.players
+        });
+
         // Send game state based on current phase
         if (room.gamePhase === 'dice-roll') {
             const diceRolls = Array.from(room.diceRolls.entries()).map(([playerId, total]) => ({ playerId, total }));
