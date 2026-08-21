@@ -755,11 +755,15 @@ io.on('connection', (socket) => {
                 existingPlayer = duplicateBySocket;
             } else {
                 console.log('[server] rejoin-room: player not found, pushing new player', { roomCode, socketId: socket.id, oldPlayerId });
+                // Assign a free color instead of always 'red' to avoid duplicate colors
+                const rejoinDefaultColors = ['red', 'blue', 'yellow', 'green'];
+                const rejoinUsedColors = new Set(room.players.map(p => p.color).filter(c => c));
+                const rejoinAssignedColor = rejoinDefaultColors.find(c => !rejoinUsedColors.has(c)) || 'red';
                 room.players.push({
                     id: socket.id,
                     name: 'Гравець',
                     isHost: isHost,
-                    color: 'red'
+                    color: rejoinAssignedColor
                 });
             }
         } else {

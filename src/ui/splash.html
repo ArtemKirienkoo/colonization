@@ -778,16 +778,22 @@
                     console.log('Color changed:', data);
                     if (currentRoomCode) {
                         updatePlayersList(data.players, mySocketId);
+                        // Save my color ONLY after the server confirms it
+                        const myPlayerData = data.players.find(p => p.id === mySocketId);
+                        if (myPlayerData && myPlayerData.color) {
+                            myPlayerColor = myPlayerData.color;
+                            sessionStorage.setItem('myPlayerColor', myPlayerData.color);
+                        }
                     }
+                    selectedPlayerIdForColor = null;
                 });
                 // Handle color change failed event
                 mpClient.onColorChangeFailed((data) => {
                     console.log('Color change failed:', data);
                     alert(data.message || 'Не вдалося змінити колір');
-                    // Re-open color selection modal so user can try again
-                    if (selectedPlayerIdForColor) {
-                        colorSelectionModal.style.display = 'flex';
-                    }
+                    // The rejected color was NOT saved locally, so server/session stay consistent.
+                    // Clear the pending selection so the player can open the modal again.
+                    selectedPlayerIdForColor = null;
                 });
                 // Handle player left event
                 mpClient.onPlayerLeft((data) => {
@@ -1064,13 +1070,12 @@
                 // Send color change to server
                 mpClient.changeColor(selectedPlayerIdForColor, color);
                 
-                // Save my color to sessionStorage so index.html can use it
-                myPlayerColor = color;
-                sessionStorage.setItem('myPlayerColor', color);
+                // Do NOT save the color locally yet — wait for the server to confirm.
+                // If the server rejects (color already taken), saving here would cause
+                // two players to render with the same color in index.html.
                 
-                // Close modal
+                // Close modal; keep selectedPlayerIdForColor so we can retry on failure
                 colorSelectionModal.style.display = 'none';
-                selectedPlayerIdForColor = null;
             });
         });
         
