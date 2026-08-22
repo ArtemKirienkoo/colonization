@@ -5046,9 +5046,10 @@ function showGameOverBlocked(data) {
         message.style.color = '#e74c3c';
     }
     
-    // Hide the restart voting section and disable the vote button
+    // Keep the voting section visible so the list can show who voted (✅),
+    // who exited/disconnected (❌) and who has not voted yet (⏳)
     const votingSection = document.getElementById('restartVotingSection');
-    if (votingSection) votingSection.style.display = 'none';
+    if (votingSection) votingSection.style.display = '';
     
     const voteBtn = document.getElementById('voteRestartBtn');
     if (voteBtn) {
@@ -5058,15 +5059,20 @@ function showGameOverBlocked(data) {
         voteBtn.textContent = '🚫 Рестарт недоступний';
     }
     
-    // Update the votes list to show remaining players
+    // Update the votes list: ❌ for the player who exited/disconnected,
+    // ✅ for those who voted for restart before the block, ⏳ for the rest
     const votesList = document.getElementById('restartVotesList');
     if (votesList && data.players) {
         votesList.innerHTML = '';
         data.players.forEach(p => {
+            const hasLeft = p.id === data.leftPlayerId;
+            const hasVoted = !hasLeft && data.readyPlayers?.includes(p.id);
+            const mark = hasLeft ? '❌' : (hasVoted ? '✅' : '⏳');
+            const markColor = hasLeft ? '#e74c3c' : (hasVoted ? '#27ae60' : '#666');
             const div = document.createElement('div');
             div.style.cssText = 'display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.9em;';
             const isMe = p.id === myPlayerId;
-            div.innerHTML = '<span style="color: ' + (isMe ? '#f1c40f' : '#fff') + '; font-weight: ' + (isMe ? 'bold' : 'normal') + ';">' + (isMe ? 'Ви' : p.name) + '</span>';
+            div.innerHTML = '<span style="color: ' + (isMe ? '#f1c40f' : '#fff') + '; font-weight: ' + (isMe ? 'bold' : 'normal') + ';">' + (isMe ? 'Ви' : p.name) + '</span><span style="margin-left: auto; color: ' + markColor + ';">' + mark + '</span>';
             votesList.appendChild(div);
         });
     }

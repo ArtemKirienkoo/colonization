@@ -2280,9 +2280,10 @@ io.on('connection', (socket) => {
                         
                         io.to(roomCode).emit('game-over-blocked', {
                             message: 'Гравець ' + leftPlayerName + ' вийшов з гри. Рестарт неможливий.',
-                            leftPlayerId: socket.id,
-                            leftPlayerName: leftPlayerName,
-                            players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
+                        leftPlayerId: socket.id,
+                        leftPlayerName: leftPlayerName,
+                        readyPlayers: Array.from(room.restartReady || []),
+                        players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
                         });
                     }
                     
@@ -2351,9 +2352,10 @@ io.on('connection', (socket) => {
                     const leftPlayerName = player.name || 'Гравець ' + socket.id.slice(0, 4);
                     io.to(code).emit('game-over-blocked', {
                         message: 'Гравець ' + leftPlayerName + ' відключився. Рестарт неможливий.',
-                        leftPlayerId: socket.id,
-                        leftPlayerName: leftPlayerName,
-                        players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
+                            leftPlayerId: socket.id,
+                            leftPlayerName: leftPlayerName,
+                            readyPlayers: Array.from(room.restartReady || []),
+                            players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
                     });
                 }
                 
