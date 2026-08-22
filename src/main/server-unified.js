@@ -540,6 +540,11 @@ function resetRoomForRestart(roomCode, room) {
         players: room.players.map(p => ({ id: p.id, name: p.name }))
     });
     
+    // Sync the robber position (desert hex) to ALL clients so the robber
+    // token appears on the new board after restart. Must be sent AFTER
+    // 'game-started' so clients already render the new map.
+    io.to(roomCode).emit('robber-synced', { robber: room.robber });
+    
     // Update room list
     io.emit('rooms-list', getRoomsList());
 }

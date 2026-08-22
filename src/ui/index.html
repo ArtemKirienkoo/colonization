@@ -671,6 +671,98 @@
         .yop-confirm-btn { margin-top: 10px; }
         .yop-confirm-btn button { padding: 8px 24px; font-size: 0.9em; }
         .yop-confirm-btn button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ===== TURN ORDER PANEL (черга ходів) ===== */
+    #turnOrderPanel {
+        position: fixed;
+        top: 68px;
+        right: 14px;
+        z-index: 1400;
+        display: none;
+        flex-direction: column;
+        gap: 8px;
+        padding: 12px 10px;
+        background: rgba(10, 10, 22, 0.94);
+        border: 1px solid rgba(243, 156, 18, 0.28);
+        border-radius: 14px;
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+        max-height: calc(100vh - 84px);
+        overflow-y: auto;
+        min-width: 128px;
+    }
+    #turnOrderPanel::-webkit-scrollbar { width: 6px; }
+    #turnOrderPanel::-webkit-scrollbar-thumb { background: rgba(243,156,18,0.35); border-radius: 3px; }
+    #turnOrderPanel::-webkit-scrollbar-track { background: rgba(0,0,0,0.15); }
+    #turnOrderPanel .top-title {
+        color: #f39c12;
+        font-size: 0.9em;
+        font-weight: bold;
+        letter-spacing: 0.6px;
+        text-align: center;
+        margin-bottom: 2px;
+        white-space: nowrap;
+    }
+    #turnOrderList {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .turn-order-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 7px;
+        width: 108px;
+        padding: 10px 6px 8px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 2px solid rgba(255, 255, 255, 0.09);
+        border-radius: 10px;
+        transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
+    }
+    .turn-order-item.active-turn {
+        border-color: #f1c40f;
+        background: rgba(241, 196, 15, 0.08);
+        box-shadow: 0 0 14px rgba(241, 196, 15, 0.5), inset 0 0 10px rgba(241, 196, 15, 0.12);
+    }
+    .turn-order-avatar {
+        width: 54px;
+        height: 54px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: inset 0 -3px 6px rgba(0,0,0,0.25), 0 2px 6px rgba(0,0,0,0.35);
+        flex-shrink: 0;
+    }
+    .turn-order-avatar svg {
+        width: 32px;
+        height: 32px;
+        filter: drop-shadow(0 1px 1px rgba(0,0,0,0.35));
+    }
+    .turn-order-label {
+        display: flex;
+        align-items: baseline;
+        justify-content: center;
+        gap: 4px;
+        max-width: 100%;
+        font-size: 0.82em;
+        line-height: 1.2;
+    }
+    .turn-order-name {
+        color: #fff;
+        font-weight: 600;
+        max-width: 62px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .turn-order-sep { color: #999; }
+    .turn-order-vp { color: #f1c40f; font-weight: bold; white-space: nowrap; }
+    .turn-order-item.active-turn .turn-order-name,
+    .turn-order-item.active-turn .turn-order-sep,
+    .turn-order-item.active-turn .turn-order-vp {
+        color: #f1c40f;
+    }
     </style>
 </head>
 <body>
@@ -688,6 +780,12 @@
         <button class="menu-settings" id="menuSettings">Налаштування</button>
         <button class="menu-exit" id="menuExit">Вийти</button>
     </div>
+</div>
+
+<!-- Turn Order Panel (черга ходів) -->
+<div id="turnOrderPanel">
+    <div class="top-title">🔄 ПОРЯДОК ХОДІВ</div>
+    <div id="turnOrderList"></div>
 </div>
 
         <!-- Initial Dice Phase Overlay (2 dice) -->
@@ -4114,6 +4212,7 @@ let largestArmyLevel = 0; // How many times the army medal was stolen (escalatio
 let longestRoadLevel = 0; // How many times the road medal was stolen (escalation counter)
 let serverArmyThreshold = null; // Server-authoritative knight threshold for visual display (multiplayer)
 let serverRoadThreshold = null; // Server-authoritative road threshold for visual display (multiplayer)
+let playerVPs = new Map(); // playerId -> victory points (synced from server) for the turn order panel
 
 // Check for multiplayer map in sessionStorage first
 let data = null;
@@ -4173,6 +4272,17 @@ function registerMultiplayerHandlers(client) {
                 resizeCanvas();
                 const hexSize = calculateHexSize();
                 mapHexSize = hexSize;
+                // Страховка: якщо позиція розбійника не встановлена
+                // (наприклад, після рестарту гри через "Зіграти знову"),
+                // ставимо фішку розбійника на гекс пустині нової карти.
+                // Без цього фішка зникає з карти після рестарту.
+                if (!gameState.robber.hexKey) {
+                    const desertHex = findDesertHex();
+                    if (desertHex) {
+                        gameState.robber.hexKey = hexKey(desertHex);
+                        gameState.robber.placedBy = null;
+                    }
+                }
                 renderMap(mapData, canvas, hexSize);
             }
         }
@@ -4193,6 +4303,7 @@ function registerMultiplayerHandlers(client) {
         if (diceOverlay) diceOverlay.style.display = 'none';
         
         onInitialBuildStart(data);
+        updateTurnOrderPanel();
         
         // Якщо це мій хід - закриваємо оверлей, щоб мати доступ до канвасу
         if (data.currentPlayerId === myPlayerId) {
@@ -4208,6 +4319,7 @@ function registerMultiplayerHandlers(client) {
         if (data.order) {
             initialPhase.buildOrder = data.order;
         }
+        updateTurnOrderPanel();
         
         const status = document.getElementById('buildPhaseStatus');
         const endBtn = document.getElementById('initialBuildEndTurnBtn');
@@ -4644,9 +4756,14 @@ function registerMultiplayerHandlers(client) {
         if (overlay) overlay.style.display = 'none';
         initialPhase.active = false;
         initialPhase.phase = 'complete';
+        // Зберігаємо порядок звичайних ходів для панелі черги
+        if (data && Array.isArray(data.turnOrder)) {
+            turnOrder = data.turnOrder;
+        }
         // 🔓 Розблоковуємо головну кнопку
         const rollBtn = document.getElementById('rollBtn');
         if (rollBtn) rollBtn.disabled = false;
+        updateTurnOrderPanel();
     });
     client.onTurnEnded((data) => {
         console.log('Turn ended:', data);
@@ -4803,11 +4920,14 @@ function registerMultiplayerHandlers(client) {
     client.onVPSynced((data) => {
         console.log('VP synced:', data);
         if (data && data.playerVP) {
+            // Store ALL players' VP for the turn order panel
+            playerVPs = new Map(Object.entries(data.playerVP));
             // Update local VP display if it's my VP
             if (data.playerId === myPlayerId && typeof data.vp === 'number') {
                 const ve = document.getElementById('stat-vp');
                 if (ve) ve.textContent = data.vp;
             }
+            updateTurnOrderPanel();
         }
     });
     
@@ -4926,6 +5046,9 @@ function registerMultiplayerHandlers(client) {
         if (mapData) {
             renderMap(mapData, canvas, mapHexSize);
         }
+        
+        // Сховати панель черги ходів — порядок буде визначено заново після кидання кубиків
+        updateTurnOrderPanel();
         
         showMessage('🔄 Гра перезапускається!');
     });
@@ -5224,6 +5347,107 @@ function updatePlayersList(players) {
     if (multiplayerClient && players) {
         multiplayerClient.players = players;
     }
+}
+
+// ===== TURN ORDER PANEL (черга ходів) =====
+// Повертає { name, color } гравця за його id
+function getTurnPanelPlayerInfo(playerId) {
+    const p = multiplayerClient && Array.isArray(multiplayerClient.players)
+        ? multiplayerClient.players.find(pl => pl.id === playerId)
+        : null;
+    if (p) {
+        return { name: p.name || ('Гравець ' + String(playerId).slice(0, 4)), color: p.color || 'red' };
+    }
+    if (playerId === myPlayerId && myPlayerColor) {
+        return { name: 'Ви', color: myPlayerColor };
+    }
+    return { name: 'Гравець ' + String(playerId || '?').slice(0, 4), color: 'red' };
+}
+
+// Кількість ПО гравця для панелі: для себе рахуємо локально, для інших — серверна синхронізація
+function getTurnPanelVP(playerId) {
+    if (playerId === myPlayerId) {
+        try { return computeVictoryPoints(); } catch (e) { return 0; }
+    }
+    return playerVPs.get(playerId) || 0;
+}
+
+// Хто зараз ходить
+function getTurnPanelActivePlayerId() {
+    if (initialPhase.active && initialPhase.phase === 'initial-build') {
+        const cur = initialPhase.buildOrder[initialPhase.currentIndex];
+        return cur ? cur.playerId : null;
+    }
+    return currentTurnPlayerId || null;
+}
+
+// Малює/оновлює панель черги ходів справа
+function updateTurnOrderPanel() {
+    const panel = document.getElementById('turnOrderPanel');
+    const list = document.getElementById('turnOrderList');
+    if (!panel || !list) return;
+
+    // Порядок — такий самий, як у списку після кидання кубиків (buildOrder),
+    // а якщо його ще немає — порядок звичайних ходів
+    let order = [];
+    if (Array.isArray(initialPhase.buildOrder) && initialPhase.buildOrder.length > 0) {
+        order = initialPhase.buildOrder.map(p => p.playerId);
+    } else if (Array.isArray(turnOrder) && turnOrder.length > 0) {
+        order = turnOrder.slice();
+    }
+
+    if (!isMultiplayer || order.length === 0) {
+        panel.style.display = 'none';
+        return;
+    }
+    panel.style.display = 'flex';
+
+    const activeId = getTurnPanelActivePlayerId();
+
+    list.innerHTML = '';
+    order.forEach(pid => {
+        const info = getTurnPanelPlayerInfo(pid);
+        const pc = getPlayerColor(info.color);
+        const isActive = pid === activeId;
+
+        // Квадратна картка гравця
+        const item = document.createElement('div');
+        item.className = 'turn-order-item' + (isActive ? ' active-turn' : '');
+
+        // Аватар: круг кольору гравця з білою нейтральною іконкою чоловічка
+        const avatar = document.createElement('div');
+        avatar.className = 'turn-order-avatar';
+        avatar.style.background = 'linear-gradient(135deg, ' + pc.primary + ', ' + pc.secondary + ')';
+        avatar.innerHTML =
+            '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+            '<circle cx="12" cy="7.2" r="4.1" fill="#ffffff"/>' +
+            '<path d="M12 12.6c-4.8 0-8.3 3-8.3 7.3 0 .9.7 1.6 1.6 1.6h13.4c.9 0 1.6-.7 1.6-1.6 0-4.3-3.5-7.3-8.3-7.3z" fill="#ffffff"/>' +
+            '</svg>';
+
+        // Підпис: нік : X ПО (textContent — безпечно для будь-яких нікнеймів)
+        const label = document.createElement('div');
+        label.className = 'turn-order-label';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'turn-order-name';
+        nameSpan.textContent = info.name;
+
+        const sepSpan = document.createElement('span');
+        sepSpan.className = 'turn-order-sep';
+        sepSpan.textContent = ':';
+
+        const vpSpan = document.createElement('span');
+        vpSpan.className = 'turn-order-vp';
+        vpSpan.textContent = getTurnPanelVP(pid) + ' ПО';
+
+        label.appendChild(nameSpan);
+        label.appendChild(sepSpan);
+        label.appendChild(vpSpan);
+
+        item.appendChild(avatar);
+        item.appendChild(label);
+        list.appendChild(item);
+    });
 }
 
 // Send game action to other players
@@ -5572,6 +5796,8 @@ function showYourTurn(data) {
         endTurnBtn.onclick = null; // прибираємо обробник
         console.log('[UI] End turn button shows "Ваш хід!" status');
     }
+    
+    updateTurnOrderPanel();
 }
 
 // Show "Waiting for Turn" - оновлює кнопку endTurnBtn
@@ -5617,6 +5843,8 @@ function showWaitingForTurn(data) {
         endTurnBtn.onclick = null; // прибираємо обробник
         console.log('[UI] End turn button showing waiting status');
     }
+    
+    updateTurnOrderPanel();
 }
 
 // Handle regular dice roll (when it's my turn)
@@ -5880,9 +6108,16 @@ function checkInitialPhaseComplete() {
                 }
             }
             // Показуємо кнопку "Завершити хід" в сайдбарі під кубиками
+            // ВАЖЛИВО: кнопка може бути вимкнена (після рестарту гри через
+            // "Зіграти ще раз" або після завершення попереднього раунду
+            // початкового будівництва), тому обов'язково вмикаємо її —
+            // інакше кліки по вимкненій кнопці не спрацьовують взагалі
             const sidebarEndBtn = document.getElementById('endTurnBtn');
             if (sidebarEndBtn) {
                 sidebarEndBtn.style.display = 'inline-block';
+                sidebarEndBtn.disabled = false;
+                sidebarEndBtn.style.opacity = '1';
+                sidebarEndBtn.style.cursor = 'pointer';
             }
             setBuildMode('none');
             initialPhase.canBuild = false;
@@ -6095,6 +6330,8 @@ updateBuildStats = function() {
     if (isMultiplayer && myPlayerId) {
         syncMyVP();
     }
+    // Оновлюємо панель черги ходів (кількість ПО змінюється після побудов тощо)
+    updateTurnOrderPanel();
 };
 </script>
 
