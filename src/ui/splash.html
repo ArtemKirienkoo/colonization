@@ -1715,6 +1715,21 @@ document.getElementById('exitRoomBtn').addEventListener('click', () => {
                         // Rejoin the room - server emits 'player-joined' with the current players list
                         mpClient.rejoinRoom(returnCode, returnHost);
 
+                        // When the host starts a NEW game from this returned room window,
+                        // guests must follow into the game page as well
+                        // (the host handles its own navigation in the start button handler)
+                        if (!returnHost) {
+                            mpClient.onGameStarted((data) => {
+                                console.log('[return-to-room] game-started received, joining game');
+                                if (data && data.mapSeed) {
+                                    sessionStorage.setItem('multiplayerMap', JSON.stringify(data.mapSeed));
+                                }
+                                setTimeout(() => {
+                                    window.location.href = 'index.html?mode=multiplayer&code=' + returnCode;
+                                }, 500);
+                            });
+                        }
+
                         // Clean up URL params so a page refresh doesn't re-trigger
                         window.history.replaceState({}, document.title, window.location.pathname);
                     } catch (err) {

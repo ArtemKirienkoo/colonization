@@ -96,6 +96,12 @@ class MultiplayerClient {
                         roomCode: this.roomCode,
                         oldPlayerId: oldPlayerId
                     });
+                    // The server maps the existing player entry onto THIS socket id.
+                    // Keep the stored id in sync so future rejoins find the same
+                    // player entry instead of creating a duplicate.
+                    try {
+                        sessionStorage.setItem('multiplayerPlayerId', this.socket.id);
+                    } catch (e) {}
                 }
                 initialConnection = false;
                 resolve();
@@ -240,6 +246,14 @@ class MultiplayerClient {
         console.log('[MultiplayerClient] rejoinRoom', { roomCode, isHost, oldPlayerId, socketId: this.socket?.id });
         this._logEmit('rejoin-room', { roomCode, isHost, oldPlayerId });
         this.socket.emit('rejoin-room', { roomCode, isHost, oldPlayerId });
+
+        // The server maps the existing player entry onto THIS socket id
+        // (or creates a new entry with it). Store the current socket id as our
+        // canonical player id so the NEXT rejoin (e.g., returning to the room
+        // lobby after a game) finds the same entry instead of duplicating it.
+        try {
+            sessionStorage.setItem('multiplayerPlayerId', this.socket.id);
+        } catch (e) {}
 
         // Fallback: request full game state in case any phase events were emitted
         // before the client rejoined and missed them. Server will emit 'game-state-sync'.

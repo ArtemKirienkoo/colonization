@@ -770,10 +770,16 @@ io.on('connection', (socket) => {
             console.log('[server] rejoin-room: player found, no duplicate created', { roomCode, socketId: socket.id });
         }
 
+        // If every player is connected again, allow restart once more
+        // (restart gets blocked when someone disconnects during game-over)
+        if (!room.players.some(p => p.disconnected)) {
+            room.restartBlocked = false;
+        }
+
         socket.join(roomCode);
 
-        // Always send map and buildings
-        if (room.gameState) socket.emit('game-started', { mapSeed: room.gameState });
+        // Always send map and buildings (but never "resume" a finished game)
+        if (room.gameState && room.status !== 'game-over') socket.emit('game-started', { mapSeed: room.gameState });
         if (room.buildings) {
             socket.emit('sync-buildings', { buildings: getBuildingsArray(room) });
         }
@@ -783,11 +789,25 @@ io.on('connection', (socket) => {
             socket.emit('robber-synced', { robber: room.robber });
         }
 
-        // Send updated players list so the client can rebuild the room window (lobby)
-        socket.emit('player-joined', {
+        // Broadcast updated players list to the WHOLE room so other clients
+        // (e.g., players already sitting in the lobby) see the returning player
+        // as connected again with the SAME player entry (no duplicates)
+        io.to(roomCode).emit('player-joined', {
             player: room.players.find(p => p.id === socket.id) || null,
             players: room.players
         });
+
+        // If the previous game has ended, do NOT send resume-game events.
+        // Players returning to the room lobby simply ignore this event, while
+        // a client still sitting on the game page re-shows the victory overlay.
+        if (room.status === 'game-over') {
+            socket.emit('game-over', {
+                winnerId: room.winnerId,
+                message: 'Game over',
+                players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
+            });
+            return;
+        }
 
         // Send game state based on current phase
         if (room.gamePhase === 'dice-roll') {
@@ -895,6 +915,17 @@ io.on('connection', (socket) => {
         }
         if (!player) {
             console.warn('[server] request-game-state: player not found in room', { roomCode, socketId: socket.id, oldPlayerId });
+            return;
+        }
+
+        // If the previous game has ended, report the final result instead of
+        // resume-game events (clients in the room lobby ignore this event)
+        if (room.status === 'game-over') {
+            socket.emit('game-over', {
+                winnerId: room.winnerId,
+                message: 'Game over',
+                players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
+            });
             return;
         }
 
@@ -1037,6 +1068,19 @@ io.on('connection', (socket) => {
             room.currentInitialBuildIndex = 0;
             room.initialBuildRoundComplete = false;
             room.buildings = new Map();
+            
+            // Reset leftover per-game state from a previous game
+            // (e.g., when a new game is started from the room lobby after game-over)
+            room.turnOrder = [];
+            room.currentTurnIndex = 0;
+            room.turnState = { diceRolled: false, actionsLocked: true };
+            room.largestArmy = { holderId: null, level: 0 };
+            room.longestRoad = { holderId: null, level: 0 };
+            room.winnerId = null;
+            room.restartReady = new Set();
+            room.restarting = false;
+            room.restartBlocked = false;
+            room.playerVP = new Map();
             
             // Initialize robber on desert hex (desert is always at center 0,0,0 in generateMap)
             let desertHexKey = '0,0,0';
