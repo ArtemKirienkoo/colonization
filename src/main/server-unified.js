@@ -2325,6 +2325,21 @@ io.on('connection', (socket) => {
                     });
                     rooms.delete(code);
                 }
+
+                // If the game is over and the HOST leaves, block restart and notify
+                // the remaining players (same as for a regular leaver) so their
+                // votes list shows the X mark next to the host.
+                // NOTE: this must live OUTSIDE the gamePhase if/else above because
+                // the host branch returns early and would otherwise skip the
+                // game-over-blocked broadcast entirely.
+                if (room.gamePhase && room.status === 'game-over') {
+                    room.restartBlocked = true;
+                    io.to(code).emit('game-over-blocked', {
+                        leftPlayerId: socket.id,
+                        readyPlayers: Array.from(room.restartReady || []),
+                        players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
+                    });
+                }
                 return;
             }
             
