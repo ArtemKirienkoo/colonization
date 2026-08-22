@@ -4830,6 +4830,15 @@ function registerMultiplayerHandlers(client) {
         const overlay = document.getElementById('gameOverOverlay');
         if (overlay) overlay.style.display = 'none';
         
+        // Remove the pause state left over from the game-over screen,
+        // otherwise the whole UI stays dimmed (is-paused sets opacity 0.7
+        // and pointer-events: none) and nothing can be clicked after restart
+        document.body.classList.remove('is-paused');
+        isPaused = false;
+        
+        // Reset the shared dev deck counter (server starts a fresh 25-card deck)
+        devDeckRemaining = 25;
+        
         // Reset local game state
         gameState.roads.clear();
         gameState.settlements.clear();
