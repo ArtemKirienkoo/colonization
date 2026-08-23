@@ -32,7 +32,7 @@ const rooms = new Map();
 // Зберігається у файлі accounts.json у корені проєкту.
 // Сервер працює постійно, тому реєстрація/вхід доступні будь-коли.
 const ACCOUNTS_FILE = path.join(__dirname, '..', '..', 'accounts.json');
-let accounts = {}; // ключ: нік у нижньому регістрі -> { id, nick, salt, passwordHash, createdAt }
+let accounts = {}; // локальний JSON fallback: нік (точний регістр) -> { id, nick, salt, passwordHash, createdAt }
 
 function loadAccounts() {
     try {
@@ -70,6 +70,30 @@ function generateAccountId() {
 }
 
 loadAccounts();
+
+// ===== MONGODB ATLAS (постійне хмарне сховище акаунтів) =====
+// Якщо задана змінна середовища MONGODB_URI (рядок підключення з Atlas),
+// акаунти зберігаються в MongoDB Atlas НАЗАВЖДИ і переживають перезапуски
+// та редеплої сервера. Якщо змінна не задана (локальна розробка) —
+// використовується локальний JSON-файл accounts.json.
+const MONGODB_URI = process.env.MONGODB_URI || '';
+let accountsCollection = null; // колекція MongoDB, якщо підключено
+
+async function initAccountsStorage() {
+    if (!MONGODB_URI) return;
+    try {
+        const { MongoClient } = require('mongodb');
+        const client = new MongoClient(MONGODB_URI);
+        await client.connect();
+        accountsCollection = client.db('colonization').collection('accounts');
+        console.log('[auth] Connected to MongoDB Atlas - accounts are stored PERMANENTLY');
+    } catch (e) {
+        console.error('[auth] MongoDB connection FAILED, falling back to local JSON:', e.message);
+        accountsCollection = null;
+    }
+}
+
+initAccountsStorage();
 
 // Generate random room code
 function generateRoomCode() {
@@ -609,7 +633,7 @@ io.on('connection', (socket) => {
 
     // ===== AUTH: РЕЄСТРАЦІЯ АКАУНТА =====
     // Працює постійно (сервер завжди запущений), гравці можуть реєструватися будь-коли
-    socket.on('auth-register', ({ nick, password }) => {
+    socket.on('auth-register', async ({ nick, password }) => {
         nick = String(nick || '').trim();
         password = String(password || '');
 
@@ -623,20 +647,46 @@ io.on('connection', (socket) => {
             return;
         }
 
-        const key = nick.toLowerCase();
-        if (accounts[key]) {
-            socket.emit('auth-register-result', { success: false, error: 'Такий нік вже зайнятий!' });
-            return;
-        }
-
         const salt = crypto.randomBytes(16).toString('hex');
         const account = {
             id: generateAccountId(),
             nick: nick,
+            nickLower: nick.toLowerCase(), // для перевірки унікальності без регістру
             salt: salt,
             passwordHash: hashPassword(password, salt),
             createdAt: Date.now()
         };
+
+        // ===== MongoDB Atlas — ПОСТІЙНЕ сховище (акаунти не губляться) =====
+        if (accountsCollection) {
+            try {
+                // Унікальність без урахування регістру, але нік зберігається
+                // у ТОЧНОМУ регістрі, який ввів гравець
+                const exists = await accountsCollection.findOne({ nickLower: nick.toLowerCase() });
+                if (exists) {
+                    socket.emit('auth-register-result', { success: false, error: 'Такий нік вже зайнятий!' });
+                    return;
+                }
+                await accountsCollection.insertOne(account);
+                console.log('[auth] Registered (Atlas):', nick, '->', account.id);
+                socket.emit('auth-register-result', { success: true, playerId: account.id, nick: account.nick });
+            } catch (e) {
+                console.error('[auth] Register error:', e.message);
+                socket.emit('auth-register-result', { success: false, error: 'Помилка бази даних' });
+            }
+            return;
+        }
+
+        // ===== Локальний JSON fallback (якщо Atlas не налаштований) =====
+        // Унікальність перевіряємо БЕЗ урахування регістру, але в БД нік
+        // зберігається у ТОЧНОМУ регістрі, який ввів гравець
+        const key = nick;
+        const nickTaken = Object.keys(accounts).some(k => k.toLowerCase() === nick.toLowerCase());
+        if (nickTaken) {
+            socket.emit('auth-register-result', { success: false, error: 'Такий нік вже зайнятий!' });
+            return;
+        }
+
         accounts[key] = account;
 
         if (!saveAccounts()) {
@@ -645,12 +695,12 @@ io.on('connection', (socket) => {
             return;
         }
 
-        console.log('[auth] Registered new account:', nick, '->', account.id);
+        console.log('[auth] Registered new account (local JSON):', nick, '->', account.id);
         socket.emit('auth-register-result', { success: true, playerId: account.id, nick: account.nick });
     });
 
     // ===== AUTH: ВХІД В АКАУНТ =====
-    socket.on('auth-login', ({ nick, password }) => {
+    socket.on('auth-login', async ({ nick, password }) => {
         nick = String(nick || '').trim();
         password = String(password || '');
 
@@ -660,8 +710,33 @@ io.on('connection', (socket) => {
             return;
         }
 
-        const key = nick.toLowerCase();
-        const account = accounts[key];
+        // ===== MongoDB Atlas — постійне сховище =====
+        if (accountsCollection) {
+            try {
+                // СТРОГА перевірка: нік має збігатися ТОЧНО, включно з великими/малими буквами
+                const account = await accountsCollection.findOne({ nick: nick });
+                if (!account) {
+                    socket.emit('auth-login-result', { success: false, error: 'Такого ака не існує' });
+                    return;
+                }
+
+                if (hashPassword(password, account.salt) !== account.passwordHash) {
+                    socket.emit('auth-login-result', { success: false, error: 'Невірний пароль!' });
+                    return;
+                }
+
+                console.log('[auth] Login (Atlas):', account.nick, '->', account.id);
+                socket.emit('auth-login-result', { success: true, playerId: account.id, nick: account.nick });
+            } catch (e) {
+                console.error('[auth] Login error:', e.message);
+                socket.emit('auth-login-result', { success: false, error: 'Помилка бази даних' });
+            }
+            return;
+        }
+
+        // ===== Локальний JSON fallback =====
+        // СТРОГА перевірка: нік має збігатися ТОЧНО, включно з великими/малими буквами
+        const account = accounts[nick];
         if (!account) {
             socket.emit('auth-login-result', { success: false, error: 'Такого ака не існує' });
             return;
@@ -672,7 +747,7 @@ io.on('connection', (socket) => {
             return;
         }
 
-        console.log('[auth] Login:', account.nick, '->', account.id);
+        console.log('[auth] Login (local JSON):', account.nick, '->', account.id);
         socket.emit('auth-login-result', { success: true, playerId: account.id, nick: account.nick });
     });
 
