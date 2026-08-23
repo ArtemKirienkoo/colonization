@@ -686,6 +686,37 @@ io.on('connection', (socket) => {
         socket.emit('auth-register-result', { success: true, playerId: account.id, nick: account.nick });
     });
 
+    // ===== AUTH: ПЕРЕВІРКА АКАУНТА (валідація клієнтського кешу) =====
+    // Клієнт зберігає акаунт у localStorage. Цей обробник дозволяє клієнту
+    // при запуску перевірити, чи акаунт досі існує в БД. Якщо ні (видалий),
+    // клієнт скидає кеш і повертається в режим гостя.
+    socket.on('auth-validate', async ({ nick, playerId }) => {
+        nick = String(nick || '').trim();
+        playerId = String(playerId || '');
+
+        if (!nick || !playerId) {
+            socket.emit('auth-validate-result', { valid: false });
+            return;
+        }
+
+        // ===== MongoDB Atlas =====
+        if (accountsCollection) {
+            try {
+                const account = await accountsCollection.findOne({ nick: nick });
+                socket.emit('auth-validate-result', { valid: !!(account && account.id === playerId) });
+            } catch (e) {
+                console.error('[auth] Validate error:', e.message);
+                // Помилка БД: не підтверджуємо і не спростовуємо акаунт
+                socket.emit('auth-validate-result', { error: 'Помилка бази даних' });
+            }
+            return;
+        }
+
+        // ===== Локальний JSON fallback =====
+        const account = accounts[nick];
+        socket.emit('auth-validate-result', { valid: !!(account && account.id === playerId) });
+    });
+
     // ===== AUTH: ВХІД В АКАУНТ =====
     socket.on('auth-login', async ({ nick, password }) => {
         nick = String(nick || '').trim();

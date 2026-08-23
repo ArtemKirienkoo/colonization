@@ -1407,6 +1407,24 @@
         // Ініціалізуємо нік на кнопці профілю одразу при завантаженні сторінки
         updateProfileUI();
 
+        // Перевіряємо збережений акаунт на сервері: якщо акаунт видалили з БД,
+        // скидаємо локальний кеш і повертаємось у режим гостя
+        (async () => {
+            const acc = getAccount();
+            if (!acc || !acc.nick || !acc.playerId) return;
+            try {
+                const res = await authRequest('auth-validate', { nick: acc.nick, playerId: acc.playerId });
+                // Скидаємо кеш ТІЛЬКИ якщо сервер явно відповів, що акаунт не існує.
+                // Таймаут/помилка мережі (res.valid === undefined) не розлогують гравця.
+                if (res.valid === false) {
+                    setAccount(null);
+                    updateProfileUI('');
+                }
+            } catch (e) {
+                console.warn('Не вдалося перевірити акаунт на сервері:', e);
+            }
+        })();
+
         // Create Room handlers
         document.getElementById('confirmCreateRoom').addEventListener('click', () => {
             audioManager.playClickSound();
