@@ -32,7 +32,7 @@ const rooms = new Map();
 // Зберігається у файлі accounts.json у корені проєкту.
 // Сервер працює постійно, тому реєстрація/вхід доступні будь-коли.
 const ACCOUNTS_FILE = path.join(__dirname, '..', '..', 'accounts.json');
-let accounts = {}; // локальний JSON fallback: нік (точний регістр) -> { id, nick, password, createdAt }
+let accounts = {}; // локальний JSON fallback: нік (точний регістр) -> { id, nick, password }
 
 function loadAccounts() {
     try {
@@ -645,8 +645,7 @@ io.on('connection', (socket) => {
         const account = {
             id: generateAccountId(),
             nick: nick,
-            password: password,
-            createdAt: Date.now()
+            password: password
         };
 
         // ===== MongoDB Atlas — ПОСТІЙНЕ сховище (акаунти не губляться) =====
