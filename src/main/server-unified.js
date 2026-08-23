@@ -4,6 +4,8 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
+const crypto = require('crypto');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -25,6 +27,49 @@ if (!isCloud) {
 
 // Store active rooms
 const rooms = new Map();
+
+// ===== ACCOUNTS DB (проста JSON-файлова база даних акаунтів) =====
+// Зберігається у файлі accounts.json у корені проєкту.
+// Сервер працює постійно, тому реєстрація/вхід доступні будь-коли.
+const ACCOUNTS_FILE = path.join(__dirname, '..', '..', 'accounts.json');
+let accounts = {}; // ключ: нік у нижньому регістрі -> { id, nick, salt, passwordHash, createdAt }
+
+function loadAccounts() {
+    try {
+        if (fs.existsSync(ACCOUNTS_FILE)) {
+            accounts = JSON.parse(fs.readFileSync(ACCOUNTS_FILE, 'utf8'));
+            console.log('[auth] Loaded ' + Object.keys(accounts).length + ' account(s) from DB');
+        } else {
+            console.log('[auth] No accounts DB yet - starting fresh');
+        }
+    } catch (e) {
+        console.error('[auth] Failed to load accounts DB:', e.message);
+        accounts = {};
+    }
+}
+
+function saveAccounts() {
+    try {
+        fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(accounts, null, 2));
+        return true;
+    } catch (e) {
+        console.error('[auth] Failed to save accounts DB:', e.message);
+        return false;
+    }
+}
+
+// Паролі зберігаємо ТОЛЬКО у вигляді хешу (SHA-256 з випадковою сіллю),
+// ніколи у відкритому вигляді
+function hashPassword(password, salt) {
+    return crypto.createHash('sha256').update(salt + '::' + password).digest('hex');
+}
+
+// Унікальний ID гравця для акаунта
+function generateAccountId() {
+    return 'p_' + crypto.randomBytes(8).toString('hex');
+}
+
+loadAccounts();
 
 // Generate random room code
 function generateRoomCode() {
@@ -560,6 +605,75 @@ io.on('connection', (socket) => {
     
     socket.on('disconnect', (reason) => {
         console.log('Player disconnected:', socket.id, 'Reason:', reason);
+    });
+
+    // ===== AUTH: РЕЄСТРАЦІЯ АКАУНТА =====
+    // Працює постійно (сервер завжди запущений), гравці можуть реєструватися будь-коли
+    socket.on('auth-register', ({ nick, password }) => {
+        nick = String(nick || '').trim();
+        password = String(password || '');
+
+        // Валідація: і нік, і пароль обов'язкові (поля не можуть бути порожніми)
+        if (!nick || !password) {
+            socket.emit('auth-register-result', { success: false, error: 'Введіть нік і пароль!' });
+            return;
+        }
+        if (nick.length > 20) {
+            socket.emit('auth-register-result', { success: false, error: 'Нік занадто довгий (макс. 20 символів)' });
+            return;
+        }
+
+        const key = nick.toLowerCase();
+        if (accounts[key]) {
+            socket.emit('auth-register-result', { success: false, error: 'Такий нік вже зайнятий!' });
+            return;
+        }
+
+        const salt = crypto.randomBytes(16).toString('hex');
+        const account = {
+            id: generateAccountId(),
+            nick: nick,
+            salt: salt,
+            passwordHash: hashPassword(password, salt),
+            createdAt: Date.now()
+        };
+        accounts[key] = account;
+
+        if (!saveAccounts()) {
+            delete accounts[key];
+            socket.emit('auth-register-result', { success: false, error: 'Помилка збереження на сервері' });
+            return;
+        }
+
+        console.log('[auth] Registered new account:', nick, '->', account.id);
+        socket.emit('auth-register-result', { success: true, playerId: account.id, nick: account.nick });
+    });
+
+    // ===== AUTH: ВХІД В АКАУНТ =====
+    socket.on('auth-login', ({ nick, password }) => {
+        nick = String(nick || '').trim();
+        password = String(password || '');
+
+        // Валідація: і нік, і пароль обов'язкові
+        if (!nick || !password) {
+            socket.emit('auth-login-result', { success: false, error: 'Введіть нік і пароль!' });
+            return;
+        }
+
+        const key = nick.toLowerCase();
+        const account = accounts[key];
+        if (!account) {
+            socket.emit('auth-login-result', { success: false, error: 'Такого ака не існує' });
+            return;
+        }
+
+        if (hashPassword(password, account.salt) !== account.passwordHash) {
+            socket.emit('auth-login-result', { success: false, error: 'Невірний пароль!' });
+            return;
+        }
+
+        console.log('[auth] Login:', account.nick, '->', account.id);
+        socket.emit('auth-login-result', { success: true, playerId: account.id, nick: account.nick });
     });
 
     // Create room

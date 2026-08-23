@@ -763,6 +763,40 @@
     .turn-order-item.active-turn .turn-order-vp {
         color: #f1c40f;
     }
+
+    /* ===== FLOATING GAME MESSAGES (повідомлення по центру екрана) ===== */
+    #messageContainer {
+        position: fixed;
+        top: 36%;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 4500;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        pointer-events: none;
+        max-width: 70vw;
+    }
+    .game-message {
+        color: #f1c40f;
+        font-size: 1.3em;
+        font-weight: bold;
+        text-align: center;
+        text-shadow: 0 2px 5px rgba(0,0,0,0.9), 0 0 14px rgba(0,0,0,0.55);
+        background: rgba(8, 8, 20, 0.62);
+        border: 1px solid rgba(243, 156, 18, 0.22);
+        padding: 7px 20px;
+        border-radius: 12px;
+        white-space: pre-wrap;
+        animation: message-in 0.25s ease-out;
+        transition: opacity 0.6s ease;
+    }
+    .game-message.fade-out { opacity: 0; }
+    @keyframes message-in {
+        from { opacity: 0; transform: translateY(-10px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
     </style>
 </head>
 <body>
@@ -787,6 +821,9 @@
     <div class="top-title">🔄 ПОРЯДОК ХОДІВ</div>
     <div id="turnOrderList"></div>
 </div>
+
+<!-- Плаваючі ігрові повідомлення по центру екрана -->
+<div id="messageContainer"></div>
 
         <!-- Initial Dice Phase Overlay (2 dice) -->
 <div id="dicePhaseOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2500; justify-content: center; align-items: center;">
@@ -2206,9 +2243,22 @@ function renderMap(data, canvas, hexSize) {
                 ctx.lineTo(cx-hw,cy-hh+rr);
                 ctx.quadraticCurveTo(cx-hw,cy-hh,cx-hw+rr,cy-hh);
                 ctx.closePath();
-                // Use robber color from server (defaults to purple if not set)
-                const robberColor = gameState.robber.color || '#8b5cf6';
-                const robberBorderColor = robberColor === '#8b5cf6' ? '#6d28d9' : robberColor;
+                // Колір розбійника: ТОЧНИЙ колір гравця з палітри (сервер надсилає
+                // назву кольору 'red'/'blue'/'yellow'/'green', а не hex — раніше
+                // canvas малював базовий CSS-колір, який був занадто насичений).
+                // За замовчуванням (розбійник на пустині / не поставлений) — фіолетовий.
+                let robberColor = '#8b5cf6';
+                let robberBorderColor = '#6d28d9';
+                if (gameState.robber.color) {
+                    if (PLAYER_COLORS[gameState.robber.color]) {
+                        const rpc = getPlayerColor(gameState.robber.color);
+                        robberColor = rpc.primary;
+                        robberBorderColor = rpc.dark;
+                    } else {
+                        robberColor = gameState.robber.color;
+                        robberBorderColor = gameState.robber.color;
+                    }
+                }
                 ctx.fillStyle=robberColor;
                 ctx.fill();
                 ctx.strokeStyle=robberBorderColor;
@@ -2446,9 +2496,19 @@ function renderMap(data, canvas, hexSize) {
             ctx.lineTo(rcx-hw,rcy-hh+rr);
             ctx.quadraticCurveTo(rcx-hw,rcy-hh,rcx-hw+rr,rcy-hh);
             ctx.closePath();
-            // Use robber color from server (defaults to purple if not set)
-            const robberColor = gameState.robber.color || '#8b5cf6';
-            const robberBorderColor = robberColor === '#8b5cf6' ? '#6d28d9' : robberColor;
+            // Колір розбійника: ТОЧНИЙ колір гравця з палітри (див. коментар вище)
+            let robberColor = '#8b5cf6';
+            let robberBorderColor = '#6d28d9';
+            if (gameState.robber.color) {
+                if (PLAYER_COLORS[gameState.robber.color]) {
+                    const rpc = getPlayerColor(gameState.robber.color);
+                    robberColor = rpc.primary;
+                    robberBorderColor = rpc.dark;
+                } else {
+                    robberColor = gameState.robber.color;
+                    robberBorderColor = gameState.robber.color;
+                }
+            }
             ctx.fillStyle=robberColor;
             ctx.fill();
             ctx.strokeStyle=robberBorderColor;
@@ -2954,7 +3014,8 @@ let turnOrder = [];
 let currentTurnPlayerId = null;
 let waitingDotsTimer = null;
 
-// showMessage: update UI and also log debug info
+// showMessage: плавне повідомлення ЖОВТИМ по центру екрана, зникає через ~2с
+// (раніше писалося в поле «Сума» сайдбару і сильно зсувало його елементи)
 function showMessage(msg){
     try {
         const debugInfo = {
@@ -2968,11 +3029,25 @@ function showMessage(msg){
     } catch (e) { 
         console.warn('Debug log failed', e); 
     }
-    const te=document.getElementById('total'),ot=te.textContent;te.textContent=msg;
-    te.style.color='#e74c3c';setTimeout(()=>{
-        te.textContent=ot;
-        te.style.color='#f1c40f';
-    },2000);
+
+    const container = document.getElementById('messageContainer');
+    if (!container) return;
+
+    const n = document.createElement('div');
+    n.className = 'game-message';
+    n.textContent = msg;
+    container.appendChild(n);
+
+    // Обмежуємо кількість одночасних повідомлень на екрані
+    while (container.children.length > 4) {
+        container.removeChild(container.firstChild);
+    }
+
+    // Через 2 секунди плавно зникаємо і прибираємо з DOM
+    setTimeout(() => {
+        n.classList.add('fade-out');
+        setTimeout(() => n.remove(), 650);
+    }, 2000);
 }
 
 function setBuildMode(mode){
@@ -4213,6 +4288,50 @@ let longestRoadLevel = 0; // How many times the road medal was stolen (escalatio
 let serverArmyThreshold = null; // Server-authoritative knight threshold for visual display (multiplayer)
 let serverRoadThreshold = null; // Server-authoritative road threshold for visual display (multiplayer)
 let playerVPs = new Map(); // playerId -> victory points (synced from server) for the turn order panel
+let pendingResourceCollection = null; // Дані collect-resources, що чекають завершення анімації кубиків
+let pendingResourceTimer = null;      // Страхувальний таймер, щоб ресурси не загубилися
+
+// Обробляє відкладені ресурси ПІСЛЯ завершення анімації кубиків.
+// Викликається з onRegularDiceRolled (коли кубики «впали»), а також
+// страхувальним таймером, якщо подія анімації була пропущена.
+function flushPendingResourceCollection() {
+    if (pendingResourceTimer) {
+        clearTimeout(pendingResourceTimer);
+        pendingResourceTimer = null;
+    }
+    const data = pendingResourceCollection;
+    pendingResourceCollection = null;
+    if (!data || !data.diceTotal) return;
+
+    let collected = [];
+
+    // Use server-calculated resource updates if available (multiplayer)
+    if (data.resourceUpdates && Object.keys(data.resourceUpdates).length > 0) {
+        for (const [playerId, resources] of Object.entries(data.resourceUpdates)) {
+            if (playerId === myPlayerId) {
+                // Calculate what I gained
+                for (const [res, newCount] of Object.entries(resources)) {
+                    const oldCount = gameState.resourceCards[res] || 0;
+                    const gained = newCount - oldCount;
+                    if (gained > 0) {
+                        for (let i = 0; i < gained; i++) {
+                            collected.push({ type: res, icon: RESOURCES[res].icon, name: RESOURCES[res].name });
+                        }
+                    }
+                    gameState.resourceCards[res] = newCount;
+                }
+            }
+        }
+    } else {
+        // Single player - use local collection
+        collected = collectResources(data.diceTotal);
+    }
+
+    if (collected.length > 0) {
+        showResourceNotification(collected);
+    }
+    updateResourceCardsDisplay();
+}
 
 // Check for multiplayer map in sessionStorage first
 let data = null;
@@ -4476,42 +4595,25 @@ function registerMultiplayerHandlers(client) {
                 d1.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[data.die1-1] + '</span>';
                 d2.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[data.die2-1] + '</span>';
                 document.getElementById('total').textContent = 'Сума: ' + data.total;
+                // Анімація кубиків ЗАВЕРШИЛАСЬ — тепер нараховуємо та показуємо ресурси
+                flushPendingResourceCollection();
             }, 800);
+        } else {
+            // Елементи кубиків недоступні — обробляємо одразу
+            flushPendingResourceCollection();
         }
     });
     client.onCollectResources((data) => {
-        console.log('Collect resources:', data);
-        if (data && data.diceTotal) {
-            let collected = [];
-            
-            // Use server-calculated resource updates if available (multiplayer)
-            if (data.resourceUpdates && Object.keys(data.resourceUpdates).length > 0) {
-                // Update local resources from server
-                for (const [playerId, resources] of Object.entries(data.resourceUpdates)) {
-                    if (playerId === myPlayerId) {
-                        // Calculate what I gained
-                        for (const [res, newCount] of Object.entries(resources)) {
-                            const oldCount = gameState.resourceCards[res] || 0;
-                            const gained = newCount - oldCount;
-                            if (gained > 0) {
-                                for (let i = 0; i < gained; i++) {
-                                    collected.push({ type: res, icon: RESOURCES[res].icon, name: RESOURCES[res].name });
-                                }
-                            }
-                            gameState.resourceCards[res] = newCount;
-                        }
-                    }
-                }
-            } else {
-                // Single player - use local collection
-                collected = collectResources(data.diceTotal);
-            }
-            
-            if (collected.length > 0) {
-                showResourceNotification(collected);
-            }
-            updateResourceCardsDisplay();
-        }
+        console.log('Collect resources (deferred until dice animation ends):', data);
+        // НЕ нараховуємо ресурси одразу — сервер надсилає цю подію одночасно з
+        // regular-dice-rolled, ще ДО завершення анімації кубиків. Зберігаємо дані
+        // і обробляємо їх у flushPendingResourceCollection(), яку викликає
+        // обробник regular-dice-rolled після 800мс анімації.
+        pendingResourceCollection = data;
+        // Страхувальний таймер: якщо regular-dice-rolled було пропущено,
+        // ресурси все одно з'являться через 2.5с
+        if (pendingResourceTimer) clearTimeout(pendingResourceTimer);
+        pendingResourceTimer = setTimeout(flushPendingResourceCollection, 2500);
     });
     client.onResourceStolen((data) => {
         console.log('Resource stolen:', data);
