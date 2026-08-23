@@ -32,7 +32,7 @@ const rooms = new Map();
 // Зберігається у файлі accounts.json у корені проєкту.
 // Сервер працює постійно, тому реєстрація/вхід доступні будь-коли.
 const ACCOUNTS_FILE = path.join(__dirname, '..', '..', 'accounts.json');
-let accounts = {}; // локальний JSON fallback: нік (точний регістр) -> { id, nick, salt, passwordHash, createdAt }
+let accounts = {}; // локальний JSON fallback: нік (точний регістр) -> { id, nick, password, createdAt }
 
 function loadAccounts() {
     try {
@@ -56,12 +56,6 @@ function saveAccounts() {
         console.error('[auth] Failed to save accounts DB:', e.message);
         return false;
     }
-}
-
-// Паролі зберігаємо ТОЛЬКО у вигляді хешу (SHA-256 з випадковою сіллю),
-// ніколи у відкритому вигляді
-function hashPassword(password, salt) {
-    return crypto.createHash('sha256').update(salt + '::' + password).digest('hex');
 }
 
 // Унікальний ID гравця для акаунта
@@ -647,22 +641,19 @@ io.on('connection', (socket) => {
             return;
         }
 
-        const salt = crypto.randomBytes(16).toString('hex');
+        // Акаунт зберігає рівно те, що ввів гравець: нік і пароль як є
         const account = {
             id: generateAccountId(),
             nick: nick,
-            nickLower: nick.toLowerCase(), // для перевірки унікальності без регістру
-            salt: salt,
-            passwordHash: hashPassword(password, salt),
+            password: password,
             createdAt: Date.now()
         };
 
         // ===== MongoDB Atlas — ПОСТІЙНЕ сховище (акаунти не губляться) =====
         if (accountsCollection) {
             try {
-                // Унікальність без урахування регістру, але нік зберігається
-                // у ТОЧНОМУ регістрі, який ввів гравець
-                const exists = await accountsCollection.findOne({ nickLower: nick.toLowerCase() });
+                // Ніки чутливі до регістру: "Kirik" і "kirik" — різні акаунти
+                const exists = await accountsCollection.findOne({ nick: nick });
                 if (exists) {
                     socket.emit('auth-register-result', { success: false, error: 'Такий нік вже зайнятий!' });
                     return;
@@ -678,11 +669,8 @@ io.on('connection', (socket) => {
         }
 
         // ===== Локальний JSON fallback (якщо Atlas не налаштований) =====
-        // Унікальність перевіряємо БЕЗ урахування регістру, але в БД нік
-        // зберігається у ТОЧНОМУ регістрі, який ввів гравець
         const key = nick;
-        const nickTaken = Object.keys(accounts).some(k => k.toLowerCase() === nick.toLowerCase());
-        if (nickTaken) {
+        if (accounts[key]) {
             socket.emit('auth-register-result', { success: false, error: 'Такий нік вже зайнятий!' });
             return;
         }
@@ -713,14 +701,14 @@ io.on('connection', (socket) => {
         // ===== MongoDB Atlas — постійне сховище =====
         if (accountsCollection) {
             try {
-                // СТРОГА перевірка: нік має збігатися ТОЧНО, включно з великими/малими буквами
+                // Нік чутливий до регістру: "Kirik" і "kirik" — різні акаунти
                 const account = await accountsCollection.findOne({ nick: nick });
                 if (!account) {
                     socket.emit('auth-login-result', { success: false, error: 'Такого ака не існує' });
                     return;
                 }
 
-                if (hashPassword(password, account.salt) !== account.passwordHash) {
+                if (account.password !== password) {
                     socket.emit('auth-login-result', { success: false, error: 'Невірний пароль!' });
                     return;
                 }
@@ -735,14 +723,14 @@ io.on('connection', (socket) => {
         }
 
         // ===== Локальний JSON fallback =====
-        // СТРОГА перевірка: нік має збігатися ТОЧНО, включно з великими/малими буквами
+        // Нік чутливий до регістру: "Kirik" і "kirik" — різні акаунти
         const account = accounts[nick];
         if (!account) {
             socket.emit('auth-login-result', { success: false, error: 'Такого ака не існує' });
             return;
         }
 
-        if (hashPassword(password, account.salt) !== account.passwordHash) {
+        if (account.password !== password) {
             socket.emit('auth-login-result', { success: false, error: 'Невірний пароль!' });
             return;
         }
