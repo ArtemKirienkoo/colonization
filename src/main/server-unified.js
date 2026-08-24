@@ -150,6 +150,19 @@ function createDevCardDeck() {
     return deck;
 }
 
+// ===== PRESENCE (хто зараз в мережі / у грі) =====
+const presenceBySocket = new Map(); // socketId -> { playerId, inGame }
+const socketsByPlayer = new Map();  // playerId -> Set<socketId>
+function friendOnlineState(friendId) {
+    const set = socketsByPlayer.get(friendId);
+    if (!set || !set.size) return 'offline';
+    for (const sid of set) {
+        const info = presenceBySocket.get(sid);
+        if (info && info.inGame) return 'ingame';
+    }
+    return 'online';
+}
+
 // ===== HELPER FUNCTIONS FOR SERVER-SIDE VALIDATION =====
 // Check if edge (road) belongs to player
 function isMyServerRoad(edgeKey, playerId, room) {
@@ -650,8 +663,26 @@ io.on('connection', (socket) => {
         console.error('Socket error for', socket.id, ':', error);
     });
     
+    // ===== PRESENCE: акаунт в мережі (клієнт надсилає при кожному конекті) =====
+    socket.on('presence-online', ({ playerId, inGame }) => {
+        playerId = String(playerId || '');
+        if (!playerId) return;
+        presenceBySocket.set(socket.id, { playerId, inGame: !!inGame });
+        if (!socketsByPlayer.has(playerId)) socketsByPlayer.set(playerId, new Set());
+        socketsByPlayer.get(playerId).add(socket.id);
+    });
+
     socket.on('disconnect', (reason) => {
         console.log('Player disconnected:', socket.id, 'Reason:', reason);
+        const pidInfo = presenceBySocket.get(socket.id);
+        if (pidInfo) {
+            presenceBySocket.delete(socket.id);
+            const set = socketsByPlayer.get(pidInfo.playerId);
+            if (set) {
+                set.delete(socket.id);
+                if (!set.size) socketsByPlayer.delete(pidInfo.playerId);
+            }
+        }
     });
 
     // ===== AUTH: РЕЄСТРАЦІЯ АКАУНТА =====
@@ -892,7 +923,7 @@ io.on('connection', (socket) => {
                 };
                 const ids = Array.isArray(me.friends) ? me.friends : [];
                 const reqIds = Array.isArray(me.requests) ? me.requests : [];
-                const friends = await resolveNicks(ids);
+                const friends = (await resolveNicks(ids)).map(f => ({ ...f, state: friendOnlineState(f.id) }));
                 const requests = await resolveNicks(reqIds);
                 socket.emit('friends-get-result', { success: true, friends, requests });
             } catch (e) {
@@ -912,7 +943,7 @@ io.on('connection', (socket) => {
         const reqIds = Array.isArray(me.requests) ? me.requests : [];
         const friends = ids.map(fid => {
             const f = findAccountById(fid);
-            return { id: fid, nick: (f && f.nick) || 'Гравець' };
+            return { id: fid, nick: (f && f.nick) || 'Гравець', state: friendOnlineState(fid) };
         });
         const requests = reqIds.map(rid => {
             const r = findAccountById(rid);

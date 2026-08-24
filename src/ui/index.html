@@ -5367,6 +5367,14 @@ function initMultiplayer() {
             console.log('Successfully connected to server');
             mySocketId = mpClient.socket.id;
             
+            // Presence: акаунт у грі (жовтий кружечок у друзів)
+            try {
+                const acc = JSON.parse(localStorage.getItem('playerAccount'));
+                if (acc && acc.playerId && mpClient.socket) {
+                    mpClient.socket.emit('presence-online', { playerId: acc.playerId, inGame: true });
+                }
+            } catch (e) { console.warn('presence emit failed:', e); }
+            
             // Set multiplayer flags before reading the player ID
             multiplayerClient = mpClient;
             isMultiplayer = true;

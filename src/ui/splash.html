@@ -404,7 +404,7 @@
             min-width: 30px;
             padding: 0;
             margin: 0;
-            border-radius: 50%;
+            border-radius: 8px;
             background: rgba(243,156,18,0.25);
             border: 2px solid #f39c12;
             color: #fff;
@@ -445,7 +445,7 @@
             min-width: 26px;
             padding: 0;
             margin: 0;
-            border-radius: 50%;
+            border-radius: 8px;
             background: rgba(243,156,18,0.25);
             border: 2px solid #f39c12;
             color: #fff;
@@ -508,6 +508,16 @@
             font-size: 0.85em;
             white-space: nowrap;
         }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            display: inline-block;
+        }
+        .state-online { background: #27ae60; box-shadow: 0 0 6px rgba(39,174,96,0.7); }
+        .state-ingame { background: #f1c40f; box-shadow: 0 0 6px rgba(241,196,15,0.7); }
+        .state-offline { background: #e74c3c; opacity: 0.85; }
         .settings-box button.add-user-btn {
             width: auto;
             margin: 0;
@@ -563,6 +573,9 @@
                         <div class="profile-nick-row">
                             <div class="profile-info-nick" id="profileModalNick"></div>
                             <button id="editNickBtn" class="edit-nick-btn" title="Змінити нік">✏️</button>
+                        </div>
+                        <div class="profile-id-row">
+                            <span class="profile-info-id" id="profileModalLogin"></span>
                         </div>
                         <div class="profile-id-row">
                             <span class="profile-info-id" id="profileModalId"></span>
@@ -1522,7 +1535,8 @@
             document.getElementById('profileBtnNick').textContent = getProfileNick();
             document.getElementById('profileModalNick').textContent = getProfileNick();
             const acc = getAccount();
-            document.getElementById('profileModalId').textContent = (acc ? ('Логін: ' + acc.login + ' • ') : '') + 'ID: ' + getProfileId() + (acc ? '' : ' (гість)');
+            document.getElementById('profileModalLogin').textContent = acc ? ('Логін: ' + acc.login) : 'Гостьовий режим (акаунт не створено)';
+            document.getElementById('profileModalId').textContent = 'ID: ' + getProfileId();
             document.getElementById('profileBtnCups').textContent = '🏆 ' + getProfileCups();
             document.getElementById('profileModalCups').textContent = '🏆 Кубки: ' + getProfileCups();
             document.getElementById('profileStatus').textContent = statusText || (acc ? '✅ Акаунт активний' : '');
@@ -1535,6 +1549,13 @@
             if (authSocket && authSocket.connected) return authSocket;
             const serverUrl = sessionStorage.getItem('serverUrl') || 'https://colonization.onrender.com';
             authSocket = io(serverUrl, { transports: ['websocket', 'polling'] });
+            // Повідомляємо сервер, що акаунт в мережі (для статусів у списку друзів)
+            authSocket.on('connect', () => {
+                const acc = getAccount();
+                if (acc && acc.playerId) {
+                    authSocket.emit('presence-online', { playerId: acc.playerId });
+                }
+            });
             return authSocket;
         }
         function authRequest(event, payload) {
@@ -1766,7 +1787,10 @@
                 html += res.friends.map(f =>
                     '<div class="friend-row">' +
                         '<div style="min-width:0;">' +
-                            '<div class="friend-nick">' + escapeHtmlSafe(f.nick) + '</div>' +
+                            '<div style="display:flex; align-items:center; gap:7px;">' +
+                                '<span class="status-dot state-' + escapeHtmlSafe(f.state || 'offline') + '" title="' + (f.state === 'ingame' ? 'У грі' : f.state === 'online' ? 'В мережі' : 'Не в мережі') + '"></span>' +
+                                '<div class="friend-nick">' + escapeHtmlSafe(f.nick) + '</div>' +
+                            '</div>' +
                             '<div class="friend-id">' + escapeHtmlSafe(f.id) + '</div>' +
                         '</div>' +
                         '<button type="button" class="add-user-btn decline-btn remove-friend-btn" data-friend-id="' + escapeHtmlSafe(f.id) + '" data-friend-nick="' + escapeHtmlSafe(f.nick) + '">Видалити</button>' +
