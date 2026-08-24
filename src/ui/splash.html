@@ -1769,7 +1769,6 @@
                     '<div class="friend-row">' +
                         '<div style="min-width:0;">' +
                             '<div class="friend-nick">' + escapeHtmlSafe(r.nick) + '</div>' +
-                            '<div class="friend-id">' + escapeHtmlSafe(r.id) + '</div>' +
                         '</div>' +
                         '<div style="display:flex; gap:6px; flex-shrink:0;">' +
                             '<button type="button" class="add-user-btn accept-btn" data-friend-id="' + escapeHtmlSafe(r.id) + '">Прийняти</button>' +
@@ -1791,7 +1790,6 @@
                                 '<span class="status-dot state-' + escapeHtmlSafe(f.state || 'offline') + '" title="' + (f.state === 'ingame' ? 'У грі' : f.state === 'online' ? 'В мережі' : 'Не в мережі') + '"></span>' +
                                 '<div class="friend-nick">' + escapeHtmlSafe(f.nick) + '</div>' +
                             '</div>' +
-                            '<div class="friend-id">' + escapeHtmlSafe(f.id) + '</div>' +
                         '</div>' +
                         '<button type="button" class="add-user-btn decline-btn remove-friend-btn" data-friend-id="' + escapeHtmlSafe(f.id) + '" data-friend-nick="' + escapeHtmlSafe(f.nick) + '">Видалити</button>' +
                     '</div>'
