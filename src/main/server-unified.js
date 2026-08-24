@@ -677,7 +677,8 @@ io.on('connection', (socket) => {
             nick: generateRandomNick(),
             password: password,
             cups: 0,
-            friends: []
+            friends: [],
+            requests: []
         };
 
         // ===== MongoDB Atlas — ПОСТІЙНЕ сховище (акаунти не губляться) =====
@@ -879,18 +880,21 @@ io.on('connection', (socket) => {
                     socket.emit('friends-get-result', { success: false, error: 'Акаунт не знайдено' });
                     return;
                 }
-                const ids = Array.isArray(me.friends) ? me.friends : [];
-                let friends = [];
-                if (ids.length > 0) {
+                const resolveNicks = async (idList) => {
+                    if (!idList.length) return [];
                     const docs = await accountsCollection.find(
-                        { id: { $in: ids } },
+                        { id: { $in: idList } },
                         { projection: { _id: 0, id: 1, nick: 1 } }
                     ).toArray();
                     const byId = new Map(docs.map(d => [d.id, d.nick]));
-                    // Зберігаємо порядок додавання; нік підтягуємо актуальний
-                    friends = ids.map(fid => ({ id: fid, nick: byId.get(fid) || 'Гравець' }));
-                }
-                socket.emit('friends-get-result', { success: true, friends });
+                    // Зберігаємо порядок; нік підтягуємо актуальний
+                    return idList.map(fid => ({ id: fid, nick: byId.get(fid) || 'Гравець' }));
+                };
+                const ids = Array.isArray(me.friends) ? me.friends : [];
+                const reqIds = Array.isArray(me.requests) ? me.requests : [];
+                const friends = await resolveNicks(ids);
+                const requests = await resolveNicks(reqIds);
+                socket.emit('friends-get-result', { success: true, friends, requests });
             } catch (e) {
                 console.error('[friends] Get error:', e.message);
                 socket.emit('friends-get-result', { success: false, error: 'Помилка бази даних' });
@@ -904,25 +908,30 @@ io.on('connection', (socket) => {
             socket.emit('friends-get-result', { success: false, error: 'Акаунт не знайдено' });
             return;
         }
-                const ids = Array.isArray(me.friends) ? me.friends : [];
+        const ids = Array.isArray(me.friends) ? me.friends : [];
+        const reqIds = Array.isArray(me.requests) ? me.requests : [];
         const friends = ids.map(fid => {
             const f = findAccountById(fid);
             return { id: fid, nick: (f && f.nick) || 'Гравець' };
         });
-        socket.emit('friends-get-result', { success: true, friends });
+        const requests = reqIds.map(rid => {
+            const r = findAccountById(rid);
+            return { id: rid, nick: (r && r.nick) || 'Гравець' };
+        });
+        socket.emit('friends-get-result', { success: true, friends, requests });
     });
 
-    // ===== FRIENDS: ДОДАВАННЯ ДРУГА =====
-    socket.on('friends-add', async ({ playerId, friendId }) => {
+        // ===== FRIENDS: НАДСИЛАННЯ ЗАПИТУ НА ДРУЖБУ =====
+    socket.on('friends-request', async ({ playerId, friendId }) => {
         playerId = String(playerId || '').trim();
         friendId = String(friendId || '').trim();
 
         if (!playerId || !friendId) {
-            socket.emit('friends-add-result', { success: false, error: 'Введіть айді гравця!' });
+            socket.emit('friends-request-result', { success: false, error: 'Введіть айді гравця!' });
             return;
         }
         if (playerId === friendId) {
-            socket.emit('friends-add-result', { success: false, error: 'Не можна додати в друзі самого себе!' });
+            socket.emit('friends-request-result', { success: false, error: 'Не можна додати в друзі самого себе!' });
             return;
         }
 
@@ -931,25 +940,35 @@ io.on('connection', (socket) => {
             try {
                 const me = await accountsCollection.findOne({ id: playerId });
                 if (!me) {
-                    socket.emit('friends-add-result', { success: false, error: 'Акаунт не знайдено' });
-                    return;
-                }
-                const fr = await accountsCollection.findOne({ id: friendId });
-                if (!fr) {
-                    socket.emit('friends-add-result', { success: false, error: 'Гравця з таким айді не знайдено' });
+                    socket.emit('friends-request-result', { success: false, error: 'Акаунт не знайдено' });
                     return;
                 }
                 const mine = Array.isArray(me.friends) ? me.friends : [];
                 if (mine.includes(friendId)) {
-                    socket.emit('friends-add-result', { success: false, error: 'Цей гравець вже у твоїх друзях' });
+                    socket.emit('friends-request-result', { success: false, error: 'Цей гравець вже у твоїх друзях' });
                     return;
                 }
-                await accountsCollection.updateOne({ id: playerId }, { $addToSet: { friends: friendId } });
-                console.log('[friends] Added (Atlas):', me.login, '->', fr.nick);
-                socket.emit('friends-add-result', { success: true, friend: { id: fr.id, nick: fr.nick } });
+                const fr = await accountsCollection.findOne({ id: friendId });
+                if (!fr) {
+                    socket.emit('friends-request-result', { success: false, error: 'Гравця з таким айді не знайдено' });
+                    return;
+                }
+                const frRequests = Array.isArray(fr.requests) ? fr.requests : [];
+                if (frRequests.includes(playerId)) {
+                    socket.emit('friends-request-result', { success: false, error: 'Запит цьому гравцю вже надіслано' });
+                    return;
+                }
+                const myRequests = Array.isArray(me.requests) ? me.requests : [];
+                if (myRequests.includes(friendId)) {
+                    socket.emit('friends-request-result', { success: false, error: 'Цей гравець уже надіслав тобі запит — прийми його у розділі «Друзі»' });
+                    return;
+                }
+                await accountsCollection.updateOne({ id: friendId }, { $addToSet: { requests: playerId } });
+                console.log('[friends] Request sent (Atlas):', me.login, '->', fr.nick);
+                socket.emit('friends-request-result', { success: true, message: 'Запит надіслано!', friend: { id: fr.id, nick: fr.nick } });
             } catch (e) {
-                console.error('[friends] Add error:', e.message);
-                socket.emit('friends-add-result', { success: false, error: 'Помилка бази даних' });
+                console.error('[friends] Request error:', e.message);
+                socket.emit('friends-request-result', { success: false, error: 'Помилка бази даних' });
             }
             return;
         }
@@ -957,43 +976,287 @@ io.on('connection', (socket) => {
         // ===== Локальний JSON fallback =====
         const me = findAccountById(playerId);
         if (!me) {
-            socket.emit('friends-add-result', { success: false, error: 'Акаунт не знайдено' });
+            socket.emit('friends-request-result', { success: false, error: 'Акаунт не знайдено' });
+            return;
+        }
+        const mine = Array.isArray(me.friends) ? me.friends : [];
+        if (mine.includes(friendId)) {
+            socket.emit('friends-request-result', { success: false, error: 'Цей гравець вже у твоїх друзях' });
             return;
         }
         const fr = findAccountById(friendId);
         if (!fr) {
-            socket.emit('friends-add-result', { success: false, error: 'Гравця з таким айді не знайдено' });
+            socket.emit('friends-request-result', { success: false, error: 'Гравця з таким айді не знайдено' });
+            return;
+        }
+        fr.requests = Array.isArray(fr.requests) ? fr.requests : [];
+        if (fr.requests.includes(playerId)) {
+            socket.emit('friends-request-result', { success: false, error: 'Запит цьому гравцю вже надіслано' });
+            return;
+        }
+        const myRequests = Array.isArray(me.requests) ? me.requests : [];
+        if (myRequests.includes(friendId)) {
+            socket.emit('friends-request-result', { success: false, error: 'Цей гравець вже надіслав тобі запит — прийми його у розділі «Друзі»' });
+            return;
+        }
+        fr.requests.push(playerId);
+        if (!saveAccounts()) {
+            socket.emit('friends-request-result', { success: false, error: 'Помилка збереження на сервері' });
+            return;
+        }
+        console.log('[friends] Request sent (local JSON):', me.login, '->', fr.nick);
+        socket.emit('friends-request-result', { success: true, message: 'Запит надіслано!', friend: { id: fr.id, nick: fr.nick } });
+    });
+
+    // ===== FRIENDS: ПРИЙНЯТИ ЗАПИТ (взаємна дружба) =====
+    socket.on('friends-accept', async ({ playerId, friendId }) => {
+        playerId = String(playerId || '').trim();
+        friendId = String(friendId || '').trim();
+        if (!playerId || !friendId) {
+            socket.emit('friends-accept-result', { success: false, error: 'Немає даних запиту' });
+            return;
+        }
+
+        // ===== MongoDB Atlas =====
+        if (accountsCollection) {
+            try {
+                const me = await accountsCollection.findOne({ id: playerId });
+                const myRequests = (me && Array.isArray(me.requests)) ? me.requests : [];
+                if (!me || !myRequests.includes(friendId)) {
+                    socket.emit('friends-accept-result', { success: false, error: 'Запит не знайдено' });
+                    return;
+                }
+                const fr = await accountsCollection.findOne({ id: friendId });
+                if (!fr) {
+                    socket.emit('friends-accept-result', { success: false, error: 'Акаунт гравця не знайдено' });
+                    return;
+                }
+                await accountsCollection.updateOne({ id: playerId }, { $pull: { requests: friendId }, $addToSet: { friends: friendId } });
+                await accountsCollection.updateOne({ id: friendId }, { $addToSet: { friends: playerId } });
+                console.log('[friends] Accepted (Atlas):', me.login, '<->', fr.nick);
+                socket.emit('friends-accept-result', { success: true, friend: { id: fr.id, nick: fr.nick } });
+            } catch (e) {
+                console.error('[friends] Accept error:', e.message);
+                socket.emit('friends-accept-result', { success: false, error: 'Помилка бази даних' });
+            }
+            return;
+        }
+
+        // ===== Локальний JSON fallback =====
+        const me = findAccountById(playerId);
+        if (!me) {
+            socket.emit('friends-accept-result', { success: false, error: 'Акаунт не знайдено' });
+            return;
+        }
+        me.requests = Array.isArray(me.requests) ? me.requests : [];
+        if (!me.requests.includes(friendId)) {
+            socket.emit('friends-accept-result', { success: false, error: 'Запит не знайдено' });
+            return;
+        }
+        const fr = findAccountById(friendId);
+        if (!fr) {
+            socket.emit('friends-accept-result', { success: false, error: 'Акаунт гравця не знайдено' });
+            return;
+        }
+        // Взаємно додаємо одне одного в друзі
+        me.requests = me.requests.filter(id => id !== friendId);
+        me.friends = Array.isArray(me.friends) ? me.friends : [];
+        if (!me.friends.includes(friendId)) me.friends.push(friendId);
+        fr.friends = Array.isArray(fr.friends) ? fr.friends : [];
+        if (!fr.friends.includes(playerId)) fr.friends.push(playerId);
+        if (!saveAccounts()) {
+            socket.emit('friends-accept-result', { success: false, error: 'Помилка збереження на сервері' });
+            return;
+        }
+        console.log('[friends] Accepted (local JSON):', me.login, '<->', fr.nick);
+        socket.emit('friends-accept-result', { success: true, friend: { id: fr.id, nick: fr.nick } });
+    });
+
+    // ===== FRIENDS: ВІДХИЛИТИ ЗАПИТ =====
+    socket.on('friends-decline', async ({ playerId, friendId }) => {
+        playerId = String(playerId || '').trim();
+        friendId = String(friendId || '').trim();
+        if (!playerId || !friendId) {
+            socket.emit('friends-decline-result', { success: false, error: 'Немає даних запиту' });
+            return;
+        }
+        // ===== MongoDB Atlas =====
+        if (accountsCollection) {
+            try {
+                await accountsCollection.updateOne({ id: playerId }, { $pull: { requests: friendId } });
+                socket.emit('friends-decline-result', { success: true });
+            } catch (e) {
+                console.error('[friends] Decline error:', e.message);
+                socket.emit('friends-decline-result', { success: false, error: 'Помилка бази даних' });
+            }
+            return;
+        }
+        // ===== Локальний JSON fallback =====
+        const me = findAccountById(playerId);
+        if (!me) {
+            socket.emit('friends-decline-result', { success: false, error: 'Акаунт не знайдено' });
+            return;
+        }
+        me.requests = Array.isArray(me.requests) ? me.requests.filter(id => id !== friendId) : [];
+        saveAccounts();
+        socket.emit('friends-decline-result', { success: true });
+    });
+
+    // ===== FRIENDS: ВИДАЛИТИ ІЗ ДРУЗІВ (взаємно, в обох гравців) =====
+    socket.on('friends-remove', async ({ playerId, friendId }) => {
+        playerId = String(playerId || '').trim();
+        friendId = String(friendId || '').trim();
+        if (!playerId || !friendId) {
+            socket.emit('friends-remove-result', { success: false, error: 'Немає даних' });
+            return;
+        }
+        // ===== MongoDB Atlas =====
+        if (accountsCollection) {
+            try {
+                const me = await accountsCollection.findOne({ id: playerId });
+                if (!me) {
+                    socket.emit('friends-remove-result', { success: false, error: 'Акаунт не знайдено' });
+                    return;
+                }
+                const mine = Array.isArray(me.friends) ? me.friends : [];
+                if (!mine.includes(friendId)) {
+                    socket.emit('friends-remove-result', { success: false, error: 'Цього гравця немає у твоїх друзях' });
+                    return;
+                }
+                await accountsCollection.updateOne({ id: playerId }, { $pull: { friends: friendId } });
+                await accountsCollection.updateOne({ id: friendId }, { $pull: { friends: playerId } });
+                console.log('[friends] Removed (Atlas):', me.login, '-/->', friendId);
+                socket.emit('friends-remove-result', { success: true });
+            } catch (e) {
+                console.error('[friends] Remove error:', e.message);
+                socket.emit('friends-remove-result', { success: false, error: 'Помилка бази даних' });
+            }
+            return;
+        }
+        // ===== Локальний JSON fallback =====
+        const me = findAccountById(playerId);
+        if (!me) {
+            socket.emit('friends-remove-result', { success: false, error: 'Акаунт не знайдено' });
             return;
         }
         me.friends = Array.isArray(me.friends) ? me.friends : [];
-        if (me.friends.includes(friendId)) {
-            socket.emit('friends-add-result', { success: false, error: 'Цей гравець вже у твоїх друзях' });
+        if (!me.friends.includes(friendId)) {
+            socket.emit('friends-remove-result', { success: false, error: 'Цього гравця немає у твоїх друзях' });
             return;
         }
-        me.friends.push(friendId);
+        me.friends = me.friends.filter(id => id !== friendId);
+        const fr = findAccountById(friendId);
+        if (fr) {
+            fr.friends = Array.isArray(fr.friends) ? fr.friends.filter(id => id !== playerId) : [];
+        }
         if (!saveAccounts()) {
-            socket.emit('friends-add-result', { success: false, error: 'Помилка збереження на сервері' });
+            socket.emit('friends-remove-result', { success: false, error: 'Помилка збереження на сервері' });
             return;
         }
-        console.log('[friends] Added (local JSON):', me.login, '->', fr.nick);
-        socket.emit('friends-add-result', { success: true, friend: { id: fr.id, nick: fr.nick } });
+        console.log('[friends] Removed (local JSON):', me.login, '-/->', friendId);
+        socket.emit('friends-remove-result', { success: true });
+    });
+
+    // ===== FRIENDS: КІЛЬКІСТЬ ЗАПИТІВ (для червоного бейджа) =====
+    socket.on('requests-count', async ({ playerId }) => {
+        playerId = String(playerId || '');
+        // ===== MongoDB Atlas =====
+        if (accountsCollection) {
+            try {
+                const me = await accountsCollection.findOne({ id: playerId }, { projection: { _id: 0, requests: 1 } });
+                const count = (me && Array.isArray(me.requests)) ? me.requests.length : 0;
+                socket.emit('requests-count-result', { success: true, count });
+            } catch (e) {
+                socket.emit('requests-count-result', { success: false, error: 'Помилка бази даних' });
+            }
+            return;
+        }
+        // ===== Локальний JSON fallback =====
+        const me = findAccountById(playerId);
+        const count = (me && Array.isArray(me.requests)) ? me.requests.length : 0;
+        socket.emit('requests-count-result', { success: true, count });
+    });
+
+    // ===== USERS: ПОШУК ГРАВЦЯ ЗА АЙДІ (живий пошук у вікні додавання) =====
+    socket.on('users-search', async ({ excludePlayerId, query }) => {
+        excludePlayerId = String(excludePlayerId || '');
+        const q = String(query || '').trim().toLowerCase();
+        const LIMIT = 8;
+
+        if (!q || q.length < 2) {
+            socket.emit('users-search-result', { success: true, users: [] });
+            return;
+        }
+
+        // ===== MongoDB Atlas =====
+        if (accountsCollection) {
+            try {
+                const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const matchStage = { id: { $ne: excludePlayerId, $regex: '^' + escaped, $options: 'i' } };
+                const me = await accountsCollection.findOne({ id: excludePlayerId });
+                const myFriends = new Set((me && Array.isArray(me.friends)) ? me.friends : []);
+                const myRequests = new Set((me && Array.isArray(me.requests)) ? me.requests : []);
+                const docs = await accountsCollection.aggregate([
+                    { $match: matchStage },
+                    { $limit: LIMIT }
+                ]).toArray();
+                const users = docs.map(d => {
+                    let status = 'none';
+                    if (myFriends.has(d.id)) status = 'friend';
+                    else if (Array.isArray(d.requests) && d.requests.includes(excludePlayerId)) status = 'sent';
+                    else if (myRequests.has(d.id)) status = 'received';
+                    return { id: d.id, nick: d.nick, status };
+                });
+                socket.emit('users-search-result', { success: true, users });
+            } catch (e) {
+                console.error('[users] Search error:', e.message);
+                socket.emit('users-search-result', { success: false, error: 'Помилка бази даних' });
+            }
+            return;
+        }
+
+        // ===== Локальний JSON fallback =====
+        const me = findAccountById(excludePlayerId);
+        const myFriends = new Set((me && Array.isArray(me.friends)) ? me.friends : []);
+        const myRequests = new Set((me && Array.isArray(me.requests)) ? me.requests : []);
+        const pool = Object.values(accounts).filter(a =>
+            a && typeof a === 'object' && a.id && a.id !== excludePlayerId &&
+            String(a.id).toLowerCase().startsWith(q)
+        );
+        const users = pool.slice(0, LIMIT).map(a => {
+            let status = 'none';
+            if (myFriends.has(a.id)) status = 'friend';
+            else if (Array.isArray(a.requests) && a.requests.includes(excludePlayerId)) status = 'sent';
+            else if (myRequests.has(a.id)) status = 'received';
+            return { id: a.id, nick: a.nick, status };
+        });
+        socket.emit('users-search-result', { success: true, users });
     });
 
     // ===== USERS: ВИПАДКОВИЙ СПИСОК РЕАЛЬНИХ АКАУНТІВ (для додавання в друзі) =====
     socket.on('users-random', async ({ excludePlayerId }) => {
         excludePlayerId = String(excludePlayerId || '');
         const LIMIT = 12;
+        const statusOf = (me, acc) => {
+            const myFriends = (me && Array.isArray(me.friends)) ? me.friends : [];
+            const myRequests = (me && Array.isArray(me.requests)) ? me.requests : [];
+            if (myFriends.includes(acc.id)) return 'friend';
+            if (Array.isArray(acc.requests) && acc.requests.includes(excludePlayerId)) return 'sent';
+            if (myRequests.includes(acc.id)) return 'received';
+            return 'none';
+        };
 
         // ===== MongoDB Atlas =====
         if (accountsCollection) {
             try {
                 const matchStage = excludePlayerId ? { id: { $ne: excludePlayerId } } : {};
+                const me = await accountsCollection.findOne({ id: excludePlayerId });
                 const docs = await accountsCollection.aggregate([
                     { $match: matchStage },
-                    { $sample: { size: LIMIT } },
-                    { $project: { _id: 0, id: 1, nick: 1 } }
+                    { $sample: { size: LIMIT } }
                 ]).toArray();
-                socket.emit('users-random-result', { success: true, users: docs });
+                const users = docs.map(d => ({ id: d.id, nick: d.nick, status: statusOf(me, d) }));
+                socket.emit('users-random-result', { success: true, users });
             } catch (e) {
                 console.error('[users] Random error:', e.message);
                 socket.emit('users-random-result', { success: false, error: 'Помилка бази даних' });
@@ -1002,6 +1265,7 @@ io.on('connection', (socket) => {
         }
 
         // ===== Локальний JSON fallback =====
+        const me = findAccountById(excludePlayerId);
         const pool = Object.values(accounts).filter(a =>
             a && typeof a === 'object' && a.id && a.id !== excludePlayerId
         );
@@ -1009,7 +1273,7 @@ io.on('connection', (socket) => {
             const j = Math.floor(Math.random() * (i + 1));
             [pool[i], pool[j]] = [pool[j], pool[i]];
         }
-        const users = pool.slice(0, LIMIT).map(a => ({ id: a.id, nick: a.nick }));
+        const users = pool.slice(0, LIMIT).map(a => ({ id: a.id, nick: a.nick, status: statusOf(me, a) }));
         socket.emit('users-random-result', { success: true, users });
     });
 

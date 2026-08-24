@@ -326,6 +326,44 @@
             align-items: center;
             gap: 4px;
         }
+        /* Червоний квадратик-бейдж із кількістю запитів у друзі */
+        .btn-badge {
+            display: none;
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            min-width: 18px;
+            height: 18px;
+            line-height: 18px;
+            padding: 0 5px;
+            background: #e74c3c;
+            color: #fff;
+            font-size: 0.7em;
+            font-weight: 700;
+            border-radius: 5px;
+            text-align: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.45);
+            border: 1px solid rgba(255,255,255,0.25);
+        }
+        .profile-friends-btn { position: relative; }
+        .list-section-title {
+            color: #f39c12;
+            font-size: 0.85em;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin: 6px 2px;
+            text-align: left;
+        }
+        .decline-btn,
+        .settings-box button.decline-btn {
+            background: rgba(255,255,255,0.12) !important;
+            color: #ccc !important;
+        }
+        .settings-box button.decline-btn:hover {
+            background: rgba(231,76,60,0.35) !important;
+            color: #fff !important;
+        }
         .profile-card {
             display: flex;
             flex-direction: column;
@@ -509,6 +547,7 @@
         </div>
         <div class="profile-nick" id="profileBtnNick">...</div>
         <div class="profile-cups" id="profileBtnCups">🏆 0</div>
+        <span class="btn-badge" id="profileBtnFriendsBadge" style="display:none;"></span>
     </div>
 
     <!-- Profile Modal -->
@@ -532,7 +571,7 @@
                         <div class="profile-info-cups" id="profileModalCups">🏆 Кубки: 0</div>
                     </div>
                 </div>
-                <button id="profileFriendsBtn" class="mode-btn profile-friends-btn" type="button">Друзі</button>
+                <button id="profileFriendsBtn" class="mode-btn profile-friends-btn" type="button">Друзі<span class="btn-badge" id="profileFriendsBadge" style="display:none;"></span></button>
             </div>
             <div class="profile-actions">
                 <button id="openRegisterBtn" class="mode-btn">Реєстрація</button>
@@ -596,9 +635,18 @@
             <h3>ДОДАТИ ДРУГА</h3>
             <input type="text" id="friendIdInput" class="auth-input" placeholder="Введіть айді гравця" maxlength="40" autocomplete="off">
             <div class="auth-error" id="addFriendError"></div>
-            <button id="confirmAddFriendBtn" class="mode-btn">Додати за айді</button>
             <div id="randomUsersList" class="friends-scroll"></div>
             <button id="backFromAddFriend" class="back-btn">Вийти</button>
+        </div>
+    </div>
+
+    <!-- Remove Friend Confirm Modal -->
+    <div class="settings-overlay" id="removeFriendModal" style="display: none;">
+        <div class="settings-box">
+            <h3>ВИДАЛЕННЯ ДРУГА</h3>
+            <div id="removeFriendText" style="color:#fff; font-size:1em; margin-bottom:14px;"></div>
+            <button id="confirmRemoveFriendBtn" class="mode-btn">Так</button>
+            <button id="cancelRemoveFriendBtn" class="back-btn">Ні</button>
         </div>
     </div>
 
@@ -1674,6 +1722,7 @@
         }
 
         let cachedFriendIds = new Set();
+        let pendingRemoveId = null;
 
         async function loadFriendsList() {
             const listEl = document.getElementById('friendsList');
@@ -1689,18 +1738,78 @@
                 listEl.innerHTML = '<div class="friend-empty">' + escapeHtmlSafe((res && res.error) || 'Помилка завантаження') + '</div>';
                 return;
             }
-            if (!res.friends.length) {
-                listEl.innerHTML = '<div class="friend-empty">Поки що немає друзів. Натисни «Додати друга»!</div>';
-                return;
+
+            let html = '';
+
+            // Секція: запити на дружбу (зверху)
+            if (res.requests && res.requests.length > 0) {
+                html += '<div class="list-section-title">Запити в друзі (' + res.requests.length + ')</div>';
+                html += res.requests.map(r =>
+                    '<div class="friend-row">' +
+                        '<div style="min-width:0;">' +
+                            '<div class="friend-nick">' + escapeHtmlSafe(r.nick) + '</div>' +
+                            '<div class="friend-id">' + escapeHtmlSafe(r.id) + '</div>' +
+                        '</div>' +
+                        '<div style="display:flex; gap:6px; flex-shrink:0;">' +
+                            '<button type="button" class="add-user-btn accept-btn" data-friend-id="' + escapeHtmlSafe(r.id) + '">Прийняти</button>' +
+                            '<button type="button" class="add-user-btn decline-btn" data-friend-id="' + escapeHtmlSafe(r.id) + '">Відхилити</button>' +
+                        '</div>' +
+                    '</div>'
+                ).join('');
             }
-            listEl.innerHTML = res.friends.map(f =>
-                '<div class="friend-row">' +
-                    '<div style="min-width:0;">' +
-                        '<div class="friend-nick">' + escapeHtmlSafe(f.nick) + '</div>' +
-                        '<div class="friend-id">' + escapeHtmlSafe(f.id) + '</div>' +
-                    '</div>' +
-                '</div>'
-            ).join('');
+
+            // Секція: мої друзі
+            html += '<div class="list-section-title">Мої друзі (' + res.friends.length + ')</div>';
+            if (!res.friends.length) {
+                html += '<div class="friend-empty">Поки що немає друзів. Натисни «Додати друга»!</div>';
+            } else {
+                html += res.friends.map(f =>
+                    '<div class="friend-row">' +
+                        '<div style="min-width:0;">' +
+                            '<div class="friend-nick">' + escapeHtmlSafe(f.nick) + '</div>' +
+                            '<div class="friend-id">' + escapeHtmlSafe(f.id) + '</div>' +
+                        '</div>' +
+                        '<button type="button" class="add-user-btn decline-btn remove-friend-btn" data-friend-id="' + escapeHtmlSafe(f.id) + '" data-friend-nick="' + escapeHtmlSafe(f.nick) + '">Видалити</button>' +
+                    '</div>'
+                ).join('');
+            }
+
+            listEl.innerHTML = html;
+
+            // Прийняти запит
+            listEl.querySelectorAll('.accept-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    audioManager.playClickSound();
+                    btn.disabled = true;
+                    const acc2 = getAccount();
+                    const r = await authRequest('friends-accept', { playerId: acc2.playerId, friendId: btn.getAttribute('data-friend-id') });
+                    await refreshRequestsCount();
+                    await loadFriendsList();
+                });
+            });
+
+            // Відхилити запит
+            listEl.querySelectorAll('.decline-btn:not(.remove-friend-btn)').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    audioManager.playClickSound();
+                    btn.disabled = true;
+                    const acc2 = getAccount();
+                    await authRequest('friends-decline', { playerId: acc2.playerId, friendId: btn.getAttribute('data-friend-id') });
+                    await refreshRequestsCount();
+                    await loadFriendsList();
+                });
+            });
+
+            // Видалити з друзів → вікно підтвердження
+            listEl.querySelectorAll('.remove-friend-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    audioManager.playClickSound();
+                    pendingRemoveId = btn.getAttribute('data-friend-id');
+                    document.getElementById('removeFriendText').textContent =
+                        'Видалити ' + btn.getAttribute('data-friend-nick') + ' із друзів?';
+                    document.getElementById('removeFriendModal').style.display = 'flex';
+                });
+            });
         }
 
         document.getElementById('profileFriendsBtn').addEventListener('click', async () => {
@@ -1714,20 +1823,76 @@
             document.getElementById('friendsModal').style.display = 'none';
         });
 
-        // Додавання друга за айді. Повертає true, якщо вдалося.
-        async function addUserByFriendId(friendId) {
+        // Надсилання запиту на дружбу за айді. Повертає true, якщо запит надіслано.
+        async function sendFriendRequest(friendId) {
             const acc = getAccount();
             if (!acc || !acc.playerId) return false;
             const errEl = document.getElementById('addFriendError');
-            const res = await authRequest('friends-add', { playerId: acc.playerId, friendId });
+            const res = await authRequest('friends-request', { playerId: acc.playerId, friendId });
             if (!res || !res.success) {
                 errEl.style.color = '';
-                errEl.textContent = (res && res.error) || 'Помилка додавання';
+                errEl.textContent = (res && res.error) || 'Помилка надсилання запиту';
                 return false;
             }
             errEl.style.color = '#27ae60';
-            errEl.textContent = '✓ ' + res.friend.nick + ' додано до друзів!';
+            errEl.textContent = '✓ ' + res.message;
             return true;
+        }
+
+        // Рендер рядка кандидата залежно від статусу
+        function candidateRowHtml(u) {
+            let actionHtml;
+            if (u.status === 'friend') {
+                actionHtml = '<span class="friend-added">✓ У друзях</span>';
+            } else if (u.status === 'sent') {
+                actionHtml = '<span class="friend-added" style="color:#f39c12;">⏳ Запит надіслано</span>';
+            } else if (u.status === 'received') {
+                actionHtml = '<button type="button" class="add-user-btn accept-btn" data-friend-id="' + escapeHtmlSafe(u.id) + '">Прийняти запит</button>';
+            } else {
+                actionHtml = '<button type="button" class="add-user-btn send-request-btn" data-friend-id="' + escapeHtmlSafe(u.id) + '">Додати</button>';
+            }
+            return '<div class="friend-row">' +
+                    '<div style="min-width:0;">' +
+                        '<div class="friend-nick">' + escapeHtmlSafe(u.nick) + '</div>' +
+                        '<div class="friend-id">' + escapeHtmlSafe(u.id) + '</div>' +
+                    '</div>' +
+                    actionHtml +
+                '</div>';
+        }
+
+        // Обробники кнопок у списках кандидатів
+        function bindCandidateButtons(listEl) {
+            // Надіслати запит на дружбу
+            listEl.querySelectorAll('.send-request-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    audioManager.playClickSound();
+                    btn.disabled = true;
+                    const ok = await sendFriendRequest(btn.getAttribute('data-friend-id'));
+                    if (ok) {
+                        const row = btn.closest('.friend-row');
+                        row.innerHTML = row.innerHTML.replace(btn.outerHTML, '<span class="friend-added" style="color:#f39c12;">⏳ Запит надіслано</span>');
+                    } else {
+                        btn.disabled = false;
+                    }
+                });
+            });
+            // Прийняти запит (коли цей гравець надіслав запит мені)
+            listEl.querySelectorAll('.accept-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    audioManager.playClickSound();
+                    btn.disabled = true;
+                    const acc = getAccount();
+                    const r = await authRequest('friends-accept', { playerId: acc.playerId, friendId: btn.getAttribute('data-friend-id') });
+                    const row = btn.closest('.friend-row');
+                    if (r && r.success) {
+                        row.innerHTML = row.innerHTML.replace(btn.outerHTML, '<span class="friend-added">✓ У друзях</span>');
+                        await refreshRequestsCount();
+                        await loadFriendsList();
+                    } else {
+                        btn.disabled = false;
+                    }
+                });
+            });
         }
 
         async function loadRandomUsers() {
@@ -1746,34 +1911,34 @@
                 return;
             }
             if (!res.users.length) {
-                listEl.innerHTML = '<div class="friend-empty">Інших гравців поки немає</div>';
+                listEl.innerHTML = '<div class="list-section-title">Можливо, зацікавлять</div><div class="friend-empty">Інших гравців поки немає</div>';
                 return;
             }
-            listEl.innerHTML = res.users.map(u => {
-                const added = cachedFriendIds.has(u.id);
-                return '<div class="friend-row">' +
-                        '<div style="min-width:0;">' +
-                            '<div class="friend-nick">' + escapeHtmlSafe(u.nick) + '</div>' +
-                            '<div class="friend-id">' + escapeHtmlSafe(u.id) + '</div>' +
-                        '</div>' +
-                        (added
-                            ? '<span class="friend-added">✓ У друзях</span>'
-                            : '<button type="button" class="add-user-btn" data-friend-id="' + escapeHtmlSafe(u.id) + '">Додати</button>') +
-                    '</div>';
-            }).join('');
-            listEl.querySelectorAll('.add-user-btn').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    audioManager.playClickSound();
-                    btn.disabled = true;
-                    const ok = await addUserByFriendId(btn.getAttribute('data-friend-id'));
-                    if (ok) {
-                        const row = btn.closest('.friend-row');
-                        row.innerHTML = row.innerHTML.replace(btn.outerHTML, '<span class="friend-added">✓ У друзях</span>');
-                    } else {
-                        btn.disabled = false;
-                    }
-                });
-            });
+            listEl.innerHTML = '<div class="list-section-title">Можливо, зацікавлять</div>' + res.users.map(candidateRowHtml).join('');
+            bindCandidateButtons(listEl);
+        }
+
+        // Живий пошук гравця за айді (замість кнопки «Додати за айді»)
+        let idSearchTimer = null;
+        async function searchUsersById(query) {
+            const listEl = document.getElementById('randomUsersList');
+            const acc = getAccount();
+            if (!acc || !acc.playerId) {
+                listEl.innerHTML = '<div class="friend-empty">Доступно лише зареєстрованим гравцям</div>';
+                return;
+            }
+            listEl.innerHTML = '<div class="friend-empty">Пошук…</div>';
+            const res = await authRequest('users-search', { excludePlayerId: acc.playerId, query });
+            if (!res || !res.success) {
+                listEl.innerHTML = '<div class="friend-empty">' + escapeHtmlSafe((res && res.error) || 'Помилка пошуку') + '</div>';
+                return;
+            }
+            if (!res.users.length) {
+                listEl.innerHTML = '<div class="list-section-title">Результати пошуку</div><div class="friend-empty">Гравця з таким айді не знайдено</div>';
+                return;
+            }
+            listEl.innerHTML = '<div class="list-section-title">Результати пошуку (' + res.users.length + ')</div>' + res.users.map(candidateRowHtml).join('');
+            bindCandidateButtons(listEl);
         }
 
         document.getElementById('openAddFriendBtn').addEventListener('click', async () => {
@@ -1793,24 +1958,52 @@
             loadFriendsList();
         });
 
-        async function confirmAddFriend() {
+        // Живий пошук за айді під час введення
+        document.getElementById('friendIdInput').addEventListener('input', (e) => {
+            clearTimeout(idSearchTimer);
+            idSearchTimer = setTimeout(() => {
+                const q = e.target.value.trim();
+                if (!q) { loadRandomUsers(); return; }
+                searchUsersById(q);
+            }, 300);
+        });
+
+        // Вікно підтвердження видалення друга
+        document.getElementById('cancelRemoveFriendBtn').addEventListener('click', () => {
             audioManager.playClickSound();
-            const val = document.getElementById('friendIdInput').value.trim();
-            const errEl = document.getElementById('addFriendError');
-            errEl.style.color = '';
-            if (!val) {
-                errEl.textContent = 'Введіть айді гравця!';
+            pendingRemoveId = null;
+            document.getElementById('removeFriendModal').style.display = 'none';
+        });
+        document.getElementById('confirmRemoveFriendBtn').addEventListener('click', async () => {
+            audioManager.playClickSound();
+            const acc = getAccount();
+            if (acc && acc.playerId && pendingRemoveId) {
+                await authRequest('friends-remove', { playerId: acc.playerId, friendId: pendingRemoveId });
+            }
+            pendingRemoveId = null;
+            document.getElementById('removeFriendModal').style.display = 'none';
+            await loadFriendsList();
+        });
+
+        // ===== Червоний бейдж: кількість запитів у друзі (оновлюється кожні 15 с) =====
+        async function refreshRequestsCount() {
+            const badgeMenu = document.getElementById('profileBtnFriendsBadge');
+            const badgeBtn = document.getElementById('profileFriendsBadge');
+            const acc = getAccount();
+            if (!acc || !acc.playerId) {
+                [badgeMenu, badgeBtn].forEach(b => { if (b) b.style.display = 'none'; });
                 return;
             }
-            errEl.textContent = '';
-            const ok = await addUserByFriendId(val);
-            if (ok) {
-                document.getElementById('friendIdInput').value = '';
-                await loadFriendsList();
-            }
+            const res = await authRequest('requests-count', { playerId: acc.playerId });
+            const count = (res && res.success) ? (res.count || 0) : 0;
+            [badgeMenu, badgeBtn].forEach(b => {
+                if (!b) return;
+                if (count > 0) { b.textContent = count; b.style.display = 'block'; }
+                else { b.style.display = 'none'; }
+            });
         }
-        document.getElementById('confirmAddFriendBtn').addEventListener('click', confirmAddFriend);
-        document.getElementById('friendIdInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmAddFriend(); });
+        setInterval(refreshRequestsCount, 15000);
+        refreshRequestsCount();
 
         // Ініціалізуємо нік на кнопці профілю одразу при завантаженні сторінки
         updateProfileUI();
