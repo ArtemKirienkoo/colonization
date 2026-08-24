@@ -284,7 +284,7 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 7px 16px 7px 7px;
+            padding: 7px 48px 7px 7px;
             background: rgba(26, 26, 46, 0.9);
             border: 2px solid rgba(243, 156, 18, 0.4);
             border-radius: 14px;
@@ -317,9 +317,18 @@
             text-overflow: ellipsis;
             white-space: nowrap;
         }
-        .profile-card {
+        .profile-cups {
+            color: #f1c40f;
+            font-weight: 700;
+            font-size: 1em;
+            white-space: nowrap;
             display: flex;
             align-items: center;
+            gap: 4px;
+        }
+        .profile-card {
+            display: flex;
+            flex-direction: column;
             gap: 14px;
             padding: 14px;
             background: rgba(255,255,255,0.04);
@@ -328,15 +337,145 @@
             margin-bottom: 16px;
             text-align: left;
         }
+        .profile-identity {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .profile-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .profile-actions .mode-btn {
+            flex: 1;
+            width: auto;
+            margin-top: 0;
+            margin-bottom: 0;
+        }
+        .profile-friends-btn {
+            margin-top: auto;
+        }
         .profile-card .profile-avatar { width: 56px; height: 56px; }
         .profile-card .profile-avatar svg { width: 32px; height: 32px; }
         .profile-info-nick { font-size: 1.2em; font-weight: bold; color: #fff; }
+        .profile-nick-row { display: flex; align-items: center; gap: 8px; }
+        .edit-nick-btn,
+        .settings-box button.edit-nick-btn {
+            width: 30px;
+            height: 30px;
+            min-width: 30px;
+            padding: 0;
+            margin: 0;
+            border-radius: 50%;
+            background: rgba(243,156,18,0.25);
+            border: 2px solid #f39c12;
+            color: #fff;
+            font-size: 0.9em;
+            line-height: 1;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.2s;
+        }
+        .edit-nick-btn:hover,
+        .settings-box button.edit-nick-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(243,156,18,0.4);
+            background: rgba(243,156,18,0.35);
+        }
         .profile-info-id {
             font-size: 1.05em;
             color: #ccc;
             font-family: monospace;
             margin-top: 5px;
             word-break: break-all;
+        }
+        .profile-info-cups {
+            font-size: 1.05em;
+            color: #f1c40f;
+            font-weight: 700;
+            margin-top: 3px;
+        }
+        .profile-id-row { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+        .profile-id-row .profile-info-id { margin-top: 0; }
+        .profile-copy-btn,
+        .settings-box button.profile-copy-btn {
+            width: 26px;
+            height: 26px;
+            min-width: 26px;
+            padding: 0;
+            margin: 0;
+            border-radius: 50%;
+            background: rgba(243,156,18,0.25);
+            border: 2px solid #f39c12;
+            color: #fff;
+            font-size: 0.75em;
+            line-height: 1;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.2s;
+        }
+        .profile-copy-btn:hover,
+        .settings-box button.profile-copy-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(243,156,18,0.4);
+            background: rgba(243,156,18,0.35);
+        }
+        .friends-scroll {
+            max-height: 240px;
+            overflow-y: auto;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(243,156,18,0.15);
+            border-radius: 8px;
+            padding: 6px;
+            margin: 6px 0 12px;
+        }
+        .friend-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 7px 9px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 6px;
+            margin-bottom: 6px;
+        }
+        .friend-row:last-child { margin-bottom: 0; }
+        .friend-nick {
+            color: #fff;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .friend-id {
+            color: #999;
+            font-size: 0.78em;
+            font-family: monospace;
+            word-break: break-all;
+        }
+        .friend-empty {
+            color: #666;
+            text-align: center;
+            padding: 16px 8px;
+        }
+        .friend-added {
+            color: #27ae60;
+            font-weight: 700;
+            font-size: 0.85em;
+            white-space: nowrap;
+        }
+        .settings-box button.add-user-btn {
+            width: auto;
+            margin: 0;
+            padding: 7px 14px;
+            font-size: 0.85em;
+            flex-shrink: 0;
         }
         .auth-input {
             width: 100%;
@@ -369,6 +508,7 @@
             <svg viewBox="0 0 24 24"><circle cx="12" cy="7.2" r="4.1" fill="#ffffff"/><path d="M12 12.6c-4.8 0-8.3 3-8.3 7.3 0 .9.7 1.6 1.6 1.6h13.4c.9 0 1.6-.7 1.6-1.6 0-4.3-3.5-7.3-8.3-7.3z" fill="#ffffff"/></svg>
         </div>
         <div class="profile-nick" id="profileBtnNick">...</div>
+        <div class="profile-cups" id="profileBtnCups">🏆 0</div>
     </div>
 
     <!-- Profile Modal -->
@@ -376,18 +516,30 @@
         <div class="settings-box">
             <h3>ПРОФІЛЬ ГРАВЦЯ</h3>
             <div class="profile-card">
-                <div class="profile-avatar">
-                    <svg viewBox="0 0 24 24"><circle cx="12" cy="7.2" r="4.1" fill="#ffffff"/><path d="M12 12.6c-4.8 0-8.3 3-8.3 7.3 0 .9.7 1.6 1.6 1.6h13.4c.9 0 1.6-.7 1.6-1.6 0-4.3-3.5-7.3-8.3-7.3z" fill="#ffffff"/></svg>
+                <div class="profile-identity">
+                    <div class="profile-avatar">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="7.2" r="4.1" fill="#ffffff"/><path d="M12 12.6c-4.8 0-8.3 3-8.3 7.3 0 .9.7 1.6 1.6 1.6h13.4c.9 0 1.6-.7 1.6-1.6 0-4.3-3.5-7.3-8.3-7.3z" fill="#ffffff"/></svg>
+                    </div>
+                    <div>
+                        <div class="profile-nick-row">
+                            <div class="profile-info-nick" id="profileModalNick"></div>
+                            <button id="editNickBtn" class="edit-nick-btn" title="Змінити нік">✏️</button>
+                        </div>
+                        <div class="profile-id-row">
+                            <span class="profile-info-id" id="profileModalId"></span>
+                            <button id="copyProfileIdBtn" class="profile-copy-btn" title="Копіювати айді" type="button">📋</button>
+                        </div>
+                        <div class="profile-info-cups" id="profileModalCups">🏆 Кубки: 0</div>
+                    </div>
                 </div>
-                <div>
-                    <div class="profile-info-nick" id="profileModalNick"></div>
-                    <div class="profile-info-id" id="profileModalId"></div>
-                </div>
+                <button id="profileFriendsBtn" class="mode-btn profile-friends-btn" type="button">Друзі</button>
             </div>
-            <div id="profileStatus" style="color:#27ae60; font-size:0.9em; min-height:1.3em; margin-bottom:6px;"></div>
-            <button id="openRegisterBtn" class="mode-btn">Реєстрація</button>
-            <button id="openLoginBtn" class="mode-btn">Вхід</button>
-            <button id="backFromProfile" class="back-btn">Назад</button>
+            <div class="profile-actions">
+                <button id="openRegisterBtn" class="mode-btn">Реєстрація</button>
+                <button id="openLoginBtn" class="mode-btn">Вхід</button>
+            </div>
+            <button id="backFromProfile" class="back-btn">Вийти</button>
+            <div id="profileStatus" style="color:#27ae60; font-size:0.9em; min-height:1.3em; margin-bottom:0;"></div>
         </div>
     </div>
 
@@ -395,7 +547,7 @@
     <div class="settings-overlay" id="registerModal" style="display: none;">
         <div class="settings-box">
             <h3>РЕЄСТРАЦІЯ</h3>
-            <input type="text" id="regNickInput" class="auth-input" placeholder="Придумайте нік" maxlength="20">
+            <input type="text" id="regLoginInput" class="auth-input" placeholder="Придумайте логін" maxlength="20" autocomplete="off">
             <input type="password" id="regPassInput" class="auth-input" placeholder="Придумайте пароль">
             <div class="auth-error" id="regError"></div>
             <button id="confirmRegisterBtn" class="mode-btn">Зареєструватися</button>
@@ -407,14 +559,49 @@
     <div class="settings-overlay" id="loginModal" style="display: none;">
         <div class="settings-box">
             <h3>ВХІД</h3>
-            <input type="text" id="loginNickInput" class="auth-input" placeholder="Ваш нік" maxlength="20">
+            <input type="text" id="loginLoginInput" class="auth-input" placeholder="Ваш логін" maxlength="20" autocomplete="off">
             <input type="password" id="loginPassInput" class="auth-input" placeholder="Ваш пароль">
             <div class="auth-error" id="loginError"></div>
             <button id="confirmLoginBtn" class="mode-btn">Увійти</button>
             <button id="backFromLogin" class="back-btn">Вийти</button>
         </div>
     </div>
-    
+
+    <!-- Edit Nick Modal -->
+    <div class="settings-overlay" id="editNickModal" style="display: none;">
+        <div class="settings-box">
+            <h3>ЗМІНИТИ НІК</h3>
+            <input type="text" id="editNickInput" class="auth-input" placeholder="Ваш новий нік" maxlength="20" autocomplete="off">
+            <div class="auth-error" id="editNickError"></div>
+            <button id="confirmEditNickBtn" class="mode-btn">Зберегти</button>
+            <button id="backFromEditNick" class="back-btn">Вийти</button>
+        </div>
+    </div>
+
+    <!-- Friends Modal -->
+    <div class="settings-overlay" id="friendsModal" style="display: none;">
+        <div class="settings-box">
+            <h3>ДРУЗІ</h3>
+            <button id="openAddFriendBtn" class="mode-btn">➕ Додати друга</button>
+            <div id="friendsList" class="friends-scroll">
+                <div class="friend-empty">Завантаження…</div>
+            </div>
+            <button id="backFromFriends" class="back-btn">Вийти</button>
+        </div>
+    </div>
+
+    <!-- Add Friend Modal -->
+    <div class="settings-overlay" id="addFriendModal" style="display: none;">
+        <div class="settings-box">
+            <h3>ДОДАТИ ДРУГА</h3>
+            <input type="text" id="friendIdInput" class="auth-input" placeholder="Введіть айді гравця" maxlength="40" autocomplete="off">
+            <div class="auth-error" id="addFriendError"></div>
+            <button id="confirmAddFriendBtn" class="mode-btn">Додати за айді</button>
+            <div id="randomUsersList" class="friends-scroll"></div>
+            <button id="backFromAddFriend" class="back-btn">Вийти</button>
+        </div>
+    </div>
+
 <div class="main-content">
     <div class="logo">COLONIZATION</div>
     <div class="menu-buttons">
@@ -1234,7 +1421,8 @@
         // ===== PLAYER PROFILE / AUTH (реєстрація та вхід через постійно запущений сервер) =====
         const GUEST_NICK_KEY = 'profileNick';
         const GUEST_ID_KEY = 'guestId';
-        const ACCOUNT_KEY = 'playerAccount'; // JSON { playerId, nick }
+        const GUEST_CUPS_KEY = 'guestCups';
+        const ACCOUNT_KEY = 'playerAccount'; // JSON { playerId, nick, login, cups }
 
         function randomGuestNick() {
             return 'Гравець' + Math.floor(1000 + Math.random() * 9000);
@@ -1252,6 +1440,14 @@
             if (!id) { id = randomGuestId(); localStorage.setItem(GUEST_ID_KEY, id); }
             return id;
         }
+        // Кубки гостя зберігаються локально (отримання кубків буде реалізовано пізніше)
+        function getGuestCups() {
+            const v = parseInt(localStorage.getItem(GUEST_CUPS_KEY), 10);
+            return isNaN(v) ? 0 : v;
+        }
+        function setGuestCups(cups) {
+            localStorage.setItem(GUEST_CUPS_KEY, String(Math.max(0, parseInt(cups, 10) || 0)));
+        }
         function getAccount() {
             try { return JSON.parse(localStorage.getItem(ACCOUNT_KEY)); } catch (e) { return null; }
         }
@@ -1268,11 +1464,19 @@
             const acc = getAccount();
             return (acc && acc.playerId) ? acc.playerId : getGuestId();
         }
+        // Кубки: для акаунта — з сервера, для гостя — локально
+        function getProfileCups() {
+            const acc = getAccount();
+            if (acc && typeof acc.cups === 'number') return acc.cups;
+            return getGuestCups();
+        }
         function updateProfileUI(statusText) {
             document.getElementById('profileBtnNick').textContent = getProfileNick();
             document.getElementById('profileModalNick').textContent = getProfileNick();
             const acc = getAccount();
-            document.getElementById('profileModalId').textContent = 'ID: ' + getProfileId() + (acc ? '' : ' (гість)');
+            document.getElementById('profileModalId').textContent = (acc ? ('Логін: ' + acc.login + ' • ') : '') + 'ID: ' + getProfileId() + (acc ? '' : ' (гість)');
+            document.getElementById('profileBtnCups').textContent = '🏆 ' + getProfileCups();
+            document.getElementById('profileModalCups').textContent = '🏆 Кубки: ' + getProfileCups();
             document.getElementById('profileStatus').textContent = statusText || (acc ? '✅ Акаунт активний' : '');
         }
 
@@ -1314,11 +1518,11 @@
         document.getElementById('openRegisterBtn').addEventListener('click', () => {
             audioManager.playClickSound();
             document.getElementById('regError').textContent = '';
-            document.getElementById('regNickInput').value = '';
+            document.getElementById('regLoginInput').value = '';
             document.getElementById('regPassInput').value = '';
             document.getElementById('profileModal').style.display = 'none';
             document.getElementById('registerModal').style.display = 'flex';
-            document.getElementById('regNickInput').focus();
+            document.getElementById('regLoginInput').focus();
         });
         document.getElementById('backFromRegister').addEventListener('click', () => {
             audioManager.playClickSound();
@@ -1328,22 +1532,22 @@
         });
         async function doRegister() {
             audioManager.playClickSound();
-            const nick = document.getElementById('regNickInput').value.trim();
+            const login = document.getElementById('regLoginInput').value.trim();
             const password = document.getElementById('regPassInput').value;
             const errEl = document.getElementById('regError');
-            if (!nick || !password) {
-                errEl.textContent = 'Введіть нік і пароль!';
+            if (!login || !password) {
+                errEl.textContent = 'Введіть логін і пароль!';
                 return;
             }
             errEl.textContent = '';
             const btn = document.getElementById('confirmRegisterBtn');
             btn.disabled = true;
             try {
-                const res = await authRequest('auth-register', { nick, password });
+                const res = await authRequest('auth-register', { login, password, nick: login });
                 if (res.success) {
-                    setAccount({ playerId: res.playerId, nick: res.nick });
+                    setAccount({ playerId: res.playerId, nick: res.nick, login: res.login || res.nick, cups: (typeof res.cups === 'number') ? res.cups : 0 });
                     document.getElementById('registerModal').style.display = 'none';
-                    updateProfileUI('✅ Акаунт створено!');
+                    updateProfileUI('✅ Акаунт створено! Нік можно змінити.');
                     document.getElementById('profileModal').style.display = 'flex';
                 } else {
                     errEl.textContent = res.error || 'Помилка реєстрації';
@@ -1358,11 +1562,11 @@
         document.getElementById('openLoginBtn').addEventListener('click', () => {
             audioManager.playClickSound();
             document.getElementById('loginError').textContent = '';
-            document.getElementById('loginNickInput').value = '';
+            document.getElementById('loginLoginInput').value = '';
             document.getElementById('loginPassInput').value = '';
             document.getElementById('profileModal').style.display = 'none';
             document.getElementById('loginModal').style.display = 'flex';
-            document.getElementById('loginNickInput').focus();
+            document.getElementById('loginLoginInput').focus();
         });
         document.getElementById('backFromLogin').addEventListener('click', () => {
             audioManager.playClickSound();
@@ -1372,20 +1576,20 @@
         });
         async function doLogin() {
             audioManager.playClickSound();
-            const nick = document.getElementById('loginNickInput').value.trim();
+            const login = document.getElementById('loginLoginInput').value.trim();
             const password = document.getElementById('loginPassInput').value;
             const errEl = document.getElementById('loginError');
-            if (!nick || !password) {
-                errEl.textContent = 'Введіть нік і пароль!';
+            if (!login || !password) {
+                errEl.textContent = 'Введіть логін і пароль!';
                 return;
             }
             errEl.textContent = '';
             const btn = document.getElementById('confirmLoginBtn');
             btn.disabled = true;
             try {
-                const res = await authRequest('auth-login', { nick, password });
+                const res = await authRequest('auth-login', { login, password, nick: login });
                 if (res.success) {
-                    setAccount({ playerId: res.playerId, nick: res.nick });
+                    setAccount({ playerId: res.playerId, nick: res.nick, login: res.login || res.nick, cups: (typeof res.cups === 'number') ? res.cups : 0 });
                     document.getElementById('loginModal').style.display = 'none';
                     updateProfileUI('✅ Ви увійшли в акаунт');
                     document.getElementById('profileModal').style.display = 'flex';
@@ -1399,10 +1603,214 @@
         document.getElementById('confirmLoginBtn').addEventListener('click', doLogin);
 
         // Enter у полях вводу
-        document.getElementById('regNickInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doRegister(); });
+        document.getElementById('regLoginInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doRegister(); });
         document.getElementById('regPassInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doRegister(); });
-        document.getElementById('loginNickInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+        document.getElementById('loginLoginInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
         document.getElementById('loginPassInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+
+        // ===== Зміна ніка (кнопка ✏️ біля ніка в профілю) =====
+        // Нік можно змінити будь-коли: для акаунтів — на сервері, для гостей — локально.
+        document.getElementById('editNickBtn').addEventListener('click', () => {
+            audioManager.playClickSound();
+            document.getElementById('editNickError').textContent = '';
+            document.getElementById('editNickInput').value = getProfileNick();
+            document.getElementById('editNickModal').style.display = 'flex';
+            document.getElementById('editNickInput').focus();
+        });
+        document.getElementById('backFromEditNick').addEventListener('click', () => {
+            audioManager.playClickSound();
+            document.getElementById('editNickModal').style.display = 'none';
+        });
+        async function doChangeNick() {
+            audioManager.playClickSound();
+            const newNick = document.getElementById('editNickInput').value.trim();
+            const errEl = document.getElementById('editNickError');
+            if (!newNick) { errEl.textContent = 'Введіть новий нік!'; return; }
+            if (newNick.length > 20) { errEl.textContent = 'Нік занадто довгий (макс. 20 символів)'; return; }
+            errEl.textContent = '';
+            const btn = document.getElementById('confirmEditNickBtn');
+            btn.disabled = true;
+            try {
+                const acc = getAccount();
+                if (acc && acc.playerId) {
+                    // Зареєстрований гравець: змінюємо нік на сервері
+                    const res = await authRequest('auth-change-nick', { playerId: acc.playerId, newNick });
+                    if (res.success) {
+                        setAccount({ playerId: acc.playerId, nick: newNick, login: acc.login, cups: (typeof acc.cups === 'number') ? acc.cups : 0 });
+                        updateProfileUI('✅ Нік змінено!');
+                        document.getElementById('editNickModal').style.display = 'none';
+                    } else {
+                        errEl.textContent = res.error || 'Помилка зміни ніка';
+                    }
+                } else {
+                    // Гість — нік зберігается локально (доки не скинуться дані браузера)
+                    localStorage.setItem(GUEST_NICK_KEY, newNick);
+                    updateProfileUI('✅ Нік змінено!');
+                    document.getElementById('editNickModal').style.display = 'none';
+                }
+            } finally {
+                btn.disabled = false;
+            }
+        }
+        document.getElementById('confirmEditNickBtn').addEventListener('click', doChangeNick);
+        document.getElementById('editNickInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doChangeNick(); });
+
+        // ===== КОПІЮВАННЯ АЙДІ В ПРОФІЛІ (📋 праворуч від айді) =====
+        document.getElementById('copyProfileIdBtn').addEventListener('click', () => {
+            audioManager.playClickSound();
+            navigator.clipboard.writeText(getProfileId()).then(() => {
+                const btn = document.getElementById('copyProfileIdBtn');
+                const original = btn.textContent;
+                btn.textContent = '✓';
+                setTimeout(() => { btn.textContent = original; }, 1200);
+            }).catch(err => console.error('Failed to copy ID:', err));
+        });
+
+        // ===== ДРУЗІ =====
+        function escapeHtmlSafe(text) {
+            return String(text == null ? '' : text).replace(/[&<>"']/g, ch => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[ch]));
+        }
+
+        let cachedFriendIds = new Set();
+
+        async function loadFriendsList() {
+            const listEl = document.getElementById('friendsList');
+            const acc = getAccount();
+            if (!acc || !acc.playerId) {
+                listEl.innerHTML = '<div class="friend-empty">Друзі доступні лише зареєстрованим гравцям</div>';
+                return;
+            }
+            listEl.innerHTML = '<div class="friend-empty">Завантаження…</div>';
+            const res = await authRequest('friends-get', { playerId: acc.playerId });
+            cachedFriendIds = new Set(((res && res.friends) || []).map(f => f.id));
+            if (!res || !res.success) {
+                listEl.innerHTML = '<div class="friend-empty">' + escapeHtmlSafe((res && res.error) || 'Помилка завантаження') + '</div>';
+                return;
+            }
+            if (!res.friends.length) {
+                listEl.innerHTML = '<div class="friend-empty">Поки що немає друзів. Натисни «Додати друга»!</div>';
+                return;
+            }
+            listEl.innerHTML = res.friends.map(f =>
+                '<div class="friend-row">' +
+                    '<div style="min-width:0;">' +
+                        '<div class="friend-nick">' + escapeHtmlSafe(f.nick) + '</div>' +
+                        '<div class="friend-id">' + escapeHtmlSafe(f.id) + '</div>' +
+                    '</div>' +
+                '</div>'
+            ).join('');
+        }
+
+        document.getElementById('profileFriendsBtn').addEventListener('click', async () => {
+            audioManager.playClickSound();
+            document.getElementById('friendsModal').style.display = 'flex';
+            await loadFriendsList();
+        });
+
+        document.getElementById('backFromFriends').addEventListener('click', () => {
+            audioManager.playClickSound();
+            document.getElementById('friendsModal').style.display = 'none';
+        });
+
+        // Додавання друга за айді. Повертає true, якщо вдалося.
+        async function addUserByFriendId(friendId) {
+            const acc = getAccount();
+            if (!acc || !acc.playerId) return false;
+            const errEl = document.getElementById('addFriendError');
+            const res = await authRequest('friends-add', { playerId: acc.playerId, friendId });
+            if (!res || !res.success) {
+                errEl.style.color = '';
+                errEl.textContent = (res && res.error) || 'Помилка додавання';
+                return false;
+            }
+            errEl.style.color = '#27ae60';
+            errEl.textContent = '✓ ' + res.friend.nick + ' додано до друзів!';
+            return true;
+        }
+
+        async function loadRandomUsers() {
+            const listEl = document.getElementById('randomUsersList');
+            const acc = getAccount();
+            if (!acc || !acc.playerId) {
+                listEl.innerHTML = '<div class="friend-empty">Доступно лише зареєстрованим гравцям</div>';
+                return;
+            }
+            listEl.innerHTML = '<div class="friend-empty">Завантаження…</div>';
+            const fRes = await authRequest('friends-get', { playerId: acc.playerId });
+            cachedFriendIds = new Set(((fRes && fRes.friends) || []).map(f => f.id));
+            const res = await authRequest('users-random', { excludePlayerId: acc.playerId });
+            if (!res || !res.success) {
+                listEl.innerHTML = '<div class="friend-empty">' + escapeHtmlSafe((res && res.error) || 'Помилка завантаження') + '</div>';
+                return;
+            }
+            if (!res.users.length) {
+                listEl.innerHTML = '<div class="friend-empty">Інших гравців поки немає</div>';
+                return;
+            }
+            listEl.innerHTML = res.users.map(u => {
+                const added = cachedFriendIds.has(u.id);
+                return '<div class="friend-row">' +
+                        '<div style="min-width:0;">' +
+                            '<div class="friend-nick">' + escapeHtmlSafe(u.nick) + '</div>' +
+                            '<div class="friend-id">' + escapeHtmlSafe(u.id) + '</div>' +
+                        '</div>' +
+                        (added
+                            ? '<span class="friend-added">✓ У друзях</span>'
+                            : '<button type="button" class="add-user-btn" data-friend-id="' + escapeHtmlSafe(u.id) + '">Додати</button>') +
+                    '</div>';
+            }).join('');
+            listEl.querySelectorAll('.add-user-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    audioManager.playClickSound();
+                    btn.disabled = true;
+                    const ok = await addUserByFriendId(btn.getAttribute('data-friend-id'));
+                    if (ok) {
+                        const row = btn.closest('.friend-row');
+                        row.innerHTML = row.innerHTML.replace(btn.outerHTML, '<span class="friend-added">✓ У друзях</span>');
+                    } else {
+                        btn.disabled = false;
+                    }
+                });
+            });
+        }
+
+        document.getElementById('openAddFriendBtn').addEventListener('click', async () => {
+            audioManager.playClickSound();
+            const errEl = document.getElementById('addFriendError');
+            errEl.style.color = '';
+            errEl.textContent = '';
+            document.getElementById('friendIdInput').value = '';
+            document.getElementById('addFriendModal').style.display = 'flex';
+            await loadRandomUsers();
+        });
+
+        document.getElementById('backFromAddFriend').addEventListener('click', () => {
+            audioManager.playClickSound();
+            document.getElementById('addFriendModal').style.display = 'none';
+            document.getElementById('friendsModal').style.display = 'flex';
+            loadFriendsList();
+        });
+
+        async function confirmAddFriend() {
+            audioManager.playClickSound();
+            const val = document.getElementById('friendIdInput').value.trim();
+            const errEl = document.getElementById('addFriendError');
+            errEl.style.color = '';
+            if (!val) {
+                errEl.textContent = 'Введіть айді гравця!';
+                return;
+            }
+            errEl.textContent = '';
+            const ok = await addUserByFriendId(val);
+            if (ok) {
+                document.getElementById('friendIdInput').value = '';
+                await loadFriendsList();
+            }
+        }
+        document.getElementById('confirmAddFriendBtn').addEventListener('click', confirmAddFriend);
+        document.getElementById('friendIdInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmAddFriend(); });
 
         // Ініціалізуємо нік на кнопці профілю одразу при завантаженні сторінки
         updateProfileUI();
@@ -1411,14 +1819,18 @@
         // скидаємо локальний кеш і повертаємось у режим гостя
         (async () => {
             const acc = getAccount();
-            if (!acc || !acc.nick || !acc.playerId) return;
+            if (!acc || !acc.playerId) return;
             try {
-                const res = await authRequest('auth-validate', { nick: acc.nick, playerId: acc.playerId });
+                const res = await authRequest('auth-validate', { playerId: acc.playerId, nick: acc.login || acc.nick });
                 // Скидаємо кеш ТІЛЬКИ якщо сервер явно відповів, що акаунт не існує.
                 // Таймаут/помилка мережі (res.valid === undefined) не розлогують гравця.
                 if (res.valid === false) {
                     setAccount(null);
                     updateProfileUI('');
+                } else if (res.valid === true && res.nick) {
+                    // Синхронізуємо нік з сервера, якщо він змінився (у іншій сесії)
+                    setAccount({ playerId: acc.playerId, nick: res.nick, login: res.login || acc.login, cups: (typeof res.cups === 'number') ? res.cups : (acc.cups ?? 0) });
+                    updateProfileUI();
                 }
             } catch (e) {
                 console.warn('Не вдалося перевірити акаунт на сервері:', e);
@@ -1557,16 +1969,17 @@ document.getElementById('exitRoomBtn').addEventListener('click', () => {
                 const isCurrentUser = p.id === mySocketId;
                 const isHostPlayer = p.isHost;
                 
-                // Determine player label
+                // Determine player label (use the player's nickname instead of generic "Гравець"/"Хозяїн")
+                const productName = p.name || 'Гравець';
                 let playerLabel;
                 if (isHostPlayer && isCurrentUser) {
-                    playerLabel = 'Хозяїн (ви)';
+                    playerLabel = productName + ' (ви)';
                 } else if (isHostPlayer && !isCurrentUser) {
-                    playerLabel = 'Гравець (хозяїн)';
+                    playerLabel = productName + ' (хозяїн)';
                 } else if (!isHostPlayer && isCurrentUser) {
-                    playerLabel = 'Гравець (ви)';
+                    playerLabel = productName + ' (ви)';
                 } else {
-                    playerLabel = 'Гравець';
+                    playerLabel = productName;
                 }
                 
                 // Determine if color button should be enabled
@@ -1637,7 +2050,7 @@ document.getElementById('exitRoomBtn').addEventListener('click', () => {
                     document.getElementById('joinRoomModal').style.display = 'none';
                     document.getElementById('roomCreatedModal').style.display = 'flex';
                     document.getElementById('roomCodeDisplay').textContent = code;
-                    // Show players list (including self as "Гравець (ви)")
+                    // Show players list (including self with nickname and "(ви)" badge)
                     updatePlayersList(data.players, mySocketId);
                     // Save guest's color from server response
                     const myPlayerData = data.players.find(p => p.id === mySocketId);

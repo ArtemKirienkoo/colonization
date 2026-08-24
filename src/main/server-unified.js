@@ -63,6 +63,35 @@ function generateAccountId() {
     return 'p_' + crypto.randomBytes(8).toString('hex');
 }
 
+// Генератор випадкового ніка для нового акаунта.
+// При реєстрації гравець вводить ТІЛЬКИ логін і пароль; нік генерується сам,
+// а гравець може змінити його згодом через вікно профілю (auth-change-nick).
+function generateRandomNick() {
+    const letters = 'abcdefghijklmnopqrstuvwxyz';
+    const digits = '0123456789';
+    let nick = '';
+    // 6-8 випадкових латинських літер
+    const letterCount = 6 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < letterCount; i++) {
+        nick += letters[Math.floor(Math.random() * letters.length)];
+    }
+    // 2-4 цифри у кінець
+    const digitCount = 2 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < digitCount; i++) {
+        nick += digits[Math.floor(Math.random() * digits.length)];
+    }
+    return nick;
+}
+
+// Пошук акаунта за ID у локальному JSON-сховищі
+// (акаунти зберігаються за ключем login, тому потрібно перебрати всі значення)
+function findAccountById(playerId) {
+    for (const acc of Object.values(accounts)) {
+        if (acc && typeof acc === 'object' && acc.id === playerId) return acc;
+    }
+    return null;
+}
+
 loadAccounts();
 
 // ===== MONGODB ATLAS (постійне хмарне сховище акаунтів) =====
@@ -627,39 +656,42 @@ io.on('connection', (socket) => {
 
     // ===== AUTH: РЕЄСТРАЦІЯ АКАУНТА =====
     // Працює постійно (сервер завжди запущений), гравці можуть реєструватися будь-коли
-    socket.on('auth-register', async ({ nick, password }) => {
-        nick = String(nick || '').trim();
+    socket.on('auth-register', async ({ login, password }) => {
+        login = String(login || '').trim();
         password = String(password || '');
 
-        // Валідація: і нік, і пароль обов'язкові (поля не можуть бути порожніми)
-        if (!nick || !password) {
-            socket.emit('auth-register-result', { success: false, error: 'Введіть нік і пароль!' });
+        // Валідація: і логін, і пароль обов'язкові (поля не можуть бути порожніми)
+        if (!login || !password) {
+            socket.emit('auth-register-result', { success: false, error: 'Введіть логін і пароль!' });
             return;
         }
-        if (nick.length > 20) {
-            socket.emit('auth-register-result', { success: false, error: 'Нік занадто довгий (макс. 20 символів)' });
+        if (login.length > 20) {
+            socket.emit('auth-register-result', { success: false, error: 'Логін занадто довгий (макс. 20 символів)' });
             return;
         }
 
-        // Акаунт зберігає рівно те, що ввів гравець: нік і пароль як є
+        // Нік генерується випадково, бо при реєстрації гравець вводить тільки логін і пароль
         const account = {
             id: generateAccountId(),
-            nick: nick,
-            password: password
+            login: login,
+            nick: generateRandomNick(),
+            password: password,
+            cups: 0,
+            friends: []
         };
 
         // ===== MongoDB Atlas — ПОСТІЙНЕ сховище (акаунти не губляться) =====
         if (accountsCollection) {
             try {
-                // Ніки чутливі до регістру: "Kirik" і "kirik" — різні акаунти
-                const exists = await accountsCollection.findOne({ nick: nick });
+                // Логін чутливий до регістру: "Kirik" і "kirik" — різні акаунти
+                const exists = await accountsCollection.findOne({ login: login });
                 if (exists) {
-                    socket.emit('auth-register-result', { success: false, error: 'Такий нік вже зайнятий!' });
+                    socket.emit('auth-register-result', { success: false, error: 'Такий логін вже занятий!' });
                     return;
                 }
                 await accountsCollection.insertOne(account);
-                console.log('[auth] Registered (Atlas):', nick, '->', account.id);
-                socket.emit('auth-register-result', { success: true, playerId: account.id, nick: account.nick });
+                console.log('[auth] Registered (Atlas):', login, '->', account.id);
+                socket.emit('auth-register-result', { success: true, playerId: account.id, nick: account.nick, login: account.login, cups: account.cups || 0 });
             } catch (e) {
                 console.error('[auth] Register error:', e.message);
                 socket.emit('auth-register-result', { success: false, error: 'Помилка бази даних' });
@@ -668,9 +700,9 @@ io.on('connection', (socket) => {
         }
 
         // ===== Локальний JSON fallback (якщо Atlas не налаштований) =====
-        const key = nick;
+        const key = login;
         if (accounts[key]) {
-            socket.emit('auth-register-result', { success: false, error: 'Такий нік вже зайнятий!' });
+            socket.emit('auth-register-result', { success: false, error: 'Такий логін вже занятий!' });
             return;
         }
 
@@ -682,19 +714,20 @@ io.on('connection', (socket) => {
             return;
         }
 
-        console.log('[auth] Registered new account (local JSON):', nick, '->', account.id);
-        socket.emit('auth-register-result', { success: true, playerId: account.id, nick: account.nick });
+        console.log('[auth] Registered account (local JSON):', login, '->', account.id);
+        socket.emit('auth-register-result', { success: true, playerId: account.id, nick: account.nick, login: account.login, cups: account.cups || 0 });
     });
 
     // ===== AUTH: ПЕРЕВІРКА АКАУНТА (валідація клієнтського кешу) =====
     // Клієнт зберігає акаунт у localStorage. Цей обробник дозволяє клієнту
     // при запуску перевірити, чи акаунт досі існує в БД. Якщо ні (видалий),
     // клієнт скидає кеш і повертається в режим гостя.
-    socket.on('auth-validate', async ({ nick, playerId }) => {
-        nick = String(nick || '').trim();
+    socket.on('auth-validate', async ({ playerId }) => {
         playerId = String(playerId || '');
 
-        if (!nick || !playerId) {
+        // Валидація іде за playerId (ID акаунта стабильний), а не за ніком,
+        // бо нік гравець може змінити через вікно профілю.
+        if (!playerId) {
             socket.emit('auth-validate-result', { valid: false });
             return;
         }
@@ -702,8 +735,13 @@ io.on('connection', (socket) => {
         // ===== MongoDB Atlas =====
         if (accountsCollection) {
             try {
-                const account = await accountsCollection.findOne({ nick: nick });
-                socket.emit('auth-validate-result', { valid: !!(account && account.id === playerId) });
+                const account = await accountsCollection.findOne({ id: playerId });
+                socket.emit('auth-validate-result', {
+                    valid: !!account,
+                    nick: account ? account.nick : undefined,
+                    login: account ? account.login : undefined,
+                    cups: account ? (account.cups || 0) : undefined
+                });
             } catch (e) {
                 console.error('[auth] Validate error:', e.message);
                 // Помилка БД: не підтверджуємо і не спростовуємо акаунт
@@ -713,26 +751,31 @@ io.on('connection', (socket) => {
         }
 
         // ===== Локальний JSON fallback =====
-        const account = accounts[nick];
-        socket.emit('auth-validate-result', { valid: !!(account && account.id === playerId) });
+        const account = findAccountById(playerId);
+        socket.emit('auth-validate-result', {
+            valid: !!account,
+            nick: account ? account.nick : undefined,
+            login: account ? account.login : undefined,
+            cups: account ? (account.cups || 0) : undefined
+        });
     });
 
     // ===== AUTH: ВХІД В АКАУНТ =====
-    socket.on('auth-login', async ({ nick, password }) => {
-        nick = String(nick || '').trim();
+    socket.on('auth-login', async ({ login, password }) => {
+        login = String(login || '').trim();
         password = String(password || '');
 
-        // Валідація: і нік, і пароль обов'язкові
-        if (!nick || !password) {
-            socket.emit('auth-login-result', { success: false, error: 'Введіть нік і пароль!' });
+        // Валідація: і логін, і пароль обов'язкові
+        if (!login || !password) {
+            socket.emit('auth-login-result', { success: false, error: 'Введіть логін і пароль!' });
             return;
         }
 
         // ===== MongoDB Atlas — постійне сховище =====
         if (accountsCollection) {
             try {
-                // Нік чутливий до регістру: "Kirik" і "kirik" — різні акаунти
-                const account = await accountsCollection.findOne({ nick: nick });
+                // Логін чутливий до регістру: "Kirik" і "kirik" — різні акаунти
+                const account = await accountsCollection.findOne({ login: login });
                 if (!account) {
                     socket.emit('auth-login-result', { success: false, error: 'Такого ака не існує' });
                     return;
@@ -743,8 +786,8 @@ io.on('connection', (socket) => {
                     return;
                 }
 
-                console.log('[auth] Login (Atlas):', account.nick, '->', account.id);
-                socket.emit('auth-login-result', { success: true, playerId: account.id, nick: account.nick });
+                console.log('[auth] Login (Atlas):', account.login, '->', account.id);
+                socket.emit('auth-login-result', { success: true, playerId: account.id, nick: account.nick, login: account.login, cups: account.cups || 0 });
             } catch (e) {
                 console.error('[auth] Login error:', e.message);
                 socket.emit('auth-login-result', { success: false, error: 'Помилка бази даних' });
@@ -753,8 +796,8 @@ io.on('connection', (socket) => {
         }
 
         // ===== Локальний JSON fallback =====
-        // Нік чутливий до регістру: "Kirik" і "kirik" — різні акаунти
-        const account = accounts[nick];
+        // Логін чутливий до регістру: "Kirik" і "kirik" — різні акаунти
+        const account = accounts[login];
         if (!account) {
             socket.emit('auth-login-result', { success: false, error: 'Такого ака не існує' });
             return;
@@ -765,8 +808,209 @@ io.on('connection', (socket) => {
             return;
         }
 
-        console.log('[auth] Login (local JSON):', account.nick, '->', account.id);
-        socket.emit('auth-login-result', { success: true, playerId: account.id, nick: account.nick });
+        console.log('[auth] Login (local JSON):', account.login, '->', account.id);
+        socket.emit('auth-login-result', { success: true, playerId: account.id, nick: account.nick, login: account.login, cups: account.cups || 0 });
+    });
+
+    // ===== AUTH: ЗМІНА НІКА =====
+    // Нік можна змінити будь-коли через вікно профілю (кнопка ✏️ біля ніка).
+    socket.on('auth-change-nick', async ({ playerId, newNick }) => {
+        playerId = String(playerId || '');
+        newNick = String(newNick || '').trim();
+
+        if (!playerId || !newNick) {
+            socket.emit('auth-change-nick-result', { success: false, error: 'Введіть новий нік!' });
+            return;
+        }
+        if (newNick.length > 20) {
+            socket.emit('auth-change-nick-result', { success: false, error: 'Нік занадто довгий (макс. 20 символів)' });
+            return;
+        }
+
+        // ===== MongoDB Atlas =====
+        if (accountsCollection) {
+            try {
+                const account = await accountsCollection.findOne({ id: playerId });
+                if (!account) {
+                    socket.emit('auth-change-nick-result', { success: false, error: 'Акаунт не знайдено' });
+                    return;
+                }
+                await accountsCollection.updateOne({ id: playerId }, { $set: { nick: newNick } });
+                console.log('[auth] Nick changed (Atlas):', account.login, '->', newNick);
+                socket.emit('auth-change-nick-result', { success: true, playerId, nick: newNick, login: account.login, cups: account.cups || 0 });
+            } catch (e) {
+                console.error('[auth] Change nick error:', e.message);
+                socket.emit('auth-change-nick-result', { success: false, error: 'Помилка бази даних' });
+            }
+            return;
+        }
+
+        // ===== Локальний JSON fallback =====
+        const account = findAccountById(playerId);
+        if (!account) {
+            socket.emit('auth-change-nick-result', { success: false, error: 'Акаунт не знайдено' });
+            return;
+        }
+
+        account.nick = newNick;
+        if (!saveAccounts()) {
+            socket.emit('auth-change-nick-result', { success: false, error: 'Помилка збереження на сервері' });
+            return;
+        }
+
+        console.log('[auth] Nick changed (local JSON):', account.login, '->', newNick);
+        socket.emit('auth-change-nick-result', { success: true, playerId, nick: newNick, login: account.login, cups: account.cups || 0 });
+    });
+
+    // ===== FRIENDS: СПИСОК ДРУЗІВ =====
+    socket.on('friends-get', async ({ playerId }) => {
+        playerId = String(playerId || '');
+
+        if (!playerId) {
+            socket.emit('friends-get-result', { success: false, error: 'Не вказано айді гравця' });
+            return;
+        }
+
+        // ===== MongoDB Atlas =====
+        if (accountsCollection) {
+            try {
+                const me = await accountsCollection.findOne({ id: playerId });
+                if (!me) {
+                    socket.emit('friends-get-result', { success: false, error: 'Акаунт не знайдено' });
+                    return;
+                }
+                const ids = Array.isArray(me.friends) ? me.friends : [];
+                let friends = [];
+                if (ids.length > 0) {
+                    const docs = await accountsCollection.find(
+                        { id: { $in: ids } },
+                        { projection: { _id: 0, id: 1, nick: 1 } }
+                    ).toArray();
+                    const byId = new Map(docs.map(d => [d.id, d.nick]));
+                    // Зберігаємо порядок додавання; нік підтягуємо актуальний
+                    friends = ids.map(fid => ({ id: fid, nick: byId.get(fid) || 'Гравець' }));
+                }
+                socket.emit('friends-get-result', { success: true, friends });
+            } catch (e) {
+                console.error('[friends] Get error:', e.message);
+                socket.emit('friends-get-result', { success: false, error: 'Помилка бази даних' });
+            }
+            return;
+        }
+
+        // ===== Локальний JSON fallback =====
+        const me = findAccountById(playerId);
+        if (!me) {
+            socket.emit('friends-get-result', { success: false, error: 'Акаунт не знайдено' });
+            return;
+        }
+                const ids = Array.isArray(me.friends) ? me.friends : [];
+        const friends = ids.map(fid => {
+            const f = findAccountById(fid);
+            return { id: fid, nick: (f && f.nick) || 'Гравець' };
+        });
+        socket.emit('friends-get-result', { success: true, friends });
+    });
+
+    // ===== FRIENDS: ДОДАВАННЯ ДРУГА =====
+    socket.on('friends-add', async ({ playerId, friendId }) => {
+        playerId = String(playerId || '').trim();
+        friendId = String(friendId || '').trim();
+
+        if (!playerId || !friendId) {
+            socket.emit('friends-add-result', { success: false, error: 'Введіть айді гравця!' });
+            return;
+        }
+        if (playerId === friendId) {
+            socket.emit('friends-add-result', { success: false, error: 'Не можна додати в друзі самого себе!' });
+            return;
+        }
+
+        // ===== MongoDB Atlas =====
+        if (accountsCollection) {
+            try {
+                const me = await accountsCollection.findOne({ id: playerId });
+                if (!me) {
+                    socket.emit('friends-add-result', { success: false, error: 'Акаунт не знайдено' });
+                    return;
+                }
+                const fr = await accountsCollection.findOne({ id: friendId });
+                if (!fr) {
+                    socket.emit('friends-add-result', { success: false, error: 'Гравця з таким айді не знайдено' });
+                    return;
+                }
+                const mine = Array.isArray(me.friends) ? me.friends : [];
+                if (mine.includes(friendId)) {
+                    socket.emit('friends-add-result', { success: false, error: 'Цей гравець вже у твоїх друзях' });
+                    return;
+                }
+                await accountsCollection.updateOne({ id: playerId }, { $addToSet: { friends: friendId } });
+                console.log('[friends] Added (Atlas):', me.login, '->', fr.nick);
+                socket.emit('friends-add-result', { success: true, friend: { id: fr.id, nick: fr.nick } });
+            } catch (e) {
+                console.error('[friends] Add error:', e.message);
+                socket.emit('friends-add-result', { success: false, error: 'Помилка бази даних' });
+            }
+            return;
+        }
+
+        // ===== Локальний JSON fallback =====
+        const me = findAccountById(playerId);
+        if (!me) {
+            socket.emit('friends-add-result', { success: false, error: 'Акаунт не знайдено' });
+            return;
+        }
+        const fr = findAccountById(friendId);
+        if (!fr) {
+            socket.emit('friends-add-result', { success: false, error: 'Гравця з таким айді не знайдено' });
+            return;
+        }
+        me.friends = Array.isArray(me.friends) ? me.friends : [];
+        if (me.friends.includes(friendId)) {
+            socket.emit('friends-add-result', { success: false, error: 'Цей гравець вже у твоїх друзях' });
+            return;
+        }
+        me.friends.push(friendId);
+        if (!saveAccounts()) {
+            socket.emit('friends-add-result', { success: false, error: 'Помилка збереження на сервері' });
+            return;
+        }
+        console.log('[friends] Added (local JSON):', me.login, '->', fr.nick);
+        socket.emit('friends-add-result', { success: true, friend: { id: fr.id, nick: fr.nick } });
+    });
+
+    // ===== USERS: ВИПАДКОВИЙ СПИСОК РЕАЛЬНИХ АКАУНТІВ (для додавання в друзі) =====
+    socket.on('users-random', async ({ excludePlayerId }) => {
+        excludePlayerId = String(excludePlayerId || '');
+        const LIMIT = 12;
+
+        // ===== MongoDB Atlas =====
+        if (accountsCollection) {
+            try {
+                const matchStage = excludePlayerId ? { id: { $ne: excludePlayerId } } : {};
+                const docs = await accountsCollection.aggregate([
+                    { $match: matchStage },
+                    { $sample: { size: LIMIT } },
+                    { $project: { _id: 0, id: 1, nick: 1 } }
+                ]).toArray();
+                socket.emit('users-random-result', { success: true, users: docs });
+            } catch (e) {
+                console.error('[users] Random error:', e.message);
+                socket.emit('users-random-result', { success: false, error: 'Помилка бази даних' });
+            }
+            return;
+        }
+
+        // ===== Локальний JSON fallback =====
+        const pool = Object.values(accounts).filter(a =>
+            a && typeof a === 'object' && a.id && a.id !== excludePlayerId
+        );
+        for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [pool[i], pool[j]] = [pool[j], pool[i]];
+        }
+        const users = pool.slice(0, LIMIT).map(a => ({ id: a.id, nick: a.nick }));
+        socket.emit('users-random-result', { success: true, users });
     });
 
     // Create room
