@@ -965,7 +965,6 @@
             const statusEl = document.getElementById('serverLoadingStatus');
             const dotsEl = document.getElementById('serverLoadingDots');
             const SERVER_URL = 'https://colonization.onrender.com';
-            const MIN_SHOW_MS = 2500;      // мінімальний час показу екрана загрузки
             const SERVER_TIMEOUT_MS = 20000; // скільки очікувати відповіді сервера
 
             let progress = 0;
@@ -1031,17 +1030,18 @@
                 clearInterval(dotsTimer);
                 if (dotsEl) dotsEl.textContent = '';
                 if (statusEl) statusEl.textContent = serverOnline ? 'Сервер запущено' : 'Сервер недоступний';
-                renderProgress(100);
 
-                // Тримаємо екран ще якийсь час (мінімальний час показу + пауза на 100%)
-                const elapsed = Date.now() - startedAt;
-                const waitMs = Math.max(0, MIN_SHOW_MS - elapsed) + 600;
+                // Плавно доводимо полоску до 100% і ОДРАЗУ після цього ховаємо екран.
+                // Жодних штучних затримок: 100% означає, що сервер вже готовий.
+                const FILL_MS = 500; // тривалість фінального заповнення до 100%
+                if (fillEl) fillEl.style.transition = 'width ' + FILL_MS + 'ms ease';
+                renderProgress(100);
 
                 setTimeout(() => {
                     loadingScreen.classList.add('fade-out');
                     document.body.classList.remove('boot-loading');
                     setTimeout(() => loadingScreen.remove(), 800);
-                }, waitMs);
+                }, FILL_MS);
             }
 
             // Повна загрузка сторінки (шрифти, скрипти тощо), з страховочним лімітом
