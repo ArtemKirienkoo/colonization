@@ -62,6 +62,67 @@ function saveAccounts() {
 function generateAccountId() {
     return 'p_' + crypto.randomBytes(8).toString('hex');
 }
+// ===== ХЕШУВАННЯ ПАРОЛІВ (scrypt) =====
+// Паролі НІКОЛИ не зберігаються у відкритому вигляді. Замість цього зберігається
+// рядок формату "scrypt$<salt-hex>$<hash-hex>". Для кожного пароля генерується
+// власна випадкова сіль, тому однакові паролі дають різні хеші.
+const SCRYPT_KEYLEN = 64; // довжина похідного ключа в байтах
+
+// Чи збережений пароль вже є scrypt-хешем (а не легасі-відкритим текстом)
+function isHashedPassword(stored) {
+    return typeof stored === 'string' && stored.startsWith('scrypt$');
+}
+
+// Хешує пароль: випадкова сіль + scrypt (памʼяттєстійка KDF, розрахована саме на паролі)
+function hashPassword(password) {
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = crypto.scryptSync(String(password), salt, SCRYPT_KEYLEN).toString('hex');
+    return 'scrypt$' + salt + '$' + hash;
+}
+
+// Перевіряє введений проти збереженого. Підтримує і легасі-паролі у відкритому
+// вигляді (щоб старі акаунти могли увійти до міграції), і scrypt-хеші.
+// Порівняння хешів — через timingSafeEqual (захист від timing-атак).
+function verifyPassword(password, stored) {
+    if (typeof stored !== 'string') return false;
+    if (!isHashedPassword(stored)) {
+        // Легасі: пароль ще збережений відкритим текстом (до міграції)
+        return stored === String(password);
+    }
+    try {
+        const parts = stored.split('$');
+        if (parts.length !== 3 || parts[0] !== 'scrypt') return false;
+        const [, salt, expectedHex] = parts;
+        const expected = Buffer.from(expectedHex, 'hex');
+        const actual = crypto.scryptSync(String(password), salt, SCRYPT_KEYLEN);
+        return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+    } catch (e) {
+        console.error('[auth] Password verification error:', e.message);
+        return false;
+    }
+}
+
+// Одноразова міграція локального JSON-сховища: відкриті паролі -> scrypt-хеші
+function migratePlaintextPasswordsToHashes() {
+    let changed = false;
+    for (const acc of Object.values(accounts)) {
+        if (
+            acc && typeof acc === 'object' &&
+            typeof acc.password === 'string' &&
+            acc.password.length > 0 &&
+            !isHashedPassword(acc.password)
+        ) {
+            acc.password = hashPassword(acc.password);
+            changed = true;
+        }
+    }
+    if (changed) {
+        saveAccounts();
+        console.log('[auth] Migrated local account passwords to scrypt hashes');
+    }
+}
+
+
 
 // Генератор випадкового ніка для нового акаунта.
 // При реєстрації гравець вводить ТІЛЬКИ логін і пароль; нік генерується сам,
@@ -117,6 +178,7 @@ function migrateFriendsArraysToNicks() {
 
 loadAccounts();
 migrateFriendsArraysToNicks();
+migratePlaintextPasswordsToHashes(); // одноразова конвертація відкритих паролів у хеші
 
 // ===== MONGODB ATLAS (постійне хмарне сховище акаунтів) =====
 // Якщо задана змінна середовища MONGODB_URI (рядок підключення з Atlas),
@@ -145,6 +207,16 @@ async function initAccountsStorage() {
             if (JSON.stringify(f) !== JSON.stringify(a.friends) || JSON.stringify(r) !== JSON.stringify(a.requests)) {
                 await accountsCollection.updateOne({ id: a.id }, { $set: { friends: f, requests: r } });
                 console.log('[friends] Migrated to nicks:', a.login);
+            }
+        }
+        // Одноразова міграція БД: паролі у відкритому вигляді -> scrypt-хеші
+        for (const a of all) {
+            if (
+                a && typeof a.password === 'string' &&
+                a.password.length > 0 && !isHashedPassword(a.password)
+            ) {
+                await accountsCollection.updateOne({ id: a.id }, { $set: { password: hashPassword(a.password) } });
+                console.log('[auth] Hashed legacy plaintext password for:', a.login);
             }
         }
     } catch (e) {
@@ -757,7 +829,8 @@ io.on('connection', (socket) => {
             id: generateAccountId(),
             login: login,
             nick: generateRandomNick(),
-            password: password,
+            // Пароль зберігається ТІЛЬКИ як scrypt-хеш (відкритий текст не пишемо в БД ніколи)
+            password: hashPassword(password),
             cups: 0,
             // Айді друзів (потрапляють сюди після взаємного підтвердження запиту)
             friends: [],
@@ -872,9 +945,17 @@ io.on('connection', (socket) => {
                     return;
                 }
 
-                if (account.password !== password) {
+                if (!verifyPassword(password, account.password)) {
                     socket.emit('auth-login-result', { success: false, error: 'Невірний пароль!' });
                     return;
+                }
+
+                // Самозцілення: якщо цей акаунт досі має легасі-пароль відкритим
+                // текстом — після успішного входу одразу замінюємо його на хеш
+                if (!isHashedPassword(account.password)) {
+                    try {
+                        await accountsCollection.updateOne({ id: account.id }, { $set: { password: hashPassword(password) } });
+                    } catch (_) { /* не критично: стартова міграція підхопить пізніше */ }
                 }
 
                 console.log('[auth] Login (Atlas):', account.login, '->', account.id);
@@ -894,9 +975,16 @@ io.on('connection', (socket) => {
             return;
         }
 
-        if (account.password !== password) {
+        if (!verifyPassword(password, account.password)) {
             socket.emit('auth-login-result', { success: false, error: 'Невірний пароль!' });
             return;
+        }
+
+        // Самозцілення: якщо цей акаунт досі має легасі-пароль відкритим
+        // текстом — після успішного входу одразу замінюємо його на хеш
+        if (!isHashedPassword(account.password)) {
+            account.password = hashPassword(password);
+            saveAccounts();
         }
 
         console.log('[auth] Login (local JSON):', account.login, '->', account.id);
