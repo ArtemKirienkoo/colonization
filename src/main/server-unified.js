@@ -1301,6 +1301,7 @@ io.on('connection', (socket) => {
         if (accountsCollection) {
             try {
                 const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                // Пошук СТРОГО за айді (префікс, щоб працював живий пошук під час вводу)
                 const matchStage = { id: { $ne: excludePlayerId, $regex: '^' + escaped, $options: 'i' } };
                 const me = await accountsCollection.findOne({ id: excludePlayerId });
                 const myNick = me ? me.nick : '';
@@ -1308,8 +1309,11 @@ io.on('connection', (socket) => {
                 const myRequests = new Set((me && Array.isArray(me.requests)) ? me.requests : []);
                 const docs = await accountsCollection.aggregate([
                     { $match: matchStage },
-                    { $limit: LIMIT }
+                    { $limit: LIMIT },
+                    { $project: { _id: 0, id: 1, nick: 1, requests: 1 } }
                 ]).toArray();
+                // Точний збіг айді — першим у списку
+                docs.sort((a, b) => (a.id.toLowerCase() === q ? 0 : 1) - (b.id.toLowerCase() === q ? 0 : 1));
                 const users = docs.map(d => {
                     let status = 'none';
                     if (myFriends.has(d.nick)) status = 'friend';
@@ -1334,6 +1338,8 @@ io.on('connection', (socket) => {
             a && typeof a === 'object' && a.id && a.id !== excludePlayerId &&
             String(a.id).toLowerCase().startsWith(q)
         );
+        // Точний збіг айді — першим у списку
+        pool.sort((a, b) => (a.id.toLowerCase() === q ? 0 : 1) - (b.id.toLowerCase() === q ? 0 : 1));
         const users = pool.slice(0, LIMIT).map(a => {
             let status = 'none';
             if (myFriends.has(a.nick)) status = 'friend';
