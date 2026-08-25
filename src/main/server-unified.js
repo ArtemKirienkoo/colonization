@@ -5,6 +5,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
 const crypto = require('crypto');
+const https = require('https');
 const fs = require('fs');
 
 const app = express();
@@ -219,6 +220,9 @@ async function initAccountsStorage() {
                 console.log('[auth] Hashed legacy plaintext password for:', a.login);
             }
         }
+        // Унікальні індекси для привʼязки Google/email (sparse — бо поле є не в всіх)
+        try { await accountsCollection.createIndex({ email: 1 }, { unique: true, sparse: true }); } catch (_) {}
+        try { await accountsCollection.createIndex({ googleId: 1 }, { unique: true, sparse: true }); } catch (_) {}
     } catch (e) {
         console.error('[auth] MongoDB connection FAILED, falling back to local JSON:', e.message);
         accountsCollection = null;
@@ -227,7 +231,197 @@ async function initAccountsStorage() {
 
 initAccountsStorage();
 
+// ===== GOOGLE OAUTH (вхід / реєстрація / прив'язка акаунта через Google) =====
+// Схема для Electron: гра через socket.io створює сесію (google-auth-start) і відкриває
+// системний браузер на /google-auth?session=KEY; користувач логіниться через Google,
+// Google повертає код на /api/auth/google/callback, сервер обмінює код на профіль і
+// позначає сесію готовою; гра опитує google-auth-poll і отримує акаунт з усіма даними.
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+// Тестовий режим: емулює відповідь Google без реальних ключів (автотести/розробка)
+const TEST_FAKE_GOOGLE = process.env.TEST_FAKE_GOOGLE === 'true';
+const GOOGLE_AUTH_ENABLED = TEST_FAKE_GOOGLE || !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET);
+const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || 'https://colonization.onrender.com').replace(/\/+$/, '');
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || (PUBLIC_BASE_URL + '/api/auth/google/callback');
+
+// Параїнг-сесії: sessionKey -> { status:'pending'|'done'|'error', createdAt, linkPlayerId, result?, error? }
+const googleAuthSessions = new Map();
+const GOOGLE_SESSION_TTL = 10 * 60 * 1000; // 10 хвилин на весь прохід
+
+function createGoogleAuthSession(linkPlayerId) {
+    const key = crypto.randomBytes(24).toString('hex');
+    googleAuthSessions.set(key, { status: 'pending', createdAt: Date.now(), linkPlayerId: linkPlayerId || null });
+    return key;
+}
+
+// Періодичне чищення протермінованих сесій
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, s] of googleAuthSessions) {
+        if (now - s.createdAt > GOOGLE_SESSION_TTL) googleAuthSessions.delete(key);
+    }
+}, 60 * 1000).unref();
+
+function buildGoogleConsentUrl(sessionKey) {
+    const params = new URLSearchParams({
+        client_id: GOOGLE_CLIENT_ID,
+        redirect_uri: GOOGLE_REDIRECT_URI,
+        response_type: 'code',
+        scope: 'openid email profile',
+        state: sessionKey,
+        access_type: 'online',
+        prompt: 'select_account'
+    });
+    return 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
+}
+
+// Обмін коду на профіль (sub + email). id_token отримано напряму від токен-ендпоінту
+// Google по HTTPS — payload можна довіряти без перевірки підпису (стандартна практика).
+function exchangeGoogleCodeForUserInfo(code) {
+    return new Promise((resolve, reject) => {
+        if (TEST_FAKE_GOOGLE) {
+            setImmediate(() => resolve({
+                sub: 'test-google-id-' + String(code).slice(-12),
+                email: 'tester.' + String(code).slice(-8).toLowerCase() + '@example.com',
+                email_verified: true
+            }));
+            return;
+        }
+        const body = new URLSearchParams({
+            code: code,
+            client_id: GOOGLE_CLIENT_ID,
+            client_secret: GOOGLE_CLIENT_SECRET,
+            redirect_uri: GOOGLE_REDIRECT_URI,
+            grant_type: 'authorization_code'
+        }).toString();
+        const req = https.request({
+            hostname: 'oauth2.googleapis.com',
+            path: '/token',
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body) }
+        }, (res) => {
+            let data = '';
+            res.on('data', (c) => { data += c; });
+            res.on('end', () => {
+                try {
+                    const json = JSON.parse(data);
+                    if (!json.id_token) return reject(new Error(json.error_description || json.error || 'Google не повернув id_token'));
+                    const payload = JSON.parse(Buffer.from(json.id_token.split('.')[1], 'base64').toString('utf8'));
+                    if (payload.aud && payload.aud !== GOOGLE_CLIENT_ID) return reject(new Error('id_token виданий іншому клієнту'));
+                    resolve({ sub: String(payload.sub || ''), email: payload.email ? String(payload.email).toLowerCase() : '', email_verified: !!payload.email_verified });
+                } catch (e) { reject(e); }
+            });
+        });
+        req.on('error', reject);
+        req.setTimeout(15000, () => req.destroy(new Error('Таймаут запиту до Google')));
+        req.write(body);
+        req.end();
+    });
+}
+
 // Generate random room code
+// Пошук акаунта за Google ID / email / playerId (Atlas або локальний JSON)
+async function findAccountByGoogleId(googleId) {
+    if (!googleId) return null;
+    if (accountsCollection) return accountsCollection.findOne({ googleId: googleId });
+    for (const acc of Object.values(accounts)) {
+        if (acc && typeof acc === 'object' && acc.googleId === googleId) return acc;
+    }
+    return null;
+}
+async function findAccountByEmail(email) {
+    const norm = String(email || '').toLowerCase();
+    if (!norm) return null;
+    if (accountsCollection) return accountsCollection.findOne({ email: norm });
+    for (const acc of Object.values(accounts)) {
+        if (acc && typeof acc === 'object' && String(acc.email || '').toLowerCase() === norm) return acc;
+    }
+    return null;
+}
+async function findAccountByIdAsync(playerId) {
+    if (!playerId) return null;
+    if (accountsCollection) return accountsCollection.findOne({ id: playerId });
+    return findAccountById(playerId);
+}
+
+function sanitizeLoginBase(str) {
+    const cleaned = String(str || '').toLowerCase().replace(/[^a-z0-9_]/g, '');
+    return cleaned.slice(0, 15) || 'player';
+}
+
+// Створення нового акаунта з Google-профілю (без пароля — вхід лише через Google)
+async function createAccountFromGoogle(googleId, email) {
+    let login = '';
+    const base = sanitizeLoginBase(String(email || '').split('@')[0]);
+    for (let i = 0; i < 50 && !login; i++) {
+        const candidate = i === 0 ? base : base + i;
+        const taken = accountsCollection ? (await accountsCollection.findOne({ login: candidate })) : !!accounts[candidate];
+        if (!taken) login = candidate;
+    }
+    if (!login) login = 'g' + crypto.randomBytes(4).toString('hex');
+    const account = {
+        id: generateAccountId(),
+        login: login,
+        nick: generateRandomNick(),
+        password: '',            // пароля немає: такий акаунт входить тільки через Google
+        email: String(email || ''),
+        emailVerified: true,     // Google сам підтверджує пошту власника
+        googleId: googleId,
+        cups: 0,
+        friends: [],
+        requests: []
+    };
+    for (let i = 0; i < 20; i++) {
+        const nickTaken = accountsCollection ? (await accountsCollection.findOne({ nick: account.nick })) : !!findAccountByNick(account.nick);
+        if (!nickTaken) break;
+        account.nick = generateRandomNick();
+    }
+    if (accountsCollection) {
+        await accountsCollection.insertOne(account);
+    } else {
+        accounts[account.login] = account;
+        saveAccounts();
+    }
+    return account;
+}
+
+// Головна логіка після успішного Google-логіну: прив'язка АБО вхід/створення
+async function handleGoogleIdentity(info, session) {
+    const { sub, email } = info;
+    // --- Прив'язка до вже залогіненого акаунта ---
+    if (session.linkPlayerId) {
+        const target = await findAccountByIdAsync(session.linkPlayerId);
+        if (!target) throw new Error('Акаунт для привʼязки не знайдено');
+        const already = await findAccountByGoogleId(sub);
+        if (already && already.id !== target.id) throw new Error('Цей Google-акаунт вже привʼязаний до іншого акаунта гри');
+        if (email) {
+            const byEmail = await findAccountByEmail(email);
+            if (byEmail && byEmail.id !== target.id) throw new Error('Ця електронна пошта вже використовується іншим акаунтом');
+        }
+        const update = { googleId: sub };
+        if (email && !target.email) update.email = email; // наявну пошту не перезаписуємо
+        if (accountsCollection) {
+            await accountsCollection.updateOne({ id: target.id }, { $set: update });
+        } else {
+            Object.assign(target, update);
+            saveAccounts();
+        }
+        console.log('[google] Linked Google account to:', target.login);
+        return { mode: 'link', account: Object.assign({}, target, update) };
+    }
+    // --- Вхід або реєстрація ---
+    let account = await findAccountByGoogleId(sub);
+    let created = false;
+    if (!account) {
+        account = await createAccountFromGoogle(sub, email);
+        created = true;
+        console.log('[google] Created account from Google:', account.login);
+    } else {
+        console.log('[google] Login via Google:', account.login);
+    }
+    return { mode: created ? 'created' : 'login', account: account };
+}
+
 function generateRoomCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = '';
@@ -258,6 +452,73 @@ function createDevCardDeck() {
     
     return deck;
 }
+
+// ===== GOOGLE: сторінки браузера та колбек =====
+function googleHtmlPage(bodyHtml) {
+    return '<!DOCTYPE html><html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+        + '<title>Colonization — Google</title><style>body{font-family:sans-serif;background:#1a1a2e;color:#eee;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center}'
+        + '.box{max-width:440px;padding:32px;border-radius:12px;background:#24243e;word-break:break-word}h2{margin-top:0}'
+        + 'a.gbtn{display:inline-block;margin-top:16px;padding:14px 28px;background:#fff;color:#3c4043;border-radius:6px;text-decoration:none;font-weight:600;font-size:16px}</style></head>'
+        + '<body><div class="box">' + bodyHtml + '</div></body></html>';
+}
+
+// Крок 1: сторінка, яку відкриває системний браузер (посилання надсилає гра)
+app.get('/google-auth', (req, res) => {
+    const sessionKey = String(req.query.session || '');
+    if (!GOOGLE_AUTH_ENABLED) {
+        return res.status(503).send(googleHtmlPage('<h2>Google-вхід не налаштований</h2><p>Сервер працює без GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET.</p>'));
+    }
+    const session = googleAuthSessions.get(sessionKey);
+    if (!session || session.status !== 'pending') {
+        return res.status(400).send(googleHtmlPage('<h2>Посилання недійсне</h2><p>Воно протермінувалося або вже використане. Поверніться у гру і натисніть кнопку ще раз.</p>'));
+    }
+    const actionUrl = TEST_FAKE_GOOGLE
+        ? ('/api/auth/google/fake-consent?state=' + encodeURIComponent(sessionKey))
+        : buildGoogleConsentUrl(sessionKey);
+    res.send(googleHtmlPage('<h2>Colonization</h2><p>Продовжіть вхід через акаунт Google:</p><a class="gbtn" href="' + actionUrl + '">Увійти через Google</a>'));
+});
+
+// Тестова емуляція екрану згоди Google (лише для TEST_FAKE_GOOGLE)
+if (TEST_FAKE_GOOGLE) {
+    app.get('/api/auth/google/fake-consent', (req, res) => {
+        const state = String(req.query.state || '');
+        res.redirect('/api/auth/google/callback?code=fakecode' + crypto.randomBytes(6).toString('hex') + '&state=' + encodeURIComponent(state));
+    });
+}
+
+// Крок 2: Google повертає код сюди; обмінюємо на профіль і завершуємо сесію
+app.get('/api/auth/google/callback', async (req, res) => {
+    try {
+        if (!GOOGLE_AUTH_ENABLED) return res.status(503).send(googleHtmlPage('<h2>Google-вхід не налаштований</h2>'));
+        const code = String(req.query.code || '');
+        const state = String(req.query.state || '');
+        const session = googleAuthSessions.get(state);
+        if (!code || !session || session.status !== 'pending') {
+            return res.status(400).send(googleHtmlPage('<h2>Посилання протермінувалося</h2><p>Поверніться у гру і спробуйте ще раз.</p>'));
+        }
+        const info = await exchangeGoogleCodeForUserInfo(code);
+        if (!info.sub) throw new Error('Google не повернув ідентифікатор акаунта');
+        const outcome = await handleGoogleIdentity(info, session);
+        session.status = 'done';
+        session.result = {
+            mode: outcome.mode,
+            playerId: outcome.account.id,
+            nick: outcome.account.nick,
+            login: outcome.account.login,
+            cups: outcome.account.cups || 0,
+            email: outcome.account.email || '',
+            googleLinked: true
+        };
+        console.log('[google] Session done:', outcome.mode, '->', outcome.account.login);
+        const verb = outcome.mode === 'created' ? 'створено' : (outcome.mode === 'link' ? 'привʼязано' : 'підтверджено');
+        res.send(googleHtmlPage('<h2>✅ Готово!</h2><p>Акаунт успішно ' + verb + '. Поверніться у гру — вхід виконається автоматично.</p>'));
+    } catch (e) {
+        console.error('[google] Callback error:', e.message);
+        const session = googleAuthSessions.get(String(req.query.state || ''));
+        if (session && session.status === 'pending') { session.status = 'error'; session.error = e.message; }
+        res.status(500).send(googleHtmlPage('<h2>Не вдалося увійти</h2><p>' + String(e.message || e).replace(/</g, '&lt;') + '</p>'));
+    }
+});
 
 // ===== PRESENCE (хто зараз в мережі / у грі) =====
 const presenceBySocket = new Map(); // socketId -> { playerId, inGame }
@@ -808,6 +1069,55 @@ io.on('connection', (socket) => {
         }
     });
 
+    // ===== AUTH: GOOGLE (вхід / реєстрація / прив'язка через системний браузер) =====
+    socket.on('google-auth-start', async ({ playerId }) => {
+        try {
+            if (!GOOGLE_AUTH_ENABLED) {
+                socket.emit('google-auth-start-result', { success: false, error: 'На сервері не налаштовано вхід через Google' });
+                return;
+            }
+            playerId = String(playerId || '');
+            if (playerId) {
+                const target = await findAccountByIdAsync(playerId);
+                if (!target) {
+                    socket.emit('google-auth-start-result', { success: false, error: 'Акаунт не знайдено' });
+                    return;
+                }
+                if (target.googleId) {
+                    socket.emit('google-auth-start-result', { success: false, error: 'До цього акаунта вже привʼязаний Google' });
+                    return;
+                }
+            }
+            const sessionKey = createGoogleAuthSession(playerId || null);
+            const url = PUBLIC_BASE_URL + '/google-auth?session=' + encodeURIComponent(sessionKey);
+            socket.emit('google-auth-start-result', { success: true, url: url, sessionKey: sessionKey });
+        } catch (e) {
+            console.error('[google] Start error:', e.message);
+            socket.emit('google-auth-start-result', { success: false, error: 'Помилка запуску Google-входу' });
+        }
+    });
+
+    // Гра опитує стан сесії кожні кілька секунд, доки браузерна частина не завершиться
+    socket.on('google-auth-poll', ({ sessionKey }) => {
+        const key = String(sessionKey || '');
+        const s = googleAuthSessions.get(key);
+        if (!s) {
+            socket.emit('google-auth-poll-result', { status: 'error', error: 'Сесію не знайдено або вона протермінувалася' });
+            return;
+        }
+        if (s.status === 'pending') {
+            socket.emit('google-auth-poll-result', { status: 'pending' });
+            return;
+        }
+        // Результат одноразовий: після видачі сесія знищується
+        googleAuthSessions.delete(key);
+        if (s.status === 'error') {
+            socket.emit('google-auth-poll-result', { status: 'error', error: s.error || 'Помилка Google-входу' });
+            return;
+        }
+        socket.emit('google-auth-poll-result', Object.assign({ status: 'done' }, s.result));
+    });
+
     // ===== AUTH: РЕЄСТРАЦІЯ АКАУНТА =====
     // Працює постійно (сервер завжди запущений), гравці можуть реєструватися будь-коли
     socket.on('auth-register', async ({ login, password }) => {
@@ -904,7 +1214,9 @@ io.on('connection', (socket) => {
                     valid: !!account,
                     nick: account ? account.nick : undefined,
                     login: account ? account.login : undefined,
-                    cups: account ? (account.cups || 0) : undefined
+                    cups: account ? (account.cups || 0) : undefined,
+                    email: account ? (account.email || '') : undefined,
+                    googleLinked: account ? !!account.googleId : undefined
                 });
             } catch (e) {
                 console.error('[auth] Validate error:', e.message);
@@ -920,7 +1232,9 @@ io.on('connection', (socket) => {
             valid: !!account,
             nick: account ? account.nick : undefined,
             login: account ? account.login : undefined,
-            cups: account ? (account.cups || 0) : undefined
+            cups: account ? (account.cups || 0) : undefined,
+            email: account ? (account.email || '') : undefined,
+            googleLinked: account ? !!account.googleId : undefined
         });
     });
 
@@ -959,7 +1273,7 @@ io.on('connection', (socket) => {
                 }
 
                 console.log('[auth] Login (Atlas):', account.login, '->', account.id);
-                socket.emit('auth-login-result', { success: true, playerId: account.id, nick: account.nick, login: account.login, cups: account.cups || 0 });
+                socket.emit('auth-login-result', { success: true, playerId: account.id, nick: account.nick, login: account.login, cups: account.cups || 0, email: account.email || '', googleLinked: !!account.googleId });
             } catch (e) {
                 console.error('[auth] Login error:', e.message);
                 socket.emit('auth-login-result', { success: false, error: 'Помилка бази даних' });
@@ -988,7 +1302,7 @@ io.on('connection', (socket) => {
         }
 
         console.log('[auth] Login (local JSON):', account.login, '->', account.id);
-        socket.emit('auth-login-result', { success: true, playerId: account.id, nick: account.nick, login: account.login, cups: account.cups || 0 });
+        socket.emit('auth-login-result', { success: true, playerId: account.id, nick: account.nick, login: account.login, cups: account.cups || 0, email: account.email || '', googleLinked: !!account.googleId });
     });
 
     // ===== AUTH: ЗМІНА НІКА =====

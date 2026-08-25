@@ -22,5 +22,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     startMultiplayerGame: () => ipcRenderer.invoke('start-multiplayer-game'),
     
     // Server info
-    getServerInfo: () => ipcRenderer.invoke('get-server-info')
+    getServerInfo: () => ipcRenderer.invoke('get-server-info'),
+
+    // Відкрити посилання у системному браузері (Google OAuth тощо)
+    openExternal: (url) => ipcRenderer.invoke('open-external', url)
 });

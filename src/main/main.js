@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -80,6 +80,14 @@ function createWindow() {
     // Expose server info to renderer
     ipcMain.handle('get-server-info', () => {
         return serverInfo;
+    });
+
+    // Відкриття зовнішніх посилань (наприклад, Google OAuth) у системному браузері
+    ipcMain.handle('open-external', (_event, url) => {
+        if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
+            return shell.openExternal(url);
+        }
+        throw new Error('Дозволені тільки http(s)-посилання');
     });
 }
 
