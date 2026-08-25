@@ -131,6 +131,101 @@
             color: #666;
             margin-top: 20px;
         }
+
+        /* ===== SERVER LOADING SCREEN (початковий екран загрузки сервера) ===== */
+        #serverLoadingScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 4000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            /* назва гри трохи нижче центру екрана */
+            padding-top: 14vh;
+            background: transparent;
+            transition: opacity 0.7s ease;
+        }
+        #serverLoadingScreen.fade-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .loading-logo {
+            font-size: 6em;
+            font-weight: bold;
+            letter-spacing: 8px;
+            background: linear-gradient(135deg, #f39c12, #e74c3c, #8e44ad);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 50px;
+            animation: loadingLogoPulse 2.5s infinite ease-in-out;
+        }
+        @keyframes loadingLogoPulse {
+            0%, 100% { transform: scale(1); opacity: 0.95; }
+            50% { transform: scale(1.03); opacity: 1; }
+        }
+        .progress-track {
+            width: min(520px, 70vw);
+            height: 16px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(243, 156, 18, 0.35);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.4), inset 0 0 8px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            border-radius: 10px;
+            background: linear-gradient(90deg, #f39c12, #e67e22, #e74c3c);
+            box-shadow: 0 0 15px rgba(243, 156, 18, 0.7);
+            transition: width 0.25s ease-out;
+            position: relative;
+            overflow: hidden;
+        }
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+            animation: progressShine 1.6s infinite linear;
+        }
+        @keyframes progressShine {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        .loading-status-row {
+            margin-top: 18px;
+            font-size: 1.05em;
+            color: #aaa;
+            letter-spacing: 2px;
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+        }
+        .loading-status-percent {
+            color: #f39c12;
+            font-weight: 700;
+            min-width: 3.2em;
+            text-align: left;
+        }
+        /* Поки йде загрузка сервера — прямокутник меню та кнопка профілю приховані */
+        .main-content,
+        #profileBtn {
+            transition: opacity 0.6s ease;
+        }
+        body.boot-loading .main-content,
+        body.boot-loading #profileBtn {
+            opacity: 0;
+            pointer-events: none;
+        }
         .loading {
             display: none;
             margin-top: 20px;
@@ -547,8 +642,20 @@
         }
     </style>
 </head>
-<body>
+<body class="boot-loading">
     <div class="background-animation" id="bgAnimation"></div>
+
+    <!-- Server Loading Screen (видимий при запуску гри, поки сервер не готовий) -->
+    <div id="serverLoadingScreen">
+        <div class="loading-logo">COLONIZATION</div>
+        <div class="progress-track">
+            <div class="progress-fill" id="serverProgressFill"></div>
+        </div>
+        <div class="loading-status-row">
+            <span id="serverLoadingStatus">Запуск сервера</span><span id="serverLoadingDots"></span>
+            <span class="loading-status-percent" id="serverLoadingPercent">0%</span>
+        </div>
+    </div>
 
     <!-- Profile Button (верхній правий кут головного меню) -->
     <div id="profileBtn" title="Профіль гравця">
@@ -837,6 +944,118 @@
             hex.style.animationDelay = Math.random() * 20 + 's';
             bg.appendChild(hex);
         }
+
+        // ===== SERVER LOADING SCREEN: екран загрузки сервера при старті гри =====
+        // Показується замість головного меню, поки сервер не запуститься повністю
+        // і нічого не заважатиме грі. Після цього показується звичайне меню.
+        (function bootServerLoading() {
+            const loadingScreen = document.getElementById('serverLoadingScreen');
+
+            // Якщо це повернення з гри назад у кімнату (?mode=multiplayer&code=...)
+            // — екран загрузки не потрібен, кімната має відкритись одразу
+            const urlMode = new URLSearchParams(window.location.search).get('mode');
+            if (urlMode === 'multiplayer') {
+                if (loadingScreen) loadingScreen.remove();
+                document.body.classList.remove('boot-loading');
+                return;
+            }
+
+            const fillEl = document.getElementById('serverProgressFill');
+            const percentEl = document.getElementById('serverLoadingPercent');
+            const statusEl = document.getElementById('serverLoadingStatus');
+            const dotsEl = document.getElementById('serverLoadingDots');
+            const SERVER_URL = 'https://colonization.onrender.com';
+            const MIN_SHOW_MS = 2500;      // мінімальний час показу екрана загрузки
+            const SERVER_TIMEOUT_MS = 20000; // скільки очікувати відповіді сервера
+
+            let progress = 0;
+            let target = 10;
+            let finished = false;
+            const startedAt = Date.now();
+
+            // Анімовані крапки після статусу ("Запуск сервера...")
+            let dotCount = 0;
+            const dotsTimer = setInterval(() => {
+                dotCount = (dotCount % 3) + 1;
+                if (dotsEl) dotsEl.textContent = '.'.repeat(dotCount);
+            }, 400);
+
+            function renderProgress(p) {
+                const value = p !== undefined ? p : progress;
+                if (fillEl) fillEl.style.width = value + '%';
+                if (percentEl) percentEl.textContent = Math.round(value) + '%';
+            }
+
+            // Плавне наближення смуги до цільового значення.
+            // Ціль росте ПОТИХЕНЬКУ весь час, поки сервер запускається
+            // (максимум до 92%), тому полоска не добігає до кінця заздалегідь.
+            // До 100% вона піднімається ЛИШЕ тоді, коли сервер готовий.
+            const CRAWL_MAX = 92;   // стеля повзучості до готовності сервера
+            const CRAWL_SPEED = 13; // чим більше число, тим повільніший ріст
+            const moveTimer = setInterval(() => {
+                if (finished) return;
+                const elapsedSec = (Date.now() - startedAt) / 1000;
+                const crawlTarget = CRAWL_MAX * (1 - Math.exp(-elapsedSec / CRAWL_SPEED));
+                if (crawlTarget > target) target = crawlTarget;
+                progress += (target - progress) * 0.05;
+                renderProgress();
+            }, 50);
+
+            // Пінг сервера: будь-яка HTTP відповідь означає, що сервер живий
+            async function pingServer() {
+                try {
+                    const controller = new AbortController();
+                    const abortTimer = setTimeout(() => controller.abort(), 8000);
+                    await fetch(SERVER_URL, { method: 'GET', mode: 'no-cors', cache: 'no-store', signal: controller.signal });
+                    clearTimeout(abortTimer);
+                    return true;
+                } catch (err) {
+                    return false;
+                }
+            }
+
+            // Чекаємо, поки сервер буде повністю доступним (з повторними спробами)
+            async function waitServerReady() {
+                const deadline = Date.now() + SERVER_TIMEOUT_MS;
+                while (Date.now() < deadline) {
+                    if (await pingServer()) return true;
+                    await new Promise(r => setTimeout(r, 1200));
+                }
+                return false;
+            }
+
+            function finish(serverOnline) {
+                if (finished) return;
+                finished = true;
+                clearInterval(moveTimer);
+                clearInterval(dotsTimer);
+                if (dotsEl) dotsEl.textContent = '';
+                if (statusEl) statusEl.textContent = serverOnline ? 'Сервер запущено' : 'Сервер недоступний';
+                renderProgress(100);
+
+                // Тримаємо екран ще якийсь час (мінімальний час показу + пауза на 100%)
+                const elapsed = Date.now() - startedAt;
+                const waitMs = Math.max(0, MIN_SHOW_MS - elapsed) + 600;
+
+                setTimeout(() => {
+                    loadingScreen.classList.add('fade-out');
+                    document.body.classList.remove('boot-loading');
+                    setTimeout(() => loadingScreen.remove(), 800);
+                }, waitMs);
+            }
+
+            // Повна загрузка сторінки (шрифти, скрипти тощо), з страховочним лімітом
+            const pageLoaded = Promise.race([
+                new Promise(resolve => {
+                    if (document.readyState === 'complete') resolve();
+                    else window.addEventListener('load', resolve, { once: true });
+                }),
+                new Promise(resolve => setTimeout(resolve, 8000))
+            ]);
+
+            // Коли і сервер готовий, і нічого не заважає грі — показуємо меню
+            Promise.all([waitServerReady(), pageLoaded]).then(([online]) => finish(online));
+        })();
 
         // Audio Manager for splash screen
         class AudioManager {
