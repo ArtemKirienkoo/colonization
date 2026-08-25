@@ -1997,7 +1997,7 @@
             audioManager.playClickSound();
             const acc = getAccount();
             if (acc && acc.playerId && pendingRemoveNick) {
-                await authRequest('friends-remove', { playerId: acc.playerId, friendId: pendingRemoveNick });
+                await authRequest('friends-remove', { playerId: acc.playerId, friendNick: pendingRemoveNick });
             }
             pendingRemoveNick = null;
             document.getElementById('removeFriendModal').style.display = 'none';
