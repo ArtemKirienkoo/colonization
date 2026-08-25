@@ -69,18 +69,20 @@ function generateAccountId() {
 function generateRandomNick() {
     const letters = 'abcdefghijklmnopqrstuvwxyz';
     const digits = '0123456789';
-    let nick = '';
-    // 6-8 випадкових латинських літер
-    const letterCount = 6 + Math.floor(Math.random() * 3);
-    for (let i = 0; i < letterCount; i++) {
-        nick += letters[Math.floor(Math.random() * letters.length)];
+    // Ніки унікальні (вони є ключем у списках друзів), тому перевіряємо зайнятість
+    for (let attempt = 0; attempt < 20; attempt++) {
+        let nick = '';
+        const letterCount = 6 + Math.floor(Math.random() * 3);
+        for (let i = 0; i < letterCount; i++) {
+            nick += letters[Math.floor(Math.random() * letters.length)];
+        }
+        const digitCount = 2 + Math.floor(Math.random() * 3);
+        for (let i = 0; i < digitCount; i++) {
+            nick += digits[Math.floor(Math.random() * digits.length)];
+        }
+        if (!findAccountByNick(nick)) return nick;
     }
-    // 2-4 цифри у кінець
-    const digitCount = 2 + Math.floor(Math.random() * 3);
-    for (let i = 0; i < digitCount; i++) {
-        nick += digits[Math.floor(Math.random() * digits.length)];
-    }
-    return nick;
+    return 'player' + Date.now().toString(36);
 }
 
 // Пошук акаунта за ID у локальному JSON-сховищі
@@ -92,7 +94,29 @@ function findAccountById(playerId) {
     return null;
 }
 
+// Одноразова конвертація старих масивів друзів/запитів (айді) у ніки
+function migrateFriendsArraysToNicks() {
+    const idToNick = new Map();
+    Object.values(accounts).forEach(a => {
+        if (a && typeof a === 'object' && a.id && a.nick) idToNick.set(a.id, a.nick);
+    });
+    let changed = false;
+    for (const a of Object.values(accounts)) {
+        if (!a || typeof a !== 'object') continue;
+        const conv = (arr) => (Array.isArray(arr) ? arr : []).map(v => idToNick.get(v) || v);
+        const f = conv(a.friends);
+        const r = conv(a.requests);
+        if (JSON.stringify(f) !== JSON.stringify(a.friends)) { a.friends = f; changed = true; }
+        if (JSON.stringify(r) !== JSON.stringify(a.requests)) { a.requests = r; changed = true; }
+    }
+    if (changed) {
+        saveAccounts();
+        console.log('[friends] Migrated local accounts to nick-based friends/requests arrays');
+    }
+}
+
 loadAccounts();
+migrateFriendsArraysToNicks();
 
 // ===== MONGODB ATLAS (постійне хмарне сховище акаунтів) =====
 // Якщо задана змінна середовища MONGODB_URI (рядок підключення з Atlas),
@@ -110,6 +134,19 @@ async function initAccountsStorage() {
         await client.connect();
         accountsCollection = client.db('colonization').collection('accounts');
         console.log('[auth] Connected to MongoDB Atlas - accounts are stored PERMANENTLY');
+        // Одноразова конвертація старих масивів друзів/запитів (айді) у ніки
+        const all = await accountsCollection.find({}).toArray();
+        const idToNick = new Map();
+        all.forEach(a => { if (a && a.id && a.nick) idToNick.set(a.id, a.nick); });
+        for (const a of all) {
+            const conv = (arr) => (Array.isArray(arr) ? arr : []).map(v => idToNick.get(v) || v);
+            const f = conv(a.friends);
+            const r = conv(a.requests);
+            if (JSON.stringify(f) !== JSON.stringify(a.friends) || JSON.stringify(r) !== JSON.stringify(a.requests)) {
+                await accountsCollection.updateOne({ id: a.id }, { $set: { friends: f, requests: r } });
+                console.log('[friends] Migrated to nicks:', a.login);
+            }
+        }
     } catch (e) {
         console.error('[auth] MongoDB connection FAILED, falling back to local JSON:', e.message);
         accountsCollection = null;
@@ -153,8 +190,22 @@ function createDevCardDeck() {
 // ===== PRESENCE (хто зараз в мережі / у грі) =====
 const presenceBySocket = new Map(); // socketId -> { playerId, inGame }
 const socketsByPlayer = new Map();  // playerId -> Set<socketId>
-function friendOnlineState(friendId) {
-    const set = socketsByPlayer.get(friendId);
+
+// ===== FRIENDS: робота з ніками =====
+// Друзі та запити зберігаються в БД як НІКИ (а не айді), тому:
+// 1) ніки унікальні (генератор + перевірка при зміні ніка);
+// 2) при зміні ніка він оновлюється у списках друзів/запитів інших гравців;
+// 3) для статусу онлайн нік резолвиться назад в акаунт.
+function findAccountByNick(nick) {
+    for (const acc of Object.values(accounts)) {
+        if (acc && typeof acc === 'object' && acc.nick === nick) return acc;
+    }
+    return null;
+}
+function friendOnlineState(friendNick) {
+    const acc = findAccountByNick(friendNick);
+    if (!acc || !acc.id) return 'offline';
+    const set = socketsByPlayer.get(acc.id);
     if (!set || !set.size) return 'offline';
     for (const sid of set) {
         const info = presenceBySocket.get(sid);
@@ -724,6 +775,11 @@ io.on('connection', (socket) => {
                     socket.emit('auth-register-result', { success: false, error: 'Такий логін вже занятий!' });
                     return;
                 }
+                // Нік теж має бути унікальним (він — ключ у списках друзів)
+                for (let i = 0; i < 20; i++) {
+                    if (!(await accountsCollection.findOne({ nick: account.nick }))) break;
+                    account.nick = generateRandomNick();
+                }
                 await accountsCollection.insertOne(account);
                 console.log('[auth] Registered (Atlas):', login, '->', account.id);
                 socket.emit('auth-register-result', { success: true, playerId: account.id, nick: account.nick, login: account.login, cups: account.cups || 0 });
@@ -849,6 +905,8 @@ io.on('connection', (socket) => {
 
     // ===== AUTH: ЗМІНА НІКА =====
     // Нік можна змінити будь-коли через вікно профілю (кнопка ✏️ біля ніка).
+    // Ніки унікальні і є ключем у списках друзів, тому при зміні ніка він
+    // оновлюється також у списках друзів/запитів усіх інших гравців.
     socket.on('auth-change-nick', async ({ playerId, newNick }) => {
         playerId = String(playerId || '');
         newNick = String(newNick || '').trim();
@@ -870,7 +928,20 @@ io.on('connection', (socket) => {
                     socket.emit('auth-change-nick-result', { success: false, error: 'Акаунт не знайдено' });
                     return;
                 }
+                const oldNick = account.nick;
+                if (oldNick === newNick) {
+                    socket.emit('auth-change-nick-result', { success: true, playerId, nick: newNick, login: account.login, cups: account.cups || 0 });
+                    return;
+                }
+                const nickTaken = await accountsCollection.findOne({ nick: newNick });
+                if (nickTaken && nickTaken.id !== playerId) {
+                    socket.emit('auth-change-nick-result', { success: false, error: 'Цей нік вже зайнятий!' });
+                    return;
+                }
                 await accountsCollection.updateOne({ id: playerId }, { $set: { nick: newNick } });
+                // Оновлюємо нік у списках друзів/запитів інших гравців
+                await accountsCollection.updateMany({ friends: oldNick }, { $set: { 'friends.$': newNick } });
+                await accountsCollection.updateMany({ requests: oldNick }, { $set: { 'requests.$': newNick } });
                 console.log('[auth] Nick changed (Atlas):', account.login, '->', newNick);
                 socket.emit('auth-change-nick-result', { success: true, playerId, nick: newNick, login: account.login, cups: account.cups || 0 });
             } catch (e) {
@@ -887,7 +958,24 @@ io.on('connection', (socket) => {
             return;
         }
 
+        const oldNick = account.nick;
+        if (oldNick === newNick) {
+            socket.emit('auth-change-nick-result', { success: true, playerId, nick: newNick, login: account.login, cups: account.cups || 0 });
+            return;
+        }
+        const nickTaken = findAccountByNick(newNick);
+        if (nickTaken && nickTaken.id !== playerId) {
+            socket.emit('auth-change-nick-result', { success: false, error: 'Цей нік вже зайнятий!' });
+            return;
+        }
+
         account.nick = newNick;
+        // Пропагація: оновлюємо нік у списках друзів/запитів інших гравців
+        for (const acc of Object.values(accounts)) {
+            if (!acc || typeof acc !== 'object') continue;
+            if (Array.isArray(acc.friends)) acc.friends = acc.friends.map(n => n === oldNick ? newNick : n);
+            if (Array.isArray(acc.requests)) acc.requests = acc.requests.map(n => n === oldNick ? newNick : n);
+        }
         if (!saveAccounts()) {
             socket.emit('auth-change-nick-result', { success: false, error: 'Помилка збереження на сервері' });
             return;
@@ -914,20 +1002,11 @@ io.on('connection', (socket) => {
                     socket.emit('friends-get-result', { success: false, error: 'Акаунт не знайдено' });
                     return;
                 }
-                const resolveNicks = async (idList) => {
-                    if (!idList.length) return [];
-                    const docs = await accountsCollection.find(
-                        { id: { $in: idList } },
-                        { projection: { _id: 0, id: 1, nick: 1 } }
-                    ).toArray();
-                    const byId = new Map(docs.map(d => [d.id, d.nick]));
-                    // Зберігаємо порядок; нік підтягуємо актуальний
-                    return idList.map(fid => ({ id: fid, nick: byId.get(fid) || 'Гравець' }));
-                };
-                const ids = Array.isArray(me.friends) ? me.friends : [];
-                const reqIds = Array.isArray(me.requests) ? me.requests : [];
-                const friends = (await resolveNicks(ids)).map(f => ({ ...f, state: friendOnlineState(f.id) }));
-                const requests = await resolveNicks(reqIds);
+                // У БД зберігаються НІКИ друзів/запитів
+                const friendNicks = Array.isArray(me.friends) ? me.friends : [];
+                const reqNicks = Array.isArray(me.requests) ? me.requests : [];
+                const friends = friendNicks.map(n => ({ nick: n, state: friendOnlineState(n) }));
+                const requests = reqNicks.map(n => ({ nick: n }));
                 socket.emit('friends-get-result', { success: true, friends, requests });
             } catch (e) {
                 console.error('[friends] Get error:', e.message);
@@ -942,16 +1021,10 @@ io.on('connection', (socket) => {
             socket.emit('friends-get-result', { success: false, error: 'Акаунт не знайдено' });
             return;
         }
-        const ids = Array.isArray(me.friends) ? me.friends : [];
-        const reqIds = Array.isArray(me.requests) ? me.requests : [];
-        const friends = ids.map(fid => {
-            const f = findAccountById(fid);
-            return { id: fid, nick: (f && f.nick) || 'Гравець', state: friendOnlineState(fid) };
-        });
-        const requests = reqIds.map(rid => {
-            const r = findAccountById(rid);
-            return { id: rid, nick: (r && r.nick) || 'Гравець' };
-        });
+        const friendNicks = Array.isArray(me.friends) ? me.friends : [];
+        const reqNicks = Array.isArray(me.requests) ? me.requests : [];
+        const friends = friendNicks.map(n => ({ nick: n, state: friendOnlineState(n) }));
+        const requests = reqNicks.map(n => ({ nick: n }));
         socket.emit('friends-get-result', { success: true, friends, requests });
     });
 
@@ -977,27 +1050,28 @@ io.on('connection', (socket) => {
                     socket.emit('friends-request-result', { success: false, error: 'Акаунт не знайдено' });
                     return;
                 }
-                const mine = Array.isArray(me.friends) ? me.friends : [];
-                if (mine.includes(friendId)) {
-                    socket.emit('friends-request-result', { success: false, error: 'Цей гравець вже у твоїх друзях' });
-                    return;
-                }
                 const fr = await accountsCollection.findOne({ id: friendId });
                 if (!fr) {
                     socket.emit('friends-request-result', { success: false, error: 'Гравця з таким айді не знайдено' });
                     return;
                 }
+                const mine = Array.isArray(me.friends) ? me.friends : [];
+                if (mine.includes(fr.nick)) {
+                    socket.emit('friends-request-result', { success: false, error: 'Цей гравець вже у твоїх друзях' });
+                    return;
+                }
                 const frRequests = Array.isArray(fr.requests) ? fr.requests : [];
-                if (frRequests.includes(playerId)) {
+                if (frRequests.includes(me.nick)) {
                     socket.emit('friends-request-result', { success: false, error: 'Запит цьому гравцю вже надіслано' });
                     return;
                 }
                 const myRequests = Array.isArray(me.requests) ? me.requests : [];
-                if (myRequests.includes(friendId)) {
+                if (myRequests.includes(fr.nick)) {
                     socket.emit('friends-request-result', { success: false, error: 'Цей гравець уже надіслав тобі запит — прийми його у розділі «Друзі»' });
                     return;
                 }
-                await accountsCollection.updateOne({ id: friendId }, { $addToSet: { requests: playerId } });
+                // У запити отримувача пишемо МІЙ НІК
+                await accountsCollection.updateOne({ id: friendId }, { $addToSet: { requests: me.nick } });
                 console.log('[friends] Request sent (Atlas):', me.login, '->', fr.nick);
                 socket.emit('friends-request-result', { success: true, message: 'Запит надіслано!', friend: { id: fr.id, nick: fr.nick } });
             } catch (e) {
@@ -1013,27 +1087,28 @@ io.on('connection', (socket) => {
             socket.emit('friends-request-result', { success: false, error: 'Акаунт не знайдено' });
             return;
         }
-        const mine = Array.isArray(me.friends) ? me.friends : [];
-        if (mine.includes(friendId)) {
-            socket.emit('friends-request-result', { success: false, error: 'Цей гравець вже у твоїх друзях' });
-            return;
-        }
         const fr = findAccountById(friendId);
         if (!fr) {
             socket.emit('friends-request-result', { success: false, error: 'Гравця з таким айді не знайдено' });
             return;
         }
+        const mine = Array.isArray(me.friends) ? me.friends : [];
+        if (mine.includes(fr.nick)) {
+            socket.emit('friends-request-result', { success: false, error: 'Цей гравець вже у твоїх друзях' });
+            return;
+        }
         fr.requests = Array.isArray(fr.requests) ? fr.requests : [];
-        if (fr.requests.includes(playerId)) {
+        if (fr.requests.includes(me.nick)) {
             socket.emit('friends-request-result', { success: false, error: 'Запит цьому гравцю вже надіслано' });
             return;
         }
         const myRequests = Array.isArray(me.requests) ? me.requests : [];
-        if (myRequests.includes(friendId)) {
+        if (myRequests.includes(fr.nick)) {
             socket.emit('friends-request-result', { success: false, error: 'Цей гравець вже надіслав тобі запит — прийми його у розділі «Друзі»' });
             return;
         }
-        fr.requests.push(playerId);
+        // У запити отримувача пишемо МІЙ НІК
+        fr.requests.push(me.nick);
         if (!saveAccounts()) {
             socket.emit('friends-request-result', { success: false, error: 'Помилка збереження на сервері' });
             return;
@@ -1043,10 +1118,10 @@ io.on('connection', (socket) => {
     });
 
     // ===== FRIENDS: ПРИЙНЯТИ ЗАПИТ (взаємна дружба) =====
-    socket.on('friends-accept', async ({ playerId, friendId }) => {
+    socket.on('friends-accept', async ({ playerId, friendNick }) => {
         playerId = String(playerId || '').trim();
-        friendId = String(friendId || '').trim();
-        if (!playerId || !friendId) {
+        friendNick = String(friendNick || '').trim();
+        if (!playerId || !friendNick) {
             socket.emit('friends-accept-result', { success: false, error: 'Немає даних запиту' });
             return;
         }
@@ -1056,19 +1131,19 @@ io.on('connection', (socket) => {
             try {
                 const me = await accountsCollection.findOne({ id: playerId });
                 const myRequests = (me && Array.isArray(me.requests)) ? me.requests : [];
-                if (!me || !myRequests.includes(friendId)) {
+                if (!me || !myRequests.includes(friendNick)) {
                     socket.emit('friends-accept-result', { success: false, error: 'Запит не знайдено' });
                     return;
                 }
-                const fr = await accountsCollection.findOne({ id: friendId });
+                const fr = await accountsCollection.findOne({ nick: friendNick });
                 if (!fr) {
                     socket.emit('friends-accept-result', { success: false, error: 'Акаунт гравця не знайдено' });
                     return;
                 }
-                await accountsCollection.updateOne({ id: playerId }, { $pull: { requests: friendId }, $addToSet: { friends: friendId } });
-                await accountsCollection.updateOne({ id: friendId }, { $addToSet: { friends: playerId } });
+                await accountsCollection.updateOne({ id: playerId }, { $pull: { requests: friendNick }, $addToSet: { friends: friendNick } });
+                await accountsCollection.updateOne({ id: friendNick }, { $addToSet: { friends: me.nick } });
                 console.log('[friends] Accepted (Atlas):', me.login, '<->', fr.nick);
-                socket.emit('friends-accept-result', { success: true, friend: { id: fr.id, nick: fr.nick } });
+                socket.emit('friends-accept-result', { success: true, friend: { nick: fr.nick } });
             } catch (e) {
                 console.error('[friends] Accept error:', e.message);
                 socket.emit('friends-accept-result', { success: false, error: 'Помилка бази даних' });
@@ -1083,41 +1158,41 @@ io.on('connection', (socket) => {
             return;
         }
         me.requests = Array.isArray(me.requests) ? me.requests : [];
-        if (!me.requests.includes(friendId)) {
+        if (!me.requests.includes(friendNick)) {
             socket.emit('friends-accept-result', { success: false, error: 'Запит не знайдено' });
             return;
         }
-        const fr = findAccountById(friendId);
+        const fr = findAccountByNick(friendNick);
         if (!fr) {
             socket.emit('friends-accept-result', { success: false, error: 'Акаунт гравця не знайдено' });
             return;
         }
-        // Взаємно додаємо одне одного в друзі
-        me.requests = me.requests.filter(id => id !== friendId);
+        // Взаємно додаємо одне одного в друзі (ніками)
+        me.requests = me.requests.filter(n => n !== friendNick);
         me.friends = Array.isArray(me.friends) ? me.friends : [];
-        if (!me.friends.includes(friendId)) me.friends.push(friendId);
+        if (!me.friends.includes(friendNick)) me.friends.push(friendNick);
         fr.friends = Array.isArray(fr.friends) ? fr.friends : [];
-        if (!fr.friends.includes(playerId)) fr.friends.push(playerId);
+        if (!fr.friends.includes(me.nick)) fr.friends.push(me.nick);
         if (!saveAccounts()) {
             socket.emit('friends-accept-result', { success: false, error: 'Помилка збереження на сервері' });
             return;
         }
         console.log('[friends] Accepted (local JSON):', me.login, '<->', fr.nick);
-        socket.emit('friends-accept-result', { success: true, friend: { id: fr.id, nick: fr.nick } });
+        socket.emit('friends-accept-result', { success: true, friend: { nick: fr.nick } });
     });
 
     // ===== FRIENDS: ВІДХИЛИТИ ЗАПИТ =====
-    socket.on('friends-decline', async ({ playerId, friendId }) => {
+    socket.on('friends-decline', async ({ playerId, friendNick }) => {
         playerId = String(playerId || '').trim();
-        friendId = String(friendId || '').trim();
-        if (!playerId || !friendId) {
+        friendNick = String(friendNick || '').trim();
+        if (!playerId || !friendNick) {
             socket.emit('friends-decline-result', { success: false, error: 'Немає даних запиту' });
             return;
         }
         // ===== MongoDB Atlas =====
         if (accountsCollection) {
             try {
-                await accountsCollection.updateOne({ id: playerId }, { $pull: { requests: friendId } });
+                await accountsCollection.updateOne({ id: playerId }, { $pull: { requests: friendNick } });
                 socket.emit('friends-decline-result', { success: true });
             } catch (e) {
                 console.error('[friends] Decline error:', e.message);
@@ -1131,16 +1206,16 @@ io.on('connection', (socket) => {
             socket.emit('friends-decline-result', { success: false, error: 'Акаунт не знайдено' });
             return;
         }
-        me.requests = Array.isArray(me.requests) ? me.requests.filter(id => id !== friendId) : [];
+        me.requests = Array.isArray(me.requests) ? me.requests.filter(n => n !== friendNick) : [];
         saveAccounts();
         socket.emit('friends-decline-result', { success: true });
     });
 
     // ===== FRIENDS: ВИДАЛИТИ ІЗ ДРУЗІВ (взаємно, в обох гравців) =====
-    socket.on('friends-remove', async ({ playerId, friendId }) => {
+    socket.on('friends-remove', async ({ playerId, friendNick }) => {
         playerId = String(playerId || '').trim();
-        friendId = String(friendId || '').trim();
-        if (!playerId || !friendId) {
+        friendNick = String(friendNick || '').trim();
+        if (!playerId || !friendNick) {
             socket.emit('friends-remove-result', { success: false, error: 'Немає даних' });
             return;
         }
@@ -1153,13 +1228,13 @@ io.on('connection', (socket) => {
                     return;
                 }
                 const mine = Array.isArray(me.friends) ? me.friends : [];
-                if (!mine.includes(friendId)) {
+                if (!mine.includes(friendNick)) {
                     socket.emit('friends-remove-result', { success: false, error: 'Цього гравця немає у твоїх друзях' });
                     return;
                 }
-                await accountsCollection.updateOne({ id: playerId }, { $pull: { friends: friendId } });
-                await accountsCollection.updateOne({ id: friendId }, { $pull: { friends: playerId } });
-                console.log('[friends] Removed (Atlas):', me.login, '-/->', friendId);
+                await accountsCollection.updateOne({ id: playerId }, { $pull: { friends: friendNick } });
+                await accountsCollection.updateOne({ nick: friendNick }, { $pull: { friends: me.nick } });
+                console.log('[friends] Removed (Atlas):', me.login, '-/->', friendNick);
                 socket.emit('friends-remove-result', { success: true });
             } catch (e) {
                 console.error('[friends] Remove error:', e.message);
@@ -1174,20 +1249,20 @@ io.on('connection', (socket) => {
             return;
         }
         me.friends = Array.isArray(me.friends) ? me.friends : [];
-        if (!me.friends.includes(friendId)) {
+        if (!me.friends.includes(friendNick)) {
             socket.emit('friends-remove-result', { success: false, error: 'Цього гравця немає у твоїх друзях' });
             return;
         }
-        me.friends = me.friends.filter(id => id !== friendId);
-        const fr = findAccountById(friendId);
+        me.friends = me.friends.filter(n => n !== friendNick);
+        const fr = findAccountByNick(friendNick);
         if (fr) {
-            fr.friends = Array.isArray(fr.friends) ? fr.friends.filter(id => id !== playerId) : [];
+            fr.friends = Array.isArray(fr.friends) ? fr.friends.filter(n => n !== me.nick) : [];
         }
         if (!saveAccounts()) {
             socket.emit('friends-remove-result', { success: false, error: 'Помилка збереження на сервері' });
             return;
         }
-        console.log('[friends] Removed (local JSON):', me.login, '-/->', friendId);
+        console.log('[friends] Removed (local JSON):', me.login, '-/->', friendNick);
         socket.emit('friends-remove-result', { success: true });
     });
 
@@ -1228,6 +1303,7 @@ io.on('connection', (socket) => {
                 const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 const matchStage = { id: { $ne: excludePlayerId, $regex: '^' + escaped, $options: 'i' } };
                 const me = await accountsCollection.findOne({ id: excludePlayerId });
+                const myNick = me ? me.nick : '';
                 const myFriends = new Set((me && Array.isArray(me.friends)) ? me.friends : []);
                 const myRequests = new Set((me && Array.isArray(me.requests)) ? me.requests : []);
                 const docs = await accountsCollection.aggregate([
@@ -1236,9 +1312,9 @@ io.on('connection', (socket) => {
                 ]).toArray();
                 const users = docs.map(d => {
                     let status = 'none';
-                    if (myFriends.has(d.id)) status = 'friend';
-                    else if (Array.isArray(d.requests) && d.requests.includes(excludePlayerId)) status = 'sent';
-                    else if (myRequests.has(d.id)) status = 'received';
+                    if (myFriends.has(d.nick)) status = 'friend';
+                    else if (Array.isArray(d.requests) && d.requests.includes(myNick)) status = 'sent';
+                    else if (myRequests.has(d.nick)) status = 'received';
                     return { id: d.id, nick: d.nick, status };
                 });
                 socket.emit('users-search-result', { success: true, users });
@@ -1251,6 +1327,7 @@ io.on('connection', (socket) => {
 
         // ===== Локальний JSON fallback =====
         const me = findAccountById(excludePlayerId);
+        const myNick = me ? me.nick : '';
         const myFriends = new Set((me && Array.isArray(me.friends)) ? me.friends : []);
         const myRequests = new Set((me && Array.isArray(me.requests)) ? me.requests : []);
         const pool = Object.values(accounts).filter(a =>
@@ -1259,9 +1336,9 @@ io.on('connection', (socket) => {
         );
         const users = pool.slice(0, LIMIT).map(a => {
             let status = 'none';
-            if (myFriends.has(a.id)) status = 'friend';
-            else if (Array.isArray(a.requests) && a.requests.includes(excludePlayerId)) status = 'sent';
-            else if (myRequests.has(a.id)) status = 'received';
+            if (myFriends.has(a.nick)) status = 'friend';
+            else if (Array.isArray(a.requests) && a.requests.includes(myNick)) status = 'sent';
+            else if (myRequests.has(a.nick)) status = 'received';
             return { id: a.id, nick: a.nick, status };
         });
         socket.emit('users-search-result', { success: true, users });
@@ -1274,9 +1351,10 @@ io.on('connection', (socket) => {
         const statusOf = (me, acc) => {
             const myFriends = (me && Array.isArray(me.friends)) ? me.friends : [];
             const myRequests = (me && Array.isArray(me.requests)) ? me.requests : [];
-            if (myFriends.includes(acc.id)) return 'friend';
-            if (Array.isArray(acc.requests) && acc.requests.includes(excludePlayerId)) return 'sent';
-            if (myRequests.includes(acc.id)) return 'received';
+            const myNick = me ? me.nick : '';
+            if (myFriends.includes(acc.nick)) return 'friend';
+            if (Array.isArray(acc.requests) && acc.requests.includes(myNick)) return 'sent';
+            if (myRequests.includes(acc.nick)) return 'received';
             return 'none';
         };
 
