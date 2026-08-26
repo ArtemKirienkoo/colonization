@@ -1991,7 +1991,7 @@
             try {
                 const res = await authRequest('auth-register', { login, password, nick: login });
                 if (res.success) {
-                    setAccount({ playerId: res.playerId, nick: res.nick, login: res.login || res.nick, cups: (typeof res.cups === 'number') ? res.cups : 0 });
+                    setAccount({ playerId: res.playerId, nick: res.nick, login: res.login || res.nick, cups: (typeof res.cups === 'number') ? res.cups : 0, email: res.email || '' });
                     document.getElementById('registerModal').style.display = 'none';
                     updateProfileUI('✅ Акаунт створено! Нік можно змінити.');
                     document.getElementById('profileModal').style.display = 'flex';
@@ -2035,7 +2035,7 @@
             try {
                 const res = await authRequest('auth-login', { login, password, nick: login });
                 if (res.success) {
-                    setAccount({ playerId: res.playerId, nick: res.nick, login: res.login || res.nick, cups: (typeof res.cups === 'number') ? res.cups : 0 });
+                    setAccount({ playerId: res.playerId, nick: res.nick, login: res.login || res.nick, cups: (typeof res.cups === 'number') ? res.cups : 0, email: res.email || '' });
                     document.getElementById('loginModal').style.display = 'none';
                     updateProfileUI('✅ Ви увійшли в акаунт');
                     document.getElementById('profileModal').style.display = 'flex';
@@ -2082,7 +2082,7 @@
                     // Зареєстрований гравець: змінюємо нік на сервері
                     const res = await authRequest('auth-change-nick', { playerId: acc.playerId, newNick });
                     if (res.success) {
-                        setAccount({ playerId: acc.playerId, nick: newNick, login: acc.login, cups: (typeof acc.cups === 'number') ? acc.cups : 0 });
+                        setAccount({ playerId: acc.playerId, nick: newNick, login: acc.login, cups: (typeof acc.cups === 'number') ? acc.cups : 0, email: acc.email || '' });
                         updateProfileUI('✅ Нік змінено!');
                         document.getElementById('editNickModal').style.display = 'none';
                     } else {
@@ -2613,12 +2613,13 @@
                     setAccount(null);
                     updateProfileUI('');
                 } else if (res.valid === true && res.nick) {
-                    // Синхронізуємо нік/кубки з сервера, якщо змінилися (у іншій сесії)
+                    // Синхронізуємо нік/email/кубки з сервера, якщо змінилися (у іншій сесії)
                     setAccount({
                         playerId: acc.playerId,
                         nick: res.nick,
                         login: res.login || acc.login,
-                        cups: (typeof res.cups === 'number') ? res.cups : (acc.cups ?? 0)
+                        cups: (typeof res.cups === 'number') ? res.cups : (acc.cups ?? 0),
+                        email: (res.email !== undefined) ? res.email : (acc.email || '')
                     });
                     updateProfileUI();
                 }

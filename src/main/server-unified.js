@@ -1608,7 +1608,7 @@ io.on('connection', (socket) => {
                 // Логін чутливий до регістру: "Kirik" і "kirik" — різні акаунти
                 const account = await accountsCollection.findOne({ login: login });
                 if (!account) {
-                    socket.emit('auth-login-result', { success: false, error: 'Такого ака не існує' });
+                    socket.emit('auth-login-result', { success: false, error: 'Такого акаунта не існує' });
                     return;
                 }
 
@@ -1638,7 +1638,7 @@ io.on('connection', (socket) => {
         // Логін чутливий до регістру: "Kirik" і "kirik" — різні акаунти
         const account = accounts[login];
         if (!account) {
-            socket.emit('auth-login-result', { success: false, error: 'Такого ака не існує' });
+            socket.emit('auth-login-result', { success: false, error: 'Такого акаунта не існує' });
             return;
         }
 
