@@ -1069,7 +1069,7 @@
             const statusEl = document.getElementById('serverLoadingStatus');
             const dotsEl = document.getElementById('serverLoadingDots');
             const SERVER_URL = 'https://colonization.onrender.com';
-            const SERVER_TIMEOUT_MS = 20000; // скільки очікувати відповіді сервера
+            const SERVER_TIMEOUT_MS = 80000; // скільки очікувати повернення сервера зі сну (Render free: 30-60 с cold start)
 
             let progress = 0;
             let target = 10;
