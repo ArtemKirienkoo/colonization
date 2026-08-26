@@ -1217,13 +1217,16 @@ class AudioManager {
 
     playTone(frequency, duration, type = 'sine', volume = 0.3) {
         if (!this.initialized || !this.audioContext) return;
+        const actualVolume = volume * this.masterVolume * this.sfxVolume;
+        // Якщо підсумкова гучність ~0 — не граємо взагалі.
+        // exponentialRamp не можна запускати з 0 (WebAudio дає NaN і шум/свист).
+        if (actualVolume <= 0.0005) return;
         const oscillator = this.audioContext.createOscillator();
         const gainNode = this.audioContext.createGain();
         oscillator.connect(gainNode);
         gainNode.connect(this.audioContext.destination);
         oscillator.frequency.value = frequency;
         oscillator.type = type;
-        const actualVolume = volume * this.masterVolume * this.sfxVolume;
         gainNode.gain.setValueAtTime(actualVolume, this.audioContext.currentTime);
         gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + duration);
         oscillator.start(this.audioContext.currentTime);

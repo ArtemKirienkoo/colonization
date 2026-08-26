@@ -1196,13 +1196,16 @@
 
             playTone(frequency, duration, type = 'sine', volume = 0.3) {
                 if (!this.initialized || !this.audioContext) return;
+                const actualVolume = volume * this.masterVolume * this.sfxVolume;
+                // Якщо підсумкова гучність ~0 — не граємо взагалі.
+                // exponentialRamp не можна запускати з 0 (WebAudio дає NaN і відтворює шум).
+                if (actualVolume <= 0.0005) return;
                 const oscillator = this.audioContext.createOscillator();
                 const gainNode = this.audioContext.createGain();
                 oscillator.connect(gainNode);
                 gainNode.connect(this.audioContext.destination);
                 oscillator.frequency.value = frequency;
                 oscillator.type = type;
-                const actualVolume = volume * this.masterVolume * this.sfxVolume;
                 gainNode.gain.setValueAtTime(actualVolume, this.audioContext.currentTime);
                 gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + duration);
                 oscillator.start(this.audioContext.currentTime);
@@ -1305,12 +1308,11 @@
 
             updateMusicVolume() {
                 if (!this.musicGainNode) return;
-                const volume = this.masterVolume * this.musicVolume;
-                // Використовуємо setValueAtTime для миттєвої зміни гучності.
-                // Це єдиний безпечний спосіб уникнути спотворень при частих змінах:
-                // - Не накопичує заплановані події (ramp events) в аудіографі
-                // - Не створює стрибків гучності (discontinuities)
-                // - Кожен новий виклик просто перезаписує попереднє значення
+                // ВАЖЛИВО: мусимо зберігати той самий базовий коефіцієнт (0.05),
+                // з яким стартує мелодія в startBackgroundMusic. Якщо його тут не
+                // помножити — при зміні гучності музика стрибне в 20 разів голосніше.
+                const volume = 0.05 * this.masterVolume * this.musicVolume;
+                // setValueAtTime: миттєво й без накопичення запланованих подій
                 this.musicGainNode.gain.setValueAtTime(volume, this.audioContext.currentTime);
             }
 
