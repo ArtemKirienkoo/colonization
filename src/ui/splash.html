@@ -688,15 +688,10 @@
                             <span class="profile-info-id" id="profileModalId"></span>
                             <button id="copyProfileIdBtn" class="profile-copy-btn" title="Копіювати айді" type="button">📋</button>
                         </div>
-                        <div class="profile-id-row">
-                            <span class="profile-info-id" id="profileModalEmail"></span>
-                        </div>
                         <div class="profile-info-cups" id="profileModalCups">🏆 Кубки: 0</div>
                     </div>
                 </div>
                 <button id="profileFriendsBtn" class="mode-btn profile-friends-btn" type="button">Друзі<span class="btn-badge" id="profileFriendsBadge" style="display:none;"></span></button>
-                <button id="bindGoogleBtn" class="mode-btn profile-friends-btn" type="button" style="display:none;">🔗 Привʼязати Google</button>
-                <div class="auth-error" id="googleBindError"></div>
             </div>
             <div class="profile-actions">
                 <button id="openRegisterBtn" class="mode-btn">Реєстрація</button>
@@ -715,9 +710,6 @@
             <input type="password" id="regPassInput" class="auth-input" placeholder="Придумайте пароль">
             <div class="auth-error" id="regError"></div>
             <button id="confirmRegisterBtn" class="mode-btn">Зареєструватися</button>
-            <div style="text-align:center;color:#9aa0a6;margin:8px 0;font-size:.85em;">— або —</div>
-            <button id="googleRegisterBtn" class="mode-btn">Зареєструватися через Google</button>
-            <div class="auth-error" id="googleRegError"></div>
             <button id="backFromRegister" class="back-btn">Вийти</button>
         </div>
     </div>
@@ -730,9 +722,6 @@
             <input type="password" id="loginPassInput" class="auth-input" placeholder="Ваш пароль">
             <div class="auth-error" id="loginError"></div>
             <button id="confirmLoginBtn" class="mode-btn">Увійти</button>
-            <div style="text-align:center;color:#9aa0a6;margin:8px 0;font-size:.85em;">— або —</div>
-            <button id="googleLoginBtn" class="mode-btn">Увійти через Google</button>
-            <div class="auth-error" id="googleLoginError"></div>
             <button id="backFromLogin" class="back-btn">Вийти</button>
         </div>
     </div>
@@ -1770,12 +1759,6 @@
             document.getElementById('profileBtnCups').textContent = '🏆 ' + getProfileCups();
             document.getElementById('profileModalCups').textContent = '🏆 Кубки: ' + getProfileCups();
             // Email і стан прив'язки Google показуємо лише для акаунтів
-            const emailEl = document.getElementById('profileModalEmail');
-            if (emailEl) emailEl.textContent = (acc && acc.email) ? ('📧 ' + acc.email) : '';
-            const bindBtn = document.getElementById('bindGoogleBtn');
-            if (bindBtn) bindBtn.style.display = (acc && !acc.googleLinked) ? 'inline-block' : 'none';
-            const bindErr = document.getElementById('googleBindError');
-            if (bindErr) bindErr.textContent = '';
             document.getElementById('profileStatus').textContent = statusText || (acc ? '✅ Акаунт активний' : '');
         }
 
@@ -1852,7 +1835,7 @@
             try {
                 const res = await authRequest('auth-register', { login, password, nick: login });
                 if (res.success) {
-                    setAccount({ playerId: res.playerId, nick: res.nick, login: res.login || res.nick, cups: (typeof res.cups === 'number') ? res.cups : 0, email: res.email || '', googleLinked: false });
+                    setAccount({ playerId: res.playerId, nick: res.nick, login: res.login || res.nick, cups: (typeof res.cups === 'number') ? res.cups : 0 });
                     document.getElementById('registerModal').style.display = 'none';
                     updateProfileUI('✅ Акаунт створено! Нік можно змінити.');
                     document.getElementById('profileModal').style.display = 'flex';
@@ -1896,7 +1879,7 @@
             try {
                 const res = await authRequest('auth-login', { login, password, nick: login });
                 if (res.success) {
-                    setAccount({ playerId: res.playerId, nick: res.nick, login: res.login || res.nick, cups: (typeof res.cups === 'number') ? res.cups : 0, email: res.email || '', googleLinked: !!res.googleLinked });
+                    setAccount({ playerId: res.playerId, nick: res.nick, login: res.login || res.nick, cups: (typeof res.cups === 'number') ? res.cups : 0 });
                     document.getElementById('loginModal').style.display = 'none';
                     updateProfileUI('✅ Ви увійшли в акаунт');
                     document.getElementById('profileModal').style.display = 'flex';
@@ -1963,96 +1946,10 @@
         document.getElementById('editNickInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doChangeNick(); });
 
         // ===== ВХІД / РЕЄСТРАЦІЯ / ПРИВ'ЯЗКА АКАУНТА ЧЕРЕЗ GOOGLE =====
-        // Схема: сервер створює сесію і повертає посилання → відкриваємо системний
-        // браузер → користувач логіниться через Google → опитуємо сервер (poll),
-        // доки сесія не стане 'done' → отримуємо акаунт з усіма збереженими даними.
-        let googlePollTimer = null;
-        function stopGooglePoll() {
-            if (googlePollTimer) { clearInterval(googlePollTimer); googlePollTimer = null; }
-        }
-
-        async function startGoogleAuthFlow(opts) {
-            // opts: { linkPlayerId, btn, errEl, onDone }
-            stopGooglePoll();
-            opts.btn.disabled = true;
-            opts.errEl.textContent = '';
-            try {
-                const start = await authRequest('google-auth-start', { playerId: opts.linkPlayerId || null });
-                if (!start.success) {
-                    opts.errEl.textContent = start.error || 'Не вдалося почати вхід через Google';
-                    return;
-                }
-                // Electron: системний браузер; звичайний веб: нова вкладка
-                if (window.electronAPI && typeof window.electronAPI.openExternal === 'function') {
-                    window.electronAPI.openExternal(start.url).catch(() => {});
-                } else {
-                    window.open(start.url, '_blank');
-                }
-                const startedAt = Date.now();
-                googlePollTimer = setInterval(async () => {
-                    if (Date.now() - startedAt > 5 * 60 * 1000) {
-                        stopGooglePoll();
-                        opts.btn.disabled = false;
-                        opts.errEl.textContent = 'Час очікування вичерпано. Спробуйте ще раз.';
-                        return;
-                    }
-                    const r = await authRequest('google-auth-poll', { sessionKey: start.sessionKey });
-                    if (!r || r.status === 'pending') return;
-                    stopGooglePoll();
-                    opts.btn.disabled = false;
-                    if (r.status === 'error') {
-                        opts.errEl.textContent = r.error || 'Помилка входу через Google';
-                        return;
-                    }
-                    opts.onDone(r);
-                }, 2000);
-            } catch (e) {
-                stopGooglePoll();
-                opts.btn.disabled = false;
-                opts.errEl.textContent = (e && e.message) ? e.message : 'Помилка входу через Google';
-            }
-        }
-
-        function googleApplyLogin(r) {
-            setAccount({ playerId: r.playerId, nick: r.nick, login: r.login || r.nick, cups: (typeof r.cups === 'number') ? r.cups : 0, email: r.email || '', googleLinked: true });
-            document.getElementById('loginModal').style.display = 'none';
-            document.getElementById('registerModal').style.display = 'none';
-            updateProfileUI(r.mode === 'created' ? '🎉 Акаунт створено через Google! Ваш нік можна змінити кнопкою ✏️' : '✅ Ви увійшли через Google');
-            document.getElementById('profileModal').style.display = 'flex';
-        }
-
-        document.getElementById('googleLoginBtn').addEventListener('click', () => {
-            audioManager.playClickSound();
-            startGoogleAuthFlow({
-                linkPlayerId: null,
-                btn: document.getElementById('googleLoginBtn'),
-                errEl: document.getElementById('googleLoginError'),
-                onDone: googleApplyLogin
-            });
-        });
-        document.getElementById('googleRegisterBtn').addEventListener('click', () => {
-            audioManager.playClickSound();
-            startGoogleAuthFlow({
-                linkPlayerId: null,
-                btn: document.getElementById('googleRegisterBtn'),
-                errEl: document.getElementById('googleRegError'),
-                onDone: googleApplyLogin
-            });
-        });
-        document.getElementById('bindGoogleBtn').addEventListener('click', () => {
-            audioManager.playClickSound();
-            const acc = getAccount();
-            if (!acc || !acc.playerId) return;
-            startGoogleAuthFlow({
-                linkPlayerId: acc.playerId,
-                btn: document.getElementById('bindGoogleBtn'),
-                errEl: document.getElementById('googleBindError'),
-                onDone: (r) => {
-                    setAccount({ playerId: acc.playerId, nick: acc.nick, login: acc.login, cups: (typeof acc.cups === 'number') ? acc.cups : 0, email: r.email || acc.email || '', googleLinked: true });
-                    updateProfileUI('✅ Google привʼязано до акаунта!');
-                }
-            });
-        });
+        // Кнопки входу/реєстрації/привʼязки через Google прибрані з UI.
+        // Серверна інфраструктура (маршрути /google-auth, socket-події
+        // google-auth-start/poll тощо) ЗАЛИШЕНА — якщо знадобиться повернути
+        // Google-вхід, достатньо додати кнопки й виклик startGoogleAuthFlow знову.
 
         // ===== КОПІЮВАННЯ АЙДІ В ПРОФІЛІ (📋 праворуч від айді) =====
         document.getElementById('copyProfileIdBtn').addEventListener('click', () => {
@@ -2369,14 +2266,12 @@
                     setAccount(null);
                     updateProfileUI('');
                 } else if (res.valid === true && res.nick) {
-                    // Синхронізуємо нік/email/Google з сервера, якщо змінилися (у іншій сесії)
+                    // Синхронізуємо нік/кубки з сервера, якщо змінилися (у іншій сесії)
                     setAccount({
                         playerId: acc.playerId,
                         nick: res.nick,
                         login: res.login || acc.login,
-                        cups: (typeof res.cups === 'number') ? res.cups : (acc.cups ?? 0),
-                        email: (res.email !== undefined) ? res.email : (acc.email || ''),
-                        googleLinked: (res.googleLinked !== undefined) ? !!res.googleLinked : !!acc.googleLinked
+                        cups: (typeof res.cups === 'number') ? res.cups : (acc.cups ?? 0)
                     });
                     updateProfileUI();
                 }

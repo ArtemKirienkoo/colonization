@@ -40,6 +40,20 @@ function loadAccounts() {
         if (fs.existsSync(ACCOUNTS_FILE)) {
             accounts = JSON.parse(fs.readFileSync(ACCOUNTS_FILE, 'utf8'));
             console.log('[auth] Loaded ' + Object.keys(accounts).length + ' account(s) from DB');
+            // Прибираємо поля Google/email (привʼязку вимкнено в UI; код на сервері залишено)
+            let cleaned = 0;
+            for (const acc of Object.values(accounts)) {
+                if (acc && typeof acc === 'object' && ('email' in acc || 'googleId' in acc || 'emailVerified' in acc)) {
+                    delete acc.email;
+                    delete acc.googleId;
+                    delete acc.emailVerified;
+                    cleaned++;
+                }
+            }
+            if (cleaned > 0) {
+                saveAccounts();
+                console.log('[auth] Removed email/googleId/emailVerified from ' + cleaned + ' account(s)');
+            }
         } else {
             console.log('[auth] No accounts DB yet - starting fresh');
         }
@@ -223,6 +237,18 @@ async function initAccountsStorage() {
         // Унікальні індекси для привʼязки Google/email (sparse — бо поле є не в всіх)
         try { await accountsCollection.createIndex({ email: 1 }, { unique: true, sparse: true }); } catch (_) {}
         try { await accountsCollection.createIndex({ googleId: 1 }, { unique: true, sparse: true }); } catch (_) {}
+        // Прибираємо з акаунтів поля Google/email (привʼязку вимкнено в UI).
+        // Сам код Google-авторизації на сервері ЗАЛИШЕНО — за потреби її можна
+        // знову увімкнути, тоді ці поля запишуться наново.
+        try {
+            const stripped = await accountsCollection.updateMany(
+                {},
+                { $unset: { email: '', googleId: '', emailVerified: '' } }
+            );
+            if (stripped.modifiedCount > 0) {
+                console.log('[auth] Removed email/googleId/emailVerified from ' + stripped.modifiedCount + ' account(s)');
+            }
+        } catch (_) {}
     } catch (e) {
         console.error('[auth] MongoDB connection FAILED, falling back to local JSON:', e.message);
         accountsCollection = null;
