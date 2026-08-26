@@ -303,7 +303,11 @@ function getSmtpTransport() {
             host: SMTP_HOST,
             port: SMTP_PORT,
             secure: SMTP_PORT === 465,
-            auth: { user: SMTP_USER, pass: SMTP_PASS }
+            auth: { user: SMTP_USER, pass: SMTP_PASS },
+            // Щоб повільний/недоступний SMTP не підвішував запити гри
+            connectionTimeout: 10000,
+            greetingTimeout: 10000,
+            socketTimeout: 15000
         });
     }
     return smtpTransport;
@@ -327,7 +331,12 @@ async function sendResetCodeEmail(toEmail, code) {
         console.log('[reset] SMTP not configured. Reset code for ' + toEmail + ': ' + code);
         return { sent: false };
     }
-    await transport.sendMail({ from: MAIL_FROM, to: toEmail, subject, text, html });
+    // Страхувальний таймаут: SMTP-сервер не відповів за 15 с — не тримаємо гру
+    const sendPromise = transport.sendMail({ from: MAIL_FROM, to: toEmail, subject, text, html });
+    const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('SMTP timeout')), 15000);
+    });
+    await Promise.race([sendPromise, timeoutPromise]);
     console.log('[reset] Reset email sent to:', toEmail);
     return { sent: true };
 }

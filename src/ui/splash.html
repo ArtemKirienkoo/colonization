@@ -1161,6 +1161,15 @@
             Promise.all([waitServerReady(), pageLoaded]).then(([online]) => finish(online));
         })();
 
+        // ===== KEEP-ALIVE: не даємо хмарному серверу заснути під час сесії =====
+        // Render (free tier) "засинає" після ~15 хв бездіяльності й прокидається
+        // 30-60 с — через це раніше зрідка з'являлось «Сервер не відповідає».
+        // Легкий HTTP-пінг кожні 4 хвилини тримає сервер живим, поки гра відкрита.
+        const CLOUD_SERVER_URL = sessionStorage.getItem('serverUrl') || 'https://colonization.onrender.com';
+        setInterval(() => {
+            try { fetch(CLOUD_SERVER_URL, { mode: 'no-cors', cache: 'no-store' }); } catch (_) {}
+        }, 4 * 60 * 1000);
+
         // Audio Manager for splash screen
         class AudioManager {
             constructor() {
@@ -1901,15 +1910,40 @@
             });
             return authSocket;
         }
-        function authRequest(event, payload) {
+        // Хмарний сервер на Render (free tier) після простою "спить" і прокидається
+        // 30-60 с. Тому перед запитом чекаємо ФАКТИЧНОГО підключення сокета, а не
+        // стріляємо одразу — інакше отримували «Сервер не відповідає».
+        function waitForAuthSocket(maxWaitMs) {
             return new Promise((resolve) => {
                 const s = getAuthSocket();
+                if (s.connected) { resolve(s); return; }
+                let settled = false;
+                const onConnect = () => { if (!settled) { settled = true; cleanup(); resolve(s); } };
+                const onError = () => { /* чекаємо далі до таймауту */ };
+                const cleanup = () => {
+                    s.off('connect', onConnect);
+                    s.off('connect_error', onError);
+                    clearTimeout(timer);
+                };
+                const timer = setTimeout(() => { if (!settled) { settled = true; cleanup(); resolve(null); } }, maxWaitMs);
+                s.on('connect', onConnect);
+                s.on('connect_error', onError);
+            });
+        }
+        async function authRequest(event, payload) {
+            // До 40 с чекаємо зʼєднання (вистачає на холодний старт Render),
+            // потім до 20 с чекаємо відповідь на сам запит
+            const s = await waitForAuthSocket(40000);
+            if (!s) {
+                return { success: false, error: 'Сервер не відповідає. Перевірте інтернет і спробуйте ще раз.' };
+            }
+            return new Promise((resolve) => {
                 const resultEvent = event + '-result';
                 const handler = (data) => { s.off(resultEvent, handler); clearTimeout(t); resolve(data); };
                 const t = setTimeout(() => {
                     s.off(resultEvent, handler);
                     resolve({ success: false, error: 'Сервер не відповідає. Спробуйте ще раз.' });
-                }, 10000);
+                }, 20000);
                 s.on(resultEvent, handler);
                 s.emit(event, payload);
             });
