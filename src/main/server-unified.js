@@ -258,6 +258,18 @@ const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
 const SMTP_USER = process.env.SMTP_USER || '';
 const SMTP_PASS = process.env.SMTP_PASS || '';
 const MAIL_FROM = process.env.MAIL_FROM || ('Colonization <' + (SMTP_USER || 'noreply@colonization.game') + '>');
+// Рекомендований спосіб для Render free: надсилання через HTTPS-API Brevo (порт 443,
+// який Render гарантовано дозволяє). SMTP-порти (587/465) на free-тарифі Render можуть
+// блокуватися (звідси "Connection timeout"). BREVO_API_KEY береться в Brevo:
+// SMTP & API -> API Keys -> Generate new API key (v3).
+const BREVO_API_KEY = process.env.BREVO_API_KEY || '';
+
+function parseMailFrom(value) {
+    // "Name <email>"
+    const m = String(value || '').match(/^([^<]*)<([^>]*)>$/);
+    if (m) return { name: m[1].trim() || 'Colonization', email: m[2].trim() };
+    return { name: '', email: String(value || '') };
+}
 
 // ===== ВІДНОВЛЕННЯ ПАРОЛЯ: одноразові коди й токени =====
 // passwordResets: email -> { codeHash (sha256), expiresAt, attempts, lastSentAt, login }
@@ -314,7 +326,6 @@ function getSmtpTransport() {
 }
 
 async function sendResetCodeEmail(toEmail, code) {
-    const transport = getSmtpTransport();
     const subject = 'Colonization — код підтвердження';
     const text = 'Ви запросили відновлення пароля в грі Colonization.\n\n'
         + 'Код підтвердження: ' + code + '\n'
@@ -326,19 +337,61 @@ async function sendResetCodeEmail(toEmail, code) {
         + '<div style="font-size:34px;font-weight:bold;letter-spacing:10px;color:#f1c40f;background:#1f1f3d;display:inline-block;padding:12px 22px;border-radius:10px;border:1px solid rgba(243,156,18,.4);">' + code + '</div>'
         + '<p style="color:#999;font-size:13px;margin-top:18px;">Код дійсний 10 хвилин.<br>Якщо це були не ви — просто проігноруйте лист.</p>'
         + '</div>';
+
+    // --- Пріоритет 1: HTTPS-API Brevo (порт 443, працює з Render free) ---
+    if (BREVO_API_KEY) {
+        const sender = parseMailFrom(MAIL_FROM);
+        const controller = new AbortController();
+        const abortTimer = setTimeout(() => controller.abort(), 15000);
+        try {
+            const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+                method: 'POST',
+                headers: {
+                    'api-key': BREVO_API_KEY,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    sender: { name: sender.name || 'Colonization', email: sender.email || 'noreply@colonization.game' },
+                    to: [{ email: toEmail }],
+                    subject,
+                    textContent: text,
+                    htmlContent: html
+                }),
+                signal: controller.signal
+            });
+            clearTimeout(abortTimer);
+            if (!resp.ok) {
+                const bodyText = await resp.text().catch(() => '');
+                throw new Error('Brevo API HTTP ' + resp.status + ': ' + bodyText.slice(0, 300));
+            }
+            console.log('[reset] Reset email sent via Brevo API to:', toEmail);
+            return { sent: true };
+        } catch (e) {
+            clearTimeout(abortTimer);
+            console.error('[reset] Brevo API error:', e.name || '', e.message);
+            throw e; // поверне клієнту "Не вдалося надіслати"
+        }
+    }
+
+    // --- Пріоритет 2: SMTP (nodemailer) ---
+    const transport = getSmtpTransport();
     if (!transport) {
-        // DEV-режим: SMTP не налаштований — код у консоль сервера
-        console.log('[reset] SMTP not configured. Reset code for ' + toEmail + ': ' + code);
+        // DEV-режим: жодного провайдера не налаштовано — код у консоль сервера
+        console.log('[reset] No mail provider (SMTP/Brevo) configured. Reset code for ' + toEmail + ': ' + code);
         return { sent: false };
     }
-    // Страхувальний таймаут: SMTP-сервер не відповів за 15 с — не тримаємо гру
     const sendPromise = transport.sendMail({ from: MAIL_FROM, to: toEmail, subject, text, html });
     const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('SMTP timeout')), 15000);
     });
-    await Promise.race([sendPromise, timeoutPromise]);
-    console.log('[reset] Reset email sent to:', toEmail);
-    return { sent: true };
+    try {
+        await Promise.race([sendPromise, timeoutPromise]);
+        console.log('[reset] Reset email sent via SMTP to:', toEmail);
+        return { sent: true };
+    } catch (e) {
+        console.error('[reset] SMTP error:', e.name || '', e.message);
+        throw e;
+    }
 }
 
 // Періодичне прибирання протермінованих кодів/токенів (щоб Map не ріс безмежно)
