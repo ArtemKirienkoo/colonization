@@ -4013,14 +4013,10 @@ function rollDice(){
         },1500);
     },800);
 }
-// Add hover sounds to all buttons
-function addHoverSounds() {
-    document.querySelectorAll('button').forEach(btn => {
-        btn.addEventListener('mouseenter', () => {
-            audioManager.playHoverSound();
-        });
-    });
-}
+// Hover-звуки (при наведенні мишкою на кнопки) — ВИМКНЕНО.
+// Функцію лишаємо порожньою, щоб не ламати виклики/MutationObserver.
+// Звуки при КЛІКУ (playClickSound) працюють далі.
+function addHoverSounds() {}
 
 // Add hover sounds initially
 addHoverSounds();
