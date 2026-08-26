@@ -40,20 +40,6 @@ function loadAccounts() {
         if (fs.existsSync(ACCOUNTS_FILE)) {
             accounts = JSON.parse(fs.readFileSync(ACCOUNTS_FILE, 'utf8'));
             console.log('[auth] Loaded ' + Object.keys(accounts).length + ' account(s) from DB');
-            // Прибираємо поля Google/email (привʼязку вимкнено в UI; код на сервері залишено)
-            let cleaned = 0;
-            for (const acc of Object.values(accounts)) {
-                if (acc && typeof acc === 'object' && ('email' in acc || 'googleId' in acc || 'emailVerified' in acc)) {
-                    delete acc.email;
-                    delete acc.googleId;
-                    delete acc.emailVerified;
-                    cleaned++;
-                }
-            }
-            if (cleaned > 0) {
-                saveAccounts();
-                console.log('[auth] Removed email/googleId/emailVerified from ' + cleaned + ' account(s)');
-            }
         } else {
             console.log('[auth] No accounts DB yet - starting fresh');
         }
@@ -234,21 +220,10 @@ async function initAccountsStorage() {
                 console.log('[auth] Hashed legacy plaintext password for:', a.login);
             }
         }
-        // Унікальні індекси для привʼязки Google/email (sparse — бо поле є не в всіх)
+        // Унікальні індекси: email використовується для відновлення пароля,
+        // googleId — для вимкненої (але збереженої) Google-привʼязки. Sparse — бо поле є не в всіх.
         try { await accountsCollection.createIndex({ email: 1 }, { unique: true, sparse: true }); } catch (_) {}
         try { await accountsCollection.createIndex({ googleId: 1 }, { unique: true, sparse: true }); } catch (_) {}
-        // Прибираємо з акаунтів поля Google/email (привʼязку вимкнено в UI).
-        // Сам код Google-авторизації на сервері ЗАЛИШЕНО — за потреби її можна
-        // знову увімкнути, тоді ці поля запишуться наново.
-        try {
-            const stripped = await accountsCollection.updateMany(
-                {},
-                { $unset: { email: '', googleId: '', emailVerified: '' } }
-            );
-            if (stripped.modifiedCount > 0) {
-                console.log('[auth] Removed email/googleId/emailVerified from ' + stripped.modifiedCount + ' account(s)');
-            }
-        } catch (_) {}
     } catch (e) {
         console.error('[auth] MongoDB connection FAILED, falling back to local JSON:', e.message);
         accountsCollection = null;
@@ -273,6 +248,96 @@ const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || (PUBLIC_BASE_URL 
 // Параїнг-сесії: sessionKey -> { status:'pending'|'done'|'error', createdAt, linkPlayerId, result?, error? }
 const googleAuthSessions = new Map();
 const GOOGLE_SESSION_TTL = 10 * 60 * 1000; // 10 хвилин на весь прохід
+
+// ===== SMTP (надсилання листів) — використовується для відновлення пароля =====
+// Налаштування через env-змінні на Render (підходить будь-який SMTP-провайдер:
+// Brevo, SendGrid, Gmail з app-password тощо). Якщо не налаштовано — сервер
+// працює у DEV-режимі: код відновлення пишеться в консоль сервера.
+const SMTP_HOST = process.env.SMTP_HOST || '';
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
+const SMTP_USER = process.env.SMTP_USER || '';
+const SMTP_PASS = process.env.SMTP_PASS || '';
+const MAIL_FROM = process.env.MAIL_FROM || ('Colonization <' + (SMTP_USER || 'noreply@colonization.game') + '>');
+
+// ===== ВІДНОВЛЕННЯ ПАРОЛЯ: одноразові коди й токени =====
+// passwordResets: email -> { codeHash (sha256), expiresAt, attempts, lastSentAt, login }
+// resetTokens: одноразовий токен (видається після правильного коду) -> { email, expiresAt }
+const passwordResets = new Map();
+const resetTokens = new Map();
+const RESET_CODE_TTL_MS = 10 * 60 * 1000;      // код живе 10 хвилин
+const RESET_RESEND_COOLDOWN_MS = 60 * 1000;    // повторна відправка не частіше ніж раз на хвилину
+const RESET_MAX_ATTEMPTS = 5;                  // максимум спроб вводу коду
+const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;     // токен на зміну пароля живе 15 хвилин
+
+function normalizeEmail(v) {
+    return String(v || '').trim().toLowerCase();
+}
+
+function isValidEmail(v) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || ''));
+}
+
+function generateResetCode() {
+    // 6-значний числовий код
+    return String(crypto.randomInt(100000, 1000000));
+}
+
+function hashResetCode(code) {
+    // Код зберігаємо лише як хеш: навіть витік памʼяті не дає готових кодів
+    return crypto.createHash('sha256').update('colonization-reset:' + String(code)).digest('hex');
+}
+
+function safeEqualStr(a, b) {
+    const ba = Buffer.from(String(a));
+    const bb = Buffer.from(String(b));
+    return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
+}
+
+let smtpTransport = null;
+function getSmtpTransport() {
+    if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) return null;
+    if (!smtpTransport) {
+        // Ліниве підключення nodemailer: пакет потрібен лише коли SMTP налаштовано
+        const nodemailer = require('nodemailer');
+        smtpTransport = nodemailer.createTransport({
+            host: SMTP_HOST,
+            port: SMTP_PORT,
+            secure: SMTP_PORT === 465,
+            auth: { user: SMTP_USER, pass: SMTP_PASS }
+        });
+    }
+    return smtpTransport;
+}
+
+async function sendResetCodeEmail(toEmail, code) {
+    const transport = getSmtpTransport();
+    const subject = 'Colonization — код підтвердження';
+    const text = 'Ви запросили відновлення пароля в грі Colonization.\n\n'
+        + 'Код підтвердження: ' + code + '\n'
+        + 'Код дійсний 10 хвилин.\n\n'
+        + 'Якщо це були не ви — просто проігноруйте цей лист.';
+    const html = '<div style="background:#12122a;padding:28px;font-family:Segoe UI,Arial,sans-serif;color:#eee;border-radius:12px;max-width:480px;margin:auto;text-align:center;">'
+        + '<h2 style="color:#f39c12;letter-spacing:3px;margin:0 0 14px;">COLONIZATION</h2>'
+        + '<p style="margin:0 0 18px;">Ви запросили відновлення пароля.<br>Ваш код підтвердження:</p>'
+        + '<div style="font-size:34px;font-weight:bold;letter-spacing:10px;color:#f1c40f;background:#1f1f3d;display:inline-block;padding:12px 22px;border-radius:10px;border:1px solid rgba(243,156,18,.4);">' + code + '</div>'
+        + '<p style="color:#999;font-size:13px;margin-top:18px;">Код дійсний 10 хвилин.<br>Якщо це були не ви — просто проігноруйте лист.</p>'
+        + '</div>';
+    if (!transport) {
+        // DEV-режим: SMTP не налаштований — код у консоль сервера
+        console.log('[reset] SMTP not configured. Reset code for ' + toEmail + ': ' + code);
+        return { sent: false };
+    }
+    await transport.sendMail({ from: MAIL_FROM, to: toEmail, subject, text, html });
+    console.log('[reset] Reset email sent to:', toEmail);
+    return { sent: true };
+}
+
+// Періодичне прибирання протермінованих кодів/токенів (щоб Map не ріс безмежно)
+setInterval(() => {
+    const now = Date.now();
+    for (const [k, v] of passwordResets) if (now > v.expiresAt) passwordResets.delete(k);
+    for (const [k, v] of resetTokens) if (now > v.expiresAt) resetTokens.delete(k);
+}, 5 * 60 * 1000).unref();
 
 function createGoogleAuthSession(linkPlayerId) {
     const key = crypto.randomBytes(24).toString('hex');
@@ -1142,6 +1207,206 @@ io.on('connection', (socket) => {
             return;
         }
         socket.emit('google-auth-poll-result', Object.assign({ status: 'done' }, s.result));
+    });
+
+    // ===== AUTH: ПРИВ'ЯЗКА EMAIL ДО АКАУНТА (кнопка в профілі) =====
+    // Email потрібен, щоб гравець міг відновити пароль через код з листа.
+    socket.on('account-bind-email', async ({ playerId, email }) => {
+        playerId = String(playerId || '');
+        const norm = normalizeEmail(email);
+
+        if (!playerId) {
+            socket.emit('account-bind-email-result', { success: false, error: 'Акаунт не знайдено' });
+            return;
+        }
+        if (!isValidEmail(norm)) {
+            socket.emit('account-bind-email-result', { success: false, error: 'Введіть коректний email' });
+            return;
+        }
+
+        if (accountsCollection) {
+            try {
+                const acc = await accountsCollection.findOne({ id: playerId });
+                if (!acc) {
+                    socket.emit('account-bind-email-result', { success: false, error: 'Акаунт не знайдено' });
+                    return;
+                }
+                const taken = await accountsCollection.findOne({ email: norm });
+                if (taken && taken.id !== playerId) {
+                    socket.emit('account-bind-email-result', { success: false, error: 'Цей email вже привʼязаний до іншого акаунта' });
+                    return;
+                }
+                await accountsCollection.updateOne({ id: playerId }, { $set: { email: norm } });
+                console.log('[auth] Email bound (Atlas):', acc.login, '->', norm);
+                socket.emit('account-bind-email-result', { success: true, email: norm });
+            } catch (e) {
+                console.error('[auth] Bind email error:', e.message);
+                socket.emit('account-bind-email-result', { success: false, error: 'Помилка бази даних' });
+            }
+            return;
+        }
+
+        // ===== Локальний JSON fallback =====
+        const acc = findAccountById(playerId);
+        if (!acc) {
+            socket.emit('account-bind-email-result', { success: false, error: 'Акаунт не знайдено' });
+            return;
+        }
+        const takenLocal = await findAccountByEmail(norm);
+        if (takenLocal && takenLocal.id !== playerId) {
+            socket.emit('account-bind-email-result', { success: false, error: 'Цей email вже привʼязаний до іншого акаунта' });
+            return;
+        }
+        acc.email = norm;
+        if (!saveAccounts()) {
+            socket.emit('account-bind-email-result', { success: false, error: 'Помилка збереження на сервері' });
+            return;
+        }
+        console.log('[auth] Email bound (local JSON):', acc.login, '->', norm);
+        socket.emit('account-bind-email-result', { success: true, email: norm });
+    });
+
+    // ===== AUTH: ЗАБУЛИ ПАРОЛЬ — КРОК 1. Надіслати код на email =====
+    socket.on('auth-forgot-password', async ({ email }) => {
+        const norm = normalizeEmail(email);
+
+        if (!isValidEmail(norm)) {
+            socket.emit('auth-forgot-password-result', { success: false, error: 'Введіть коректний email' });
+            return;
+        }
+
+        // Анти-спам: повторна відправка не частіше ніж раз на хвилину
+        const existing = passwordResets.get(norm);
+        if (existing && Date.now() - existing.lastSentAt < RESET_RESEND_COOLDOWN_MS) {
+            const waitSec = Math.ceil((RESET_RESEND_COOLDOWN_MS - (Date.now() - existing.lastSentAt)) / 1000);
+            socket.emit('auth-forgot-password-result', { success: false, error: 'Код уже надіслано. Повторно можна через ' + waitSec + ' с' });
+            return;
+        }
+
+        const acc = await findAccountByEmail(norm);
+        if (!acc) {
+            socket.emit('auth-forgot-password-result', { success: false, error: 'Акаунт з таким email не знайдено' });
+            return;
+        }
+        // Акаунти без пароля (створені через соцмережі) не відновлюються через код
+        if (!acc.password) {
+            socket.emit('auth-forgot-password-result', { success: false, error: 'Для цього акаунта пароль не встановлено' });
+            return;
+        }
+
+        let outcome;
+        try {
+            const code = generateResetCode();
+            outcome = await sendResetCodeEmail(norm, code);
+            passwordResets.set(norm, {
+                codeHash: hashResetCode(code),
+                expiresAt: Date.now() + RESET_CODE_TTL_MS,
+                attempts: 0,
+                lastSentAt: Date.now(),
+                login: acc.login
+            });
+        } catch (e) {
+            console.error('[reset] Send error:', e.message);
+            socket.emit('auth-forgot-password-result', { success: false, error: 'Не вдалося надіслати листа. Спробуйте пізніше' });
+            return;
+        }
+        socket.emit('auth-forgot-password-result', { success: true, devMode: !outcome.sent });
+    });
+
+    // ===== AUTH: ЗАБУЛИ ПАРОЛЬ — КРОК 2. Перевірка коду =====
+    socket.on('auth-verify-reset-code', ({ email, code }) => {
+        const norm = normalizeEmail(email);
+        code = String(code || '').trim();
+
+        const rec = passwordResets.get(norm);
+        if (!rec) {
+            socket.emit('auth-verify-reset-code-result', { success: false, error: 'Спочатку запросіть код підтвердження' });
+            return;
+        }
+        if (Date.now() > rec.expiresAt) {
+            passwordResets.delete(norm);
+            socket.emit('auth-verify-reset-code-result', { success: false, error: 'Код протермінувався. Запросіть новий' });
+            return;
+        }
+        if (rec.attempts >= RESET_MAX_ATTEMPTS) {
+            passwordResets.delete(norm);
+            socket.emit('auth-verify-reset-code-result', { success: false, error: 'Забагато невдалих спроб. Запросіть новий код' });
+            return;
+        }
+
+        if (!safeEqualStr(rec.codeHash, hashResetCode(code))) {
+            rec.attempts++;
+            const left = RESET_MAX_ATTEMPTS - rec.attempts;
+            socket.emit('auth-verify-reset-code-result', { success: false, error: 'Неправильний код' + (left > 0 ? ('. Залишилось спроб: ' + left) : '') });
+            return;
+        }
+
+        // Код правильний: видаємо одноразовий токен на зміну пароля
+        const token = crypto.randomBytes(24).toString('hex');
+        resetTokens.set(token, { email: norm, expiresAt: Date.now() + RESET_TOKEN_TTL_MS });
+        passwordResets.delete(norm); // код одноразовий
+        socket.emit('auth-verify-reset-code-result', { success: true, resetToken: token, login: rec.login || '' });
+    });
+
+    // ===== AUTH: ЗАБУЛИ ПАРОЛЬ — КРОК 3. Встановлення нового пароля =====
+    socket.on('auth-reset-password-confirm', async ({ resetToken, newPassword }) => {
+        newPassword = String(newPassword || '');
+        const token = String(resetToken || '');
+
+        const t = resetTokens.get(token);
+        if (!t) {
+            socket.emit('auth-reset-password-confirm-result', { success: false, error: 'Сесія відновлення недійсна. Почніть спочатку' });
+            return;
+        }
+        if (Date.now() > t.expiresAt) {
+            resetTokens.delete(token);
+            socket.emit('auth-reset-password-confirm-result', { success: false, error: 'Час на зміну пароля вичерпано. Почніть спочатку' });
+            return;
+        }
+        if (!newPassword || newPassword.length < 4) {
+            socket.emit('auth-reset-password-confirm-result', { success: false, error: 'Пароль занадто короткий (мін. 4 символи)' });
+            return;
+        }
+        if (newPassword.length > 100) {
+            socket.emit('auth-reset-password-confirm-result', { success: false, error: 'Пароль занадто довгий (макс. 100 символів)' });
+            return;
+        }
+
+        const newHash = hashPassword(newPassword);
+
+        if (accountsCollection) {
+            try {
+                const res = await accountsCollection.updateOne({ email: t.email }, { $set: { password: newHash } });
+                if (res.matchedCount === 0) {
+                    resetTokens.delete(token);
+                    socket.emit('auth-reset-password-confirm-result', { success: false, error: 'Акаунт не знайдено' });
+                    return;
+                }
+                console.log('[reset] Password changed for account with email:', t.email);
+            } catch (e) {
+                console.error('[reset] Confirm error:', e.message);
+                socket.emit('auth-reset-password-confirm-result', { success: false, error: 'Помилка бази даних' });
+                return;
+            }
+        } else {
+            // ===== Локальний JSON fallback =====
+            const acc = await findAccountByEmail(t.email);
+            if (!acc) {
+                resetTokens.delete(token);
+                socket.emit('auth-reset-password-confirm-result', { success: false, error: 'Акаунт не знайдено' });
+                return;
+            }
+            acc.password = newHash;
+            if (!saveAccounts()) {
+                socket.emit('auth-reset-password-confirm-result', { success: false, error: 'Помилка збереження на сервері' });
+                return;
+            }
+            console.log('[reset] Password changed (local JSON) for:', t.email);
+        }
+
+        // Токен одноразовий: після успішної зміни пароля знищуємо
+        resetTokens.delete(token);
+        socket.emit('auth-reset-password-confirm-result', { success: true });
     });
 
     // ===== AUTH: РЕЄСТРАЦІЯ АКАУНТА =====

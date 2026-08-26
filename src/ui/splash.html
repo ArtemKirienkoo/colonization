@@ -314,6 +314,62 @@
             box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
         }
 
+        /* ===== ЗАБУЛИ ПАРОЛЬ? (маленьке текстове посилання у вікні входу) ===== */
+        .settings-box button.forgot-pass-link,
+        .settings-box button.forgot-pass-link:hover,
+        .settings-box button.forgot-pass-link:active {
+            width: auto;
+            display: block;
+            background: none;
+            border: none;
+            box-shadow: none;
+            transform: none;
+            padding: 0;
+            margin: -4px 0 8px;
+            font-size: 0.85em;
+            font-weight: 400;
+            letter-spacing: 0.3px;
+            text-align: left;
+            color: #f39c12;
+            text-decoration: underline;
+            opacity: 0.9;
+            transition: color 0.2s, opacity 0.2s;
+        }
+        .settings-box button.forgot-pass-link:hover {
+            color: #f1c40f;
+            opacity: 1;
+            text-shadow: 0 0 8px rgba(243, 156, 18, 0.45);
+        }
+
+        /* ===== ВІКНО ВІДНОВЛЕННЯ ПАРОЛЯ ===== */
+        .fp-hint {
+            color: #bbb;
+            font-size: 0.92em;
+            line-height: 1.45;
+            margin: 4px 0 12px;
+        }
+        .fp-email-label {
+            color: #f39c12;
+            font-size: 1em;
+            margin-bottom: 10px;
+        }
+        .fp-code-input {
+            text-align: center !important;
+            font-size: 1.5em !important;
+            letter-spacing: 10px;
+            font-family: monospace;
+        }
+        .fp-dev-hint {
+            color: #888;
+            font-size: 0.8em;
+            margin-top: 6px;
+        }
+        .fp-login-prefill {
+            color: #f39c12;
+            font-size: 0.95em;
+            margin-bottom: 10px;
+        }
+
         /* ===== VOLUME SETTINGS ===== */
         .volume-slider-container {
             margin: 12px 0;
@@ -688,10 +744,14 @@
                             <span class="profile-info-id" id="profileModalId"></span>
                             <button id="copyProfileIdBtn" class="profile-copy-btn" title="Копіювати айді" type="button">📋</button>
                         </div>
+                        <div class="profile-id-row">
+                            <span class="profile-info-id" id="profileModalEmail"></span>
+                        </div>
                         <div class="profile-info-cups" id="profileModalCups">🏆 Кубки: 0</div>
                     </div>
                 </div>
                 <button id="profileFriendsBtn" class="mode-btn profile-friends-btn" type="button">Друзі<span class="btn-badge" id="profileFriendsBadge" style="display:none;"></span></button>
+                <button id="bindEmailBtn" class="mode-btn profile-friends-btn" type="button" style="display:none;">📧 Привʼязати email</button>
             </div>
             <div class="profile-actions">
                 <button id="openRegisterBtn" class="mode-btn">Реєстрація</button>
@@ -720,9 +780,64 @@
             <h3>ВХІД</h3>
             <input type="text" id="loginLoginInput" class="auth-input" placeholder="Ваш логін" maxlength="20" autocomplete="off">
             <input type="password" id="loginPassInput" class="auth-input" placeholder="Ваш пароль">
+            <button type="button" id="forgotPassLink" class="forgot-pass-link">Забули пароль?</button>
             <div class="auth-error" id="loginError"></div>
             <button id="confirmLoginBtn" class="mode-btn">Увійти</button>
             <button id="backFromLogin" class="back-btn">Вийти</button>
+        </div>
+    </div>
+
+    <!-- Bind Email Modal -->
+    <div class="settings-overlay" id="bindEmailModal" style="display: none;">
+        <div class="settings-box">
+            <h3>ПРИВʼЯЗАТИ EMAIL</h3>
+            <div class="fp-hint">Email потрібен, щоб ви могли відновити пароль, якщо забудете його.</div>
+            <input type="text" id="bindEmailInput" class="auth-input" placeholder="Ваш email" maxlength="254" autocomplete="off">
+            <div class="auth-error" id="bindEmailError"></div>
+            <button id="confirmBindEmail" class="mode-btn">Зберегти</button>
+            <button id="backFromBindEmail" class="back-btn">Скасувати</button>
+        </div>
+    </div>
+
+    <!-- Forgot Password Modal -->
+    <div class="settings-overlay" id="forgotPassModal" style="display: none;">
+        <div class="settings-box">
+            <!-- Крок 1: email -->
+            <div id="fpStepEmail">
+                <h3>ВІДНОВЛЕННЯ ПАРОЛЯ</h3>
+                <div class="fp-hint">Введіть email, привʼязаний до вашого акаунта — ми надішлемо на нього код підтвердження.</div>
+                <input type="text" id="fpEmailInput" class="auth-input" placeholder="Email вашого акаунта" maxlength="254" autocomplete="off">
+                <div class="auth-error" id="fpEmailError"></div>
+                <button id="fpSendCode" class="mode-btn">Надіслати код</button>
+                <button id="fpBackFromEmail" class="back-btn">Назад</button>
+            </div>
+            <!-- Крок 2: код -->
+            <div id="fpStepCode" style="display: none;">
+                <h3>КОД ПІДТВЕРДЖЕННЯ</h3>
+                <div class="fp-hint">На ваш email було надіслано код підтвердження. Введіть його тут:</div>
+                <div class="fp-email-label" id="fpMaskedEmail"></div>
+                <input type="text" id="fpCodeInput" class="auth-input fp-code-input" placeholder="······" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
+                <div class="fp-dev-hint" id="fpDevHint" style="display: none;">(режим розробки: код виведено в консоль сервера)</div>
+                <div class="auth-error" id="fpCodeError"></div>
+                <button id="fpConfirmCode" class="mode-btn">Підтвердити</button>
+                <button type="button" id="fpResendCode" class="back-btn">Надіслати ще раз (<span id="fpResendTimer">60</span>с)</button>
+                <button id="fpBackFromCode" class="back-btn">Назад до email</button>
+            </div>
+            <!-- Крок 3: новий пароль -->
+            <div id="fpStepNew" style="display: none;">
+                <h3>НОВИЙ ПАРОЛЬ</h3>
+                <input type="password" id="fpNewPassInput" class="auth-input" placeholder="Новий пароль">
+                <input type="password" id="fpNewPass2Input" class="auth-input" placeholder="Повторіть новий пароль">
+                <div class="auth-error" id="fpNewPassError"></div>
+                <button id="fpConfirmNewPass" class="mode-btn">Змінити пароль</button>
+            </div>
+            <!-- Крок 4: успіх -->
+            <div id="fpStepDone" style="display: none;">
+                <h3>ГОТОВО ✅</h3>
+                <div class="fp-hint">Пароль змінено! Тепер увійдіть із новим паролем.</div>
+                <div class="fp-login-prefill" id="fpLoginPrefill"></div>
+                <button id="fpGoLogin" class="mode-btn">Увійти</button>
+            </div>
         </div>
     </div>
 
@@ -1758,7 +1873,14 @@
             document.getElementById('profileModalId').textContent = 'ID: ' + getProfileId();
             document.getElementById('profileBtnCups').textContent = '🏆 ' + getProfileCups();
             document.getElementById('profileModalCups').textContent = '🏆 Кубки: ' + getProfileCups();
-            // Email і стан прив'язки Google показуємо лише для акаунтів
+            // Email показуємо лише для акаунтів (потрібен для відновлення пароля)
+            const emailEl = document.getElementById('profileModalEmail');
+            if (emailEl) emailEl.textContent = (acc && acc.email) ? ('📧 ' + acc.email) : '';
+            const bindBtn = document.getElementById('bindEmailBtn');
+            if (bindBtn) {
+                bindBtn.style.display = (acc && acc.playerId) ? 'inline-block' : 'none';
+                bindBtn.textContent = (acc && acc.email) ? '✉️ Змінити email' : '📧 Привʼязати email';
+            }
             document.getElementById('profileStatus').textContent = statusText || (acc ? '✅ Акаунт активний' : '');
         }
 
@@ -1950,6 +2072,197 @@
         // Серверна інфраструктура (маршрути /google-auth, socket-події
         // google-auth-start/poll тощо) ЗАЛИШЕНА — якщо знадобиться повернути
         // Google-вхід, достатньо додати кнопки й виклик startGoogleAuthFlow знову.
+
+        // ===== ПРИВ'ЯЗКА EMAIL ДО АКАУНТА (кнопка в профілі) =====
+        document.getElementById('bindEmailBtn').addEventListener('click', () => {
+            audioManager.playClickSound();
+            const acc = getAccount();
+            if (!acc || !acc.playerId) return;
+            document.getElementById('bindEmailInput').value = acc.email || '';
+            document.getElementById('bindEmailError').textContent = '';
+            document.getElementById('bindEmailModal').style.display = 'flex';
+            setTimeout(() => document.getElementById('bindEmailInput').focus(), 50);
+        });
+        document.getElementById('backFromBindEmail').addEventListener('click', () => {
+            audioManager.playClickSound();
+            document.getElementById('bindEmailModal').style.display = 'none';
+        });
+        async function doBindEmail() {
+            const acc = getAccount();
+            if (!acc || !acc.playerId) return;
+            const btn = document.getElementById('confirmBindEmail');
+            const errEl = document.getElementById('bindEmailError');
+            errEl.textContent = '';
+            btn.disabled = true;
+            try {
+                const res = await authRequest('account-bind-email', { playerId: acc.playerId, email: document.getElementById('bindEmailInput').value });
+                if (res.success) {
+                    setAccount(Object.assign({}, acc, { email: res.email }));
+                    updateProfileUI('✅ Email привʼязано! Тепер ви зможете відновити пароль.');
+                    document.getElementById('bindEmailModal').style.display = 'none';
+                } else {
+                    errEl.textContent = res.error || 'Помилка привʼязки email';
+                }
+            } finally {
+                btn.disabled = false;
+            }
+        }
+        document.getElementById('confirmBindEmail').addEventListener('click', doBindEmail);
+        document.getElementById('bindEmailInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doBindEmail(); });
+
+        // ===== ЗАБУЛИ ПАРОЛЬ? (відновлення через код з email) — стан і крок 1 =====
+        let fpEmail = '';
+        let fpLogin = '';
+        let fpResetToken = '';
+        let fpResendTimer = null;
+
+        function fpShowStep(stepId) {
+            ['fpStepEmail', 'fpStepCode', 'fpStepNew', 'fpStepDone'].forEach(id => {
+                document.getElementById(id).style.display = (id === stepId) ? 'block' : 'none';
+            });
+        }
+        function stopResendCooldown() {
+            if (fpResendTimer) { clearInterval(fpResendTimer); fpResendTimer = null; }
+        }
+        function maskEmail(v) {
+            v = String(v || '');
+            const at = v.indexOf('@');
+            if (at <= 0) return v;
+            return v[0] + '***' + v.slice(at);
+        }
+        function startResendCooldown() {
+            const btn = document.getElementById('fpResendCode');
+            let left = 60;
+            btn.disabled = true;
+            stopResendCooldown();
+            const tick = () => {
+                document.getElementById('fpResendTimer').textContent = left;
+                if (left <= 0) {
+                    stopResendCooldown();
+                    btn.disabled = false;
+                    btn.innerHTML = 'Надіслати код ще раз';
+                    return;
+                }
+                left--;
+            };
+            tick();
+            fpResendTimer = setInterval(tick, 1000);
+        }
+        document.getElementById('forgotPassLink').addEventListener('click', () => {
+            audioManager.playClickSound();
+            fpEmail = ''; fpLogin = ''; fpResetToken = '';
+            document.getElementById('fpEmailInput').value = '';
+            document.getElementById('fpEmailError').textContent = '';
+            document.getElementById('loginModal').style.display = 'none';
+            fpShowStep('fpStepEmail');
+            document.getElementById('forgotPassModal').style.display = 'flex';
+            setTimeout(() => document.getElementById('fpEmailInput').focus(), 50);
+        });
+        document.getElementById('fpBackFromEmail').addEventListener('click', () => {
+            audioManager.playClickSound();
+            stopResendCooldown();
+            document.getElementById('forgotPassModal').style.display = 'none';
+            document.getElementById('loginModal').style.display = 'flex';
+        });
+
+        // ===== ЗАБУЛИ ПАРОЛЬ: НАДСИЛАННЯ КОДУ =====
+        async function fpRequestCode(emailRaw, errTarget) {
+            errTarget.textContent = '';
+            try {
+                const res = await authRequest('auth-forgot-password', { email: emailRaw });
+                if (!res.success) {
+                    errTarget.textContent = res.error || 'Помилка надсилання';
+                    return;
+                }
+                fpEmail = String(emailRaw || '').trim().toLowerCase();
+                document.getElementById('fpMaskedEmail').textContent = maskEmail(fpEmail);
+                document.getElementById('fpCodeInput').value = '';
+                document.getElementById('fpCodeError').textContent = '';
+                document.getElementById('fpDevHint').style.display = res.devMode ? 'block' : 'none';
+                fpShowStep('fpStepCode');
+                startResendCooldown();
+                setTimeout(() => document.getElementById('fpCodeInput').focus(), 50);
+            } catch (e) {
+                errTarget.textContent = 'Помилка зʼєднання з сервером';
+            }
+        }
+
+        // ===== ЗАБУЛИ ПАРОЛЬ: кнопки кроків 1-3 і перехід до входу =====
+        document.getElementById('fpSendCode').addEventListener('click', () => {
+            const btn = document.getElementById('fpSendCode');
+            btn.disabled = true;
+            fpRequestCode(document.getElementById('fpEmailInput').value, document.getElementById('fpEmailError')).finally(() => { btn.disabled = false; });
+        });
+        document.getElementById('fpEmailInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') document.getElementById('fpSendCode').click();
+        });
+        document.getElementById('fpResendCode').addEventListener('click', () => {
+            if (document.getElementById('fpResendCode').disabled) return;
+            audioManager.playClickSound();
+            fpRequestCode(fpEmail, document.getElementById('fpCodeError'));
+        });
+        document.getElementById('fpBackFromCode').addEventListener('click', () => {
+            audioManager.playClickSound();
+            stopResendCooldown();
+            fpShowStep('fpStepEmail');
+        });
+        async function fpConfirmCode() {
+            const btn = document.getElementById('fpConfirmCode');
+            const errEl = document.getElementById('fpCodeError');
+            errEl.textContent = '';
+            btn.disabled = true;
+            try {
+                const res = await authRequest('auth-verify-reset-code', { email: fpEmail, code: document.getElementById('fpCodeInput').value });
+                if (!res.success) {
+                    errEl.textContent = res.error || 'Неправильний код';
+                    return;
+                }
+                fpResetToken = res.resetToken;
+                fpLogin = res.login || '';
+                document.getElementById('fpNewPassInput').value = '';
+                document.getElementById('fpNewPass2Input').value = '';
+                document.getElementById('fpNewPassError').textContent = '';
+                stopResendCooldown();
+                fpShowStep('fpStepNew');
+                setTimeout(() => document.getElementById('fpNewPassInput').focus(), 50);
+            } finally {
+                btn.disabled = false;
+            }
+        }
+        document.getElementById('fpConfirmCode').addEventListener('click', fpConfirmCode);
+        document.getElementById('fpCodeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') fpConfirmCode(); });
+        async function fpSetNewPassword() {
+            const p1 = document.getElementById('fpNewPassInput').value;
+            const p2 = document.getElementById('fpNewPass2Input').value;
+            const errEl = document.getElementById('fpNewPassError');
+            const btn = document.getElementById('fpConfirmNewPass');
+            errEl.textContent = '';
+            if (!p1 || p1.length < 4) { errEl.textContent = 'Пароль занадто короткий (мін. 4 символи)'; return; }
+            if (p1 !== p2) { errEl.textContent = 'Паролі не збігаються'; return; }
+            btn.disabled = true;
+            try {
+                const res = await authRequest('auth-reset-password-confirm', { resetToken: fpResetToken, newPassword: p1 });
+                if (!res.success) {
+                    errEl.textContent = res.error || 'Помилка зміни пароля';
+                    return;
+                }
+                document.getElementById('fpLoginPrefill').textContent = fpLogin ? ('Логін: ' + fpLogin) : '';
+                fpShowStep('fpStepDone');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+        document.getElementById('fpConfirmNewPass').addEventListener('click', fpSetNewPassword);
+        document.getElementById('fpNewPass2Input').addEventListener('keydown', (e) => { if (e.key === 'Enter') fpSetNewPassword(); });
+        document.getElementById('fpGoLogin').addEventListener('click', () => {
+            audioManager.playClickSound();
+            document.getElementById('forgotPassModal').style.display = 'none';
+            document.getElementById('loginError').textContent = '';
+            if (fpLogin) document.getElementById('loginLoginInput').value = fpLogin;
+            document.getElementById('loginPassInput').value = '';
+            document.getElementById('loginModal').style.display = 'flex';
+            setTimeout(() => document.getElementById('loginPassInput').focus(), 50);
+        });
 
         // ===== КОПІЮВАННЯ АЙДІ В ПРОФІЛІ (📋 праворуч від айді) =====
         document.getElementById('copyProfileIdBtn').addEventListener('click', () => {
@@ -2663,7 +2976,7 @@ document.getElementById('exitRoomBtn').addEventListener('click', () => {
                 }
                 
                 // Check other modals
-                const modals = ['gameModeModal', 'multiplayerLobbyModal', 'joinRoomModal', 'settingsModal', 'volumeModal'];
+                const modals = ['gameModeModal', 'multiplayerLobbyModal', 'joinRoomModal', 'settingsModal', 'volumeModal', 'bindEmailModal'];
                 modals.forEach(modalId => {
                     const modal = document.getElementById(modalId);
                     if (modal && modal.style.display === 'flex') {
@@ -2677,7 +2990,7 @@ document.getElementById('exitRoomBtn').addEventListener('click', () => {
 
         // Close modals when clicking outside (except for room modals to prevent accidental closing)
         document.addEventListener('click', (e) => {
-            const modals = ['gameModeModal', 'multiplayerLobbyModal', 'createRoomModal', 'settingsModal', 'volumeModal'];
+            const modals = ['gameModeModal', 'multiplayerLobbyModal', 'createRoomModal', 'settingsModal', 'volumeModal', 'bindEmailModal'];
             modals.forEach(modalId => {
                 const modal = document.getElementById(modalId);
                 if (modal && e.target === modal) {
