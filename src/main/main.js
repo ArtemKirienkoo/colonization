@@ -9,6 +9,11 @@ if (devInstance) {
     app.setPath('userData', path.join(app.getPath('appData'), 'Colonization-Dev'));
 }
 
+// Дозволяємо автоплей аудіо (фонова музика меню грає одразу після запуску гри,
+// без вимоги першого кліку користувача — стандартна поліція браузера тут зайва,
+// бо це десктопний застосунок)
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+
 // Keep a global reference of the window object
 let mainWindow;
 let serverProcess = null;
@@ -58,6 +63,17 @@ function createWindow() {
 
     // Load the splash screen (main menu) first
     mainWindow.loadFile(path.join(__dirname, '..', 'ui', 'splash.html'));
+
+    // Forward renderer diagnostics to terminal: [AUDIO]-tags and errors.
+    // Показує точну причину, чому музика не стартувала (файл, декодер, політика).
+    mainWindow.webContents.on('console-message', (_e, level, message) => {
+        try {
+            const s = String(message);
+            if (s.includes('[AUDIO]') || level >= 3) {
+                console.log('[renderer]', s);
+            }
+        } catch (_) {}
+    });
 
     // Show window when ready to prevent visual flash
     mainWindow.once('ready-to-show', () => {

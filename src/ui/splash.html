@@ -1189,6 +1189,43 @@
                     console.log('Web Audio API not supported');
                 }
             }
+            // ===== Реальна фонова музика з файлу (CC0) =====
+            // Пробуємо заграти ~/assets/audio/<name>.mp3; якщо файл недоступний,
+            // повертаємось до старої синтезованої мелодії (_startSynthMusic).
+            _audioCandidates(name) {
+                return ['../../assets/audio/', '../assets/audio/', 'assets/audio/', '/assets/audio/']
+                    .map(base => base + name);
+            }
+
+            _ensureFileMusic(fileName, gainBase) {
+                try {
+                    if (this.musicFileFailed) return;
+                    if (this.musicEl) return;
+                    this._fileGainBase = gainBase;
+                    const sources = this._audioCandidates(fileName);
+                    let idx = 0;
+                    const audio = new Audio();
+                    audio.loop = true;
+                    audio.preload = 'auto';
+                    audio.volume = Math.max(0, Math.min(1, gainBase * this.masterVolume * this.musicVolume));
+                    audio.addEventListener('error', () => {
+                        // пробуємо наступний варіант шляху, після останнього — відкат на синтезатор
+                        idx++;
+                        if (idx < sources.length) {
+                            audio.src = sources[idx];
+                        } else {
+                            this.musicEl = null;
+                            this.musicFileFailed = true;
+                            if (this.musicPlaying) this._startSynthMusic();
+                        }
+                    });
+                    audio.src = sources[0];
+                    this.musicEl = audio;
+                } catch (e) {
+                    this.musicEl = null;
+                    this.musicFileFailed = true;
+                }
+            }
 
             setMasterVolume(value) { this.masterVolume = value; }
             setMusicVolume(value) { this.musicVolume = value; }
@@ -1219,9 +1256,47 @@
 
             playHoverSound() { this.playTone(800, 0.05, 'sine', 0.1); }
 
+            // Фонова музика меню: реальний CC0-трек TownTheme.mp3 з assets/audio.
+            // Якщо файл недоступний — грається стара синтезована мелодія (_startSynthMusic).
             startBackgroundMusic() {
-                if (!this.initialized || !this.audioContext || this.musicPlaying) return;
+                if (!this.initialized || !this.audioContext) return;
+                try { if (this.audioContext.resume) this.audioContext.resume(); } catch (e) {}
+                // Ретрай автовідтворення: якщо музику вже запускали, але браузер
+                // заблокував play() до першої взаємодії — просто пробуємо ще раз
+                if (this.musicPlaying) {
+                    if (this.musicEl) {
+                        const rp = this.musicEl.play();
+                        if (rp && rp.catch) rp.catch(() => {});
+                    }
+                    return;
+                }
                 this.musicPlaying = true;
+                this._ensureFileMusic('TownTheme.mp3', 0.14);
+                if (this.musicEl) {
+                    try { this.musicEl.currentTime = 0; } catch (e) {}
+                    const p = this.musicEl.play();
+                    if (p && p.catch) p.catch(() => {}); // автоплей може бути заблокований до першої взаємодії
+                    return;
+                }
+                // Файл не завантажився → fallback на синтезовану мелодію.
+                // ВАЖЛИВО: поки AudioContext suspended (autoplay-політика до першого кліку),
+                // заплановані осцилятори «постріляють» залпом після resume.
+                // Тому старт синтезатора відкладаємо до першої взаємодії користувача.
+                if (this.audioContext.state === 'running') {
+                    this._startSynthMusic();
+                } else {
+                    this._pendingSynth = true;
+                    this.audioContext.onstatechange = () => {
+                        if (this._pendingSynth && this.audioContext.state === 'running') {
+                            this._pendingSynth = false;
+                            if (this.musicPlaying) this._startSynthMusic();
+                        }
+                    };
+                }
+            }
+
+            _startSynthMusic() {
+                if (!this.audioContext) return;
 
                 // Create master gain node for real-time volume control
                 this.musicGainNode = this.audioContext.createGain();
@@ -1307,9 +1382,14 @@
             }
 
             updateMusicVolume() {
+                // Файлова музика: гучність напряму через audio.volume
+                if (this.musicEl) {
+                    this.musicEl.volume = Math.max(0, Math.min(1,
+                        (this._fileGainBase || 0.14) * this.masterVolume * this.musicVolume));
+                }
                 if (!this.musicGainNode) return;
                 // ВАЖЛИВО: мусимо зберігати той самий базовий коефіцієнт (0.05),
-                // з яким стартує мелодія в startBackgroundMusic. Якщо його тут не
+                // з яким стартує мелодія в _startSynthMusic. Якщо його тут не
                 // помножити — при зміні гучності музика стрибне в 20 разів голосніше.
                 const volume = 0.05 * this.masterVolume * this.musicVolume;
                 // setValueAtTime: миттєво й без накопичення запланованих подій
@@ -1320,6 +1400,9 @@
                 this.musicPlaying = false;
                 if (this.musicTimeout) {
                     clearTimeout(this.musicTimeout);
+                }
+                if (this.musicEl) {
+                    try { this.musicEl.pause(); } catch (e) {}
                 }
             }
         }
@@ -3074,8 +3157,44 @@ document.getElementById('exitRoomBtn').addEventListener('click', () => {
         });
         observer.observe(document.body, { childList: true, subtree: true });
 
-        // Start background music
-        audioManager.startBackgroundMusic();
+        // Start background music — невбивчий watchdog: періодично пробуємо
+        // запустити музику незалежно від кліків і політики автоплею,
+        // а в консоль ([AUDIO]) пишемо точну причину, якщо не виходить.
+        const _menuAudioState = { tries: 0, maxTries: 60 };
+        const _menuAudioTry = () => {
+            try {
+                if (!audioManager.initialized) audioManager.init();
+                audioManager.startBackgroundMusic();
+                const el = audioManager.musicEl;
+                const audibleFile = el && !el.paused && el.currentTime > 0.01;
+                const synthLive = !el && audioManager.musicPlaying &&
+                    audioManager.audioContext &&
+                    audioManager.audioContext.state === 'running';
+                if (audibleFile || synthLive) {
+                    console.log('[AUDIO] menu music playing (try #' + _menuAudioState.tries + ')');
+                    clearInterval(_menuAudioTimer);
+                    return;
+                }
+                _menuAudioState.tries++;
+                if (_menuAudioState.tries <= 4 || _menuAudioState.tries % 10 === 0) {
+                    const why = el
+                        ? ('file: err=' + (el.error && el.error.code) +
+                           ' paused=' + el.paused + ' t=' + (el.currentTime || 0).toFixed(2) +
+                           ' ready=' + el.readyState + ' net=' + el.networkState)
+                        : ('synth: playing=' + audioManager.musicPlaying +
+                           ' ctx=' + (audioManager.audioContext ? audioManager.audioContext.state : 'null'));
+                    console.log('[AUDIO] menu music waiting, try #' + _menuAudioState.tries + ' | ' + why);
+                }
+                if (_menuAudioState.tries >= _menuAudioState.maxTries) {
+                    console.log('[AUDIO] menu music FAILED after ' + _menuAudioState.maxTries + ' tries');
+                    clearInterval(_menuAudioTimer);
+                }
+            } catch (e) {
+                console.log('[AUDIO] menu kick error:', e && e.message);
+            }
+        };
+        const _menuAudioTimer = setInterval(_menuAudioTry, 1200);
+        setTimeout(_menuAudioTry, 300);
 
         // Map generation functions (copied from index.html)
         const RESOURCE_TYPES = ['wood', 'brick', 'geese', 'water', 'stone'];

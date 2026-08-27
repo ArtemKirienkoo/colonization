@@ -1171,6 +1171,138 @@ class AudioManager {
         this.musicTimeout = null;
     }
 
+    // ===== Реальна фонова музика з файлу (CC0) =====
+    // Пробуємо заграти assets/audio/<name>.mp3; якщо файл недоступний,
+    // повертаємось до синтезованої теми (_startSynthMusic).
+    _audioCandidates(name) {
+        return ['../../assets/audio/', '../assets/audio/', 'assets/audio/', '/assets/audio/']
+            .map(base => base + name);
+    }
+
+    _ensureFileMusic(fileName, gainBase) {
+        try {
+            if (this.musicFileFailed) return;
+            if (this.musicEl) return;
+            this._fileGainBase = gainBase;
+            const sources = this._audioCandidates(fileName);
+            let idx = 0;
+            const audio = new Audio();
+            audio.loop = true;
+            audio.preload = 'auto';
+            audio.volume = Math.max(0, Math.min(1, gainBase * this.masterVolume * this.musicVolume));
+            audio.addEventListener('error', () => {
+                // пробуємо наступний варіант шляху, після останнього — відкат на синтезатор
+                idx++;
+                if (idx < sources.length) {
+                    audio.src = sources[idx];
+                } else {
+                    this.musicEl = null;
+                    this.musicFileFailed = true;
+                    if (this.musicPlaying) this._startSynthMusic();
+                }
+            });
+            audio.src = sources[0];
+            this.musicEl = audio;
+        } catch (e) {
+            this.musicEl = null;
+            this.musicFileFailed = true;
+        }
+    }
+
+    // Переможна фанфара з файлу (CC0): VictoryTheme.mp3 — одноразово, без лупу
+    playVictoryTheme() {
+        try {
+            const self = this;
+            const startPlayback = () => {
+                const el = self.victoryEl;
+                el.loop = false;
+                el.volume = Math.max(0, Math.min(1,
+                    0.45 * self.masterVolume * (self.sfxVolume !== undefined ? self.sfxVolume : 1)));
+                try { el.currentTime = 0; } catch (e) {}
+                const p = el.play();
+                if (p && p.catch) p.catch(() => {});
+            };
+            if (!this.victoryEl) {
+                const sources = this._audioCandidates('VictoryTheme.mp3');
+                let idx = 0;
+                const audio = new Audio();
+                audio.preload = 'auto';
+                audio.addEventListener('error', () => {
+                    idx++;
+                    if (idx < sources.length) { audio.src = sources[idx]; }
+                    else { self.victoryEl = null; } // файла нема — тихо пропускаємо
+                });
+                audio.src = sources[0];
+                this.victoryEl = audio;
+            }
+            startPlayback();
+        } catch (e) {}
+    }
+
+    // ===== Файлові SFX з fallback-ом на синтез =====
+    // Одноразово визначаємо робочу базу шляху до assets/audio і кешуємо її,
+    // щоб не перевіряти 4 варіанти при кожному кліку.
+    _resolveSfxBase(cb) {
+        const cands = ['../../assets/audio/', '../assets/audio/', 'assets/audio/', '/assets/audio/'];
+        if (this._sfxIdx !== undefined) return cb(this._sfxIdx >= 0 ? cands[this._sfxIdx] : null);
+        const a = new Audio();
+        let i = 0;
+        a.addEventListener('error', () => {
+            i++;
+            if (i < cands.length) { a.src = cands[i] + 'Dice_Roll.ogg'; }
+            else { this._sfxIdx = -1; cb(null); }
+        });
+        a.addEventListener('canplaythrough', () => { this._sfxIdx = i; cb(cands[i]); }, { once: true });
+        a.preload = 'auto';
+        a.src = cands[0] + 'Dice_Roll.ogg';
+    }
+
+    _playFileSfx(file, base, fallbackFn) {
+        try {
+            this._resolveSfxBase(baseDir => {
+                if (!baseDir) { if (fallbackFn) fallbackFn(); return; }
+                try {
+                    const a = new Audio(baseDir + file);
+                    a.volume = Math.max(0, Math.min(1, base * this.masterVolume * this.sfxVolume));
+                    const p = a.play();
+                    if (p && p.catch) p.catch(() => {});
+                } catch (e) { if (fallbackFn) fallbackFn(); }
+            });
+        } catch (e) { if (fallbackFn) fallbackFn(); }
+    }
+
+    // Сумна тема поразки з файлу: Defeat_Lullaby.wav — тепла повільна колисанка
+    // в ля-мінорі (власна генерація, CC0; НЕ «музична скринька із жахами»).
+    // Одноразово, грається тільки тому, хто програв
+    playDefeatTheme() {
+        try {
+            const self = this;
+            const startPlayback = () => {
+                const el = self.defeatEl;
+                el.loop = false;
+                el.volume = Math.max(0, Math.min(1,
+                    0.50 * self.masterVolume * (self.sfxVolume !== undefined ? self.sfxVolume : 1)));
+                try { el.currentTime = 0; } catch (e) {}
+                const p = el.play();
+                if (p && p.catch) p.catch(() => {});
+            };
+            if (!this.defeatEl) {
+                const sources = this._audioCandidates('Defeat_Lullaby.wav');
+                let idx = 0;
+                const audio = new Audio();
+                audio.preload = 'auto';
+                audio.addEventListener('error', () => {
+                    idx++;
+                    if (idx < sources.length) { audio.src = sources[idx]; }
+                    else { self.defeatEl = null; } // файла нема — тихо пропускаємо
+                });
+                audio.src = sources[0];
+                this.defeatEl = audio;
+            }
+            startPlayback();
+        } catch (e) {}
+    }
+
     init() {
         if (this.initialized) return;
         try {
@@ -1199,6 +1331,11 @@ class AudioManager {
 
     // Новий метод: оновлює гучність музики в реальному часі через musicGainNode
     _updateMusicGain() {
+        // Файлова музика: гучність напряму через audio.volume
+        if (this.musicEl) {
+            this.musicEl.volume = Math.max(0, Math.min(1,
+                (this._fileGainBase || 0.12) * this.masterVolume * this.musicVolume));
+        }
         if (this.musicGainNode) {
             const targetVolume = 0.06 * this.masterVolume * this.musicVolume;
             // Використовуємо setValueAtTime для миттєвої зміни гучності.
@@ -1240,26 +1377,88 @@ class AudioManager {
         this.playTone(600, 0.08, 'square', 0.15); 
         setTimeout(() => this.playTone(800, 0.06, 'square', 0.1), 50); 
     }
-    playBuildSound() { 
-        this.playTone(200, 0.15, 'triangle', 0.2); 
-        setTimeout(() => this.playTone(300, 0.1, 'triangle', 0.15), 100); 
+    playDiceSound() {
+        // Кубики кинули на деревʼяний стіл — кілька ударів об поверхню (CC0),
+        // з fallback-ом на синтезований тон
+        this._playFileSfx('Dice_Roll.ogg', 0.55, () => {
+            this.playTone(150, 0.2, 'square', 0.25);
+        });
+    }
+    playBuildSound() {
+        // Загальний «будівельний» звук — дошковий стук (CC0)
+        this._playFileSfx('Settle_Wood.ogg', 0.55, () => {
+            this.playTone(200, 0.15, 'triangle', 0.2);
+            setTimeout(() => this.playTone(300, 0.1, 'triangle', 0.15), 100);
+        });
+    }
+    playSettleSound() {
+        // Поселення — дошковий стук по дереву (CC0)
+        this._playFileSfx('Settle_Wood.ogg', 0.55, () => {
+            this.playTone(240, 0.14, 'triangle', 0.2);
+            setTimeout(() => this.playTone(320, 0.1, 'triangle', 0.15), 90);
+        });
+    }
+    playRoadSound() {
+        // Дорога — той самий дошковий деревʼяний стук, що й поселення (CC0)
+        this._playFileSfx('Settle_Wood.ogg', 0.5, () => {
+            this.playTone(220, 0.18, 'triangle', 0.18);
+        });
+    }
+    playCitySound() {
+        // Місто — важкий камінний стук при установці будівлі (CC0)
+        this._playFileSfx('City_Stone.ogg', 0.6, () => {
+            this.playTone(120, 0.25, 'triangle', 0.28);
+            setTimeout(() => this.playTone(90, 0.2, 'sine', 0.2), 60);
+        });
     }
     playCardSound() { 
         this.playTone(400, 0.1, 'sine', 0.2); 
         setTimeout(() => this.playTone(600, 0.15, 'sine', 0.15), 80); 
-    }
-    playDiceSound() { 
-        this.playTone(150, 0.2, 'square', 0.25); 
     }
     playResourceSound() { 
         this.playTone(500, 0.08, 'sine', 0.15); 
         setTimeout(() => this.playTone(700, 0.1, 'sine', 0.12), 60); 
     }
 
+    // Фонова музика гри: реальний CC0-трек MarketDay_Loop.mp3 (безшовний луп) з assets/audio.
+    // Якщо файл недоступний — грається стара синтезована тема (_startSynthMusic).
     startBackgroundMusic() {
-        if (!this.initialized || this.musicPlaying) return;
+        if (!this.initialized) return;
+        try { if (this.audioContext.resume) this.audioContext.resume(); } catch (e) {}
+        // Ретрай автовідтворення: якщо музику вже запускали, але браузер
+        // заблокував play() до першої взаємодії — просто пробуємо ще раз
+        if (this.musicPlaying) {
+            if (this.musicEl) {
+                const rp = this.musicEl.play();
+                if (rp && rp.catch) rp.catch(() => {});
+            }
+            return;
+        }
         this.musicPlaying = true;
+        this._ensureFileMusic('MarketDay_Loop.mp3', 0.06);
+        if (this.musicEl) {
+            try { this.musicEl.currentTime = 0; } catch (e) {}
+            const p = this.musicEl.play();
+            if (p && p.catch) p.catch(() => {});
+            return;
+        }
+    // Файл не завантажився → fallback на синтезовану тему.
+                // Покищо контекст suspended (autoplay до першого кліку) — відкладаємо
+                // старт синтезатора, інакше всі заплановані ноти вдарять залпом після resume.
+                if (this.audioContext.state === 'running') {
+                    this._startSynthMusic();
+                } else {
+                    this._pendingSynth = true;
+                    this.audioContext.onstatechange = () => {
+                        if (this._pendingSynth && this.audioContext.state === 'running') {
+                            this._pendingSynth = false;
+                            if (this.musicPlaying) this._startSynthMusic();
+                        }
+                    };
+                }
+            }
 
+    _startSynthMusic() {
         const playNote = (freq, startTime, duration, type = 'sine', volume = 1.0) => {
             const osc = this.audioContext.createOscillator();
             const gain = this.audioContext.createGain();
@@ -1344,6 +1543,9 @@ class AudioManager {
         this.musicPlaying = false;
         if (this.musicTimeout) {
             clearTimeout(this.musicTimeout);
+        }
+        if (this.musicEl) {
+            try { this.musicEl.pause(); } catch (e) {}
         }
     }
 }
@@ -2835,7 +3037,7 @@ canvas.addEventListener('click', (e) => {
                 showMessage('Ліміт доріг!');
                 return;
             }
-            audioManager.playBuildSound();
+            audioManager.playRoadSound();
             gameState.roads.set(hoverEdge, { 
                 color: myPlayerColor,
                 playerId: myPlayerId 
@@ -2862,9 +3064,9 @@ canvas.addEventListener('click', (e) => {
                 showMessage('Ліміт поселень!');
                 return;
             }
-            audioManager.playBuildSound();
-            gameState.settlements.set(hoverVertex, { 
-                type: 'settlement', 
+            audioManager.playSettleSound();
+            gameState.settlements.set(hoverVertex, {
+                type: 'settlement',
                 vk: hoverVertex,
                 color: myPlayerColor,
                 playerId: myPlayerId
@@ -2911,7 +3113,7 @@ canvas.addEventListener('click', (e) => {
             showMessage('Ліміт доріг!');
             return;
         }
-        audioManager.playBuildSound();
+        audioManager.playRoadSound();
         if(gameState.roadBuildingMode > 0) {
             const builtEdgeKey = hoverEdge;
             gameState.roads.set(builtEdgeKey, { 
@@ -2958,9 +3160,9 @@ canvas.addEventListener('click', (e) => {
             }
             deductResources('settlement');
         }
-        audioManager.playBuildSound();
-        gameState.settlements.set(hoverVertex, { 
-            type: 'settlement', 
+        audioManager.playSettleSound();
+        gameState.settlements.set(hoverVertex, {
+            type: 'settlement',
             vk: hoverVertex,
             color: myPlayerColor,
             playerId: myPlayerId
@@ -2991,7 +3193,7 @@ canvas.addEventListener('click', (e) => {
             showMessage('Недостатньо ресурсів!');
             return;
         }
-        audioManager.playBuildSound();
+        audioManager.playCitySound();
         deductResources('city');
         gameState.settlements.set(hoverVertex, { 
             type: 'city', 
@@ -4369,8 +4571,42 @@ updateAllUI();
 // Завантажуємо збережені налаштування гучності (спільні з головним меню)
 loadVolumeSettings();
 
-// Запускаємо фонову музику
-audioManager.startBackgroundMusic();
+    // Запускаємо фонову музику — невбивчий watchdog: періодичні спроби старту
+    // незалежно від кліків/політики; [AUDIO]-логи видно в терміналі через main.js.
+    const _gameAudioState = { tries: 0, maxTries: 60 };
+    const _gameAudioTry = () => {
+        try {
+            if (!audioManager.initialized) audioManager.init();
+            audioManager.startBackgroundMusic();
+            const el = audioManager.musicEl;
+            const audibleFile = el && !el.paused && el.currentTime > 0.01;
+            const synthLive = !el && audioManager.musicPlaying &&
+                audioManager.audioContext &&
+                audioManager.audioContext.state === 'running';
+            if (audibleFile || synthLive) {
+                console.log('[AUDIO] game music playing (try #' + _gameAudioState.tries + ')');
+                clearInterval(_gameAudioTimer);
+                return;
+            }
+            _gameAudioState.tries++;
+            if (_gameAudioState.tries <= 4 || _gameAudioState.tries % 10 === 0) {
+                const why = el
+                    ? ('file: err=' + (el.error && el.error.code) +
+                       ' paused=' + el.paused + ' t=' + (el.currentTime || 0).toFixed(2))
+                    : ('synth: playing=' + audioManager.musicPlaying +
+                       ' ctx=' + (audioManager.audioContext ? audioManager.audioContext.state : 'null'));
+                console.log('[AUDIO] game music waiting, try #' + _gameAudioState.tries + ' | ' + why);
+            }
+            if (_gameAudioState.tries >= _gameAudioState.maxTries) {
+                console.log('[AUDIO] game music FAILED after ' + _gameAudioState.maxTries + ' tries');
+                clearInterval(_gameAudioTimer);
+            }
+        } catch (e) {
+            console.log('[AUDIO] game kick error:', e && e.message);
+        }
+    };
+    const _gameAudioTimer = setInterval(_gameAudioTry, 1200);
+    setTimeout(_gameAudioTry, 300);
 
 function registerMultiplayerHandlers(client) {
     client.onPlayerJoined((data) => {
@@ -5188,6 +5424,8 @@ function showGameOverOverlay(data) {
         title.textContent = 'ПЕРЕМОГА!';
         title.style.color = '#f1c40f';
         message.textContent = 'Вітаємо! Ви досягли 10 переможних очок!';
+        // Переможна фанфара з файлу (CC0) — граємо тільки переможцю
+        audioManager.playVictoryTheme();
     } else {
         icon.textContent = '💀';
         title.textContent = 'ПОРАЗКА';
@@ -5195,6 +5433,8 @@ function showGameOverOverlay(data) {
         const winner = data.players?.find(p => p.id === data.winnerId);
         const winnerName = winner ? winner.name : 'Інший гравець';
         message.textContent = winnerName + ' досяг 10 переможних очок!';
+        // Сумна колисанка поразки (власна генерація, CC0) — тільки тому, хто програв
+        audioManager.playDefeatTheme();
     }
     
     // Reset voting state
