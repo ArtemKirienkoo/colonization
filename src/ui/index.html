@@ -4283,8 +4283,23 @@ document.getElementById('menuExit').addEventListener('click', () => {
     audioManager.playClickSound();
     gameMenuBtn.classList.remove('active');
     gameMenuPopup.classList.remove('active');
+    window.__exitMultiplayer && window.__exitMultiplayer();
     window.location.href = 'splash.html';
 });
+
+// Викликається з main-процесу перед закриттям вікна (хрестик / Alt+F4),
+// та з кнопки меню "Вийти": явно лишаємо кімнату, щоб хазяїна кімнату
+// закрило МИТТЄВО (leave-room => room-closed), а не через 1-хвилинний
+// таймер відключення.
+window.__exitMultiplayer = () => {
+    try {
+        if (isMultiplayer && multiplayerClient && roomCode) {
+            multiplayerClient.leaveRoom();
+        }
+    } catch (e) {
+        console.warn('__exitMultiplayer failed:', e);
+    }
+};
 
 document.getElementById('menuContinue').addEventListener('click', () => {
     audioManager.playClickSound();

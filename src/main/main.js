@@ -89,6 +89,30 @@ function createWindow() {
     });
 
     // Handle window close
+    let _allowClose = false;
+    mainWindow.on('close', (e) => {
+        if (_allowClose) return;
+        e.preventDefault();
+        // Даємо рендереру шанс повідомити сервер про вихід із мультиплеєрної
+        // кімнати (leave-room), щоб кімната хазяїна закривалась МИТТЄВО,
+        // а не через 1-хвилинний grace-таймер. Якщо сторінка не відповість —
+        // все одно закриваємось за 300мс.
+        try {
+            mainWindow.webContents.executeJavaScript(
+                'try { typeof window.__exitMultiplayer === "function" && window.__exitMultiplayer(); } catch(_){}'
+            ).catch(() => {}).finally(() => {
+                setTimeout(() => {
+                    _allowClose = true;
+                    mainWindow.close();
+                }, 180);
+            });
+        } catch (_) {
+            setTimeout(() => {
+                _allowClose = true;
+                mainWindow.close();
+            }, 180);
+        }
+    });
     mainWindow.on('closed', () => {
         mainWindow = null;
     });

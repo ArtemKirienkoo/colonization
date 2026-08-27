@@ -2805,7 +2805,21 @@
             // ===== КІНЕЦЬ ВСТАВКИ =====
         });
 
-document.getElementById('exitRoomBtn').addEventListener('click', () => {
+// Викликається з main-процесу перед закриттям вікна (хрестик / Alt+F4):
+        // якщо ми в своїй кімнаті — явно лишаємо її, щоб вона закрилась МИТТЄВО
+        // (leave-room => host => room-closed), а не висіла 1 хвилину в списку.
+        window.__exitMultiplayer = () => {
+            try {
+                if (mpClient && currentRoomCode) {
+                    mpClient.leaveRoom();
+                    mpClient.disconnect();
+                }
+            } catch (e) {
+                console.warn('__exitMultiplayer failed:', e);
+            }
+        };
+
+        document.getElementById('exitRoomBtn').addEventListener('click', () => {
             audioManager.playClickSound();
             // Leave room and disconnect from server
             if (mpClient && currentRoomCode) {

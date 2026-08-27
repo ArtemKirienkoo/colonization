@@ -2369,7 +2369,7 @@ io.on('connection', (socket) => {
     });
 
     // Rejoin room after page navigation
-    socket.on('rejoin-room', ({ roomCode, isHost, oldPlayerId }) => {
+    socket.on('rejoin-room', ({ roomCode, isHost, oldPlayerId, playerName }) => {
         console.log('[server] rejoin-room', { roomCode, isHost, oldPlayerId, socketId: socket.id });
         const room = rooms.get(roomCode);
         if (!room) return;
@@ -2471,6 +2471,52 @@ io.on('connection', (socket) => {
         }
 
         socket.join(roomCode);
+
+        // ===== ЗАХИСТ ВІД ДУБЛІКАТІВ =====
+        // Той самий гравець (за socket.id / oldPlayerId) міг потрапити в кімнату
+        // двічі через повторні rejoin/перезавантаження сторінки. Якщо знаходимо
+        // гравця, що вже підключений цим сокетом — прибираємо зайві записи.
+        if (!existingPlayer && oldPlayerId) {
+            const stillOld = room.players.find(p => p.id === oldPlayerId && p.id !== socket.id);
+            if (stillOld) {
+                existingPlayer = stillOld;
+                existingPlayer.id = socket.id;
+                existingPlayer.disconnected = false;
+                clearDisconnectTimer(roomCode, oldPlayerId);
+                clearDisconnectTimer(roomCode, socket.id);
+                console.log('[server] rejoin-room: reused oldPlayerId entry instead of creating duplicate', { oldPlayerId, socketId: socket.id });
+            }
+        }
+
+        // Якщо oldPlayerId не вдалося знайти (наприклад, його перезаписали в
+        // sessionStorage) — шукаємо того самого гравця за іменем серед тих, хто
+        // позначений disconnected. Це той самий фізичний гравець, що вийшов.
+        if (!existingPlayer && playerName) {
+            const nameMatch = room.players.find(p =>
+                p.id !== socket.id &&
+                p.disconnected === true &&
+                p.name === playerName
+            );
+            if (nameMatch) {
+                existingPlayer = nameMatch;
+                existingPlayer.id = socket.id;
+                existingPlayer.disconnected = false;
+                clearDisconnectTimer(roomCode, socket.id);
+                console.log('[server] rejoin-room: reused disconnected player by name (no duplicate)', { playerName, socketId: socket.id });
+            }
+        }
+
+        const socksHere = room.players.filter(p => p.id === socket.id);
+        if (socksHere.length > 1) {
+            // Лишаємо перше входження, решту прибираємо
+            const removed = [];
+            for (let i = socksHere.length - 1; i >= 1; i--) {
+                const idx = room.players.indexOf(socksHere[i]);
+                room.players.splice(idx, 1);
+                removed.push(idx);
+            }
+            console.log('[server] rejoin-room: pruned duplicate player entries for socket', socket.id, 'removed', removed.length);
+        }
 
         // Always send map and buildings (but never "resume" a finished game)
         if (room.gameState && room.status !== 'game-over') socket.emit('game-started', { mapSeed: room.gameState });

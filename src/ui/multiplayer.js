@@ -245,7 +245,7 @@ class MultiplayerClient {
         }
         console.log('[MultiplayerClient] rejoinRoom', { roomCode, isHost, oldPlayerId, socketId: this.socket?.id });
         this._logEmit('rejoin-room', { roomCode, isHost, oldPlayerId });
-        this.socket.emit('rejoin-room', { roomCode, isHost, oldPlayerId });
+        this.socket.emit('rejoin-room', { roomCode, isHost, oldPlayerId, playerName: this.playerName });
 
         // The server maps the existing player entry onto THIS socket id
         // (or creates a new entry with it). Store the current socket id as our
