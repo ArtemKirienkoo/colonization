@@ -29,6 +29,100 @@ if (!isCloud) {
 // Store active rooms
 const rooms = new Map();
 
+// ===== AUTO-CLEANUP: таймери відключення та прибиральник мертвих кімнат =====
+// Якщо гравець відключився під час гри (збій мережі / закрив гру), у нього є
+// 1 хвилина, щоб повернутися через rejoin-room. Якщо не повернувся:
+//   - звичайний гравець -> катка автоматично завершується (кімната закривається);
+//   - хозяїн -> кімната автоматично зникає.
+// Явний вихід хозяїна кнопкою "Вийти" (leave-room) закриває кімнату миттєво.
+// Тривалість таймера на повернення: 1 хвилина за замовчуванням.
+// Можна перевизначити через env (наприклад, для тестів: DISCONNECT_GRACE_MS=3000).
+const DISCONNECT_GRACE_MS = parseInt(process.env.DISCONNECT_GRACE_MS, 10) > 0
+    ? parseInt(process.env.DISCONNECT_GRACE_MS, 10)
+    : 60 * 1000;
+const disconnectTimers = new Map(); // `${roomCode}:${socketId}` -> { timer, player }
+
+function clearDisconnectTimer(roomCode, socketId) {
+    const key = roomCode + ':' + socketId;
+    const entry = disconnectTimers.get(key);
+    if (entry) {
+        clearTimeout(entry.timer);
+        disconnectTimers.delete(key);
+    }
+}
+
+function clearAllDisconnectTimersForRoom(roomCode) {
+    const prefix = roomCode + ':';
+    for (const [key, entry] of disconnectTimers) {
+        if (key.startsWith(prefix)) {
+            clearTimeout(entry.timer);
+            disconnectTimers.delete(key);
+        }
+    }
+}
+
+function hasPendingDisconnectTimers(roomCode) {
+    const prefix = roomCode + ':';
+    for (const key of disconnectTimers.keys()) {
+        if (key.startsWith(prefix)) return true;
+    }
+    return false;
+}
+
+// Закрити кімнату автоматично: повідомити всіх, видалити кімнату, оновити список
+function closeRoomAutomatically(roomCode, message) {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+    console.log('[server] Auto-closing room ' + roomCode + ': ' + message);
+    io.to(roomCode).emit('room-closed', { message });
+    rooms.delete(roomCode);
+    clearAllDisconnectTimersForRoom(roomCode);
+    io.emit('rooms-list', getRoomsList());
+}
+
+// Запустити 1-хвилинний таймер на повернення для гравця, що відключився
+function scheduleDisconnectTimeout(room, player, socketId) {
+    const key = room.code + ':' + socketId;
+    if (disconnectTimers.has(key)) return; // таймер уже запущено
+    const isHostLeaver = room.host === socketId;
+    const graceSeconds = Math.round(DISCONNECT_GRACE_MS / 1000);
+    const timer = setTimeout(() => {
+        disconnectTimers.delete(key);
+        // Кімната ще існує і гравець так і не повернувся?
+        const current = rooms.get(room.code);
+        if (!current) return;
+        if (!current.players.includes(player) || !player.disconnected) return; // повернувся
+        if (current.status === 'game-over') {
+            // Гра вже завершилась — просто закриваємо кімнату
+            closeRoomAutomatically(room.code, 'Кімнату закрито: гравці покинули гру');
+        } else if (isHostLeaver) {
+            // Хозяїн не повернувся — кімната зникає автоматично
+            closeRoomAutomatically(room.code, 'Хозяїн не повернувся — кімнату закрито автоматично');
+        } else {
+            // Звичайний гравець не повернувся — катка завершується автоматично
+            closeRoomAutomatically(
+                room.code,
+                'Гравець ' + (player.name || 'Гравець') + ' не повернувся — катку завершено автоматично'
+            );
+        }
+    }, DISCONNECT_GRACE_MS);
+    disconnectTimers.set(key, { timer, player });
+    console.log('[server] Disconnect grace timer (' + graceSeconds + 's) started for room ' + room.code + ', player ' + socketId);
+}
+
+// Страховка: раз на 30 с підчищаемо кімнати, де ВСІ гравці відключилися, але
+// з якоїсь причини таймери не спрацювали (наприклад, подія disconnect загубилася).
+// Кімнати з активними таймерами очікування не чіпаємо — вони закриються самі.
+const ROOM_REAPER_INTERVAL_MS = 30 * 1000;
+setInterval(() => {
+    rooms.forEach((room, code) => {
+        const everyoneGone = room.players.length === 0 || room.players.every(p => p.disconnected);
+        if (everyoneGone && !hasPendingDisconnectTimers(code)) {
+            closeRoomAutomatically(code, 'Кімнату закрито: гравців немає в мережі');
+        }
+    });
+}, ROOM_REAPER_INTERVAL_MS);
+
 // ===== ACCOUNTS DB (проста JSON-файлова база даних акаунтів) =====
 // Зберігається у файлі accounts.json у корені проєкту.
 // Сервер працює постійно, тому реєстрація/вхід доступні будь-коли.
@@ -2346,6 +2440,7 @@ io.on('connection', (socket) => {
             if (duplicateBySocket) {
                 console.log('[server] rejoin-room: player already exists by socket.id, no duplicate created', { roomCode, socketId: socket.id });
                 existingPlayer = duplicateBySocket;
+                existingPlayer.disconnected = false;
             } else {
                 console.log('[server] rejoin-room: player not found, pushing new player', { roomCode, socketId: socket.id, oldPlayerId });
                 // Assign a free color instead of always 'red' to avoid duplicate colors
@@ -2361,6 +2456,12 @@ io.on('connection', (socket) => {
             }
         } else {
             console.log('[server] rejoin-room: player found, no duplicate created', { roomCode, socketId: socket.id });
+        }
+
+        // Гравець повернувся — скасовуємо таймер автозакриття катки/кімнати
+        if (existingPlayer && !existingPlayer.disconnected) {
+            clearDisconnectTimer(roomCode, oldPlayerId);
+            clearDisconnectTimer(roomCode, socket.id);
         }
 
         // If every player is connected again, allow restart once more
@@ -2477,7 +2578,12 @@ io.on('connection', (socket) => {
             const oldPlayerIndex = room.players.findIndex(p => p.id === oldPlayerId);
             if (oldPlayerIndex !== -1) {
                 room.players[oldPlayerIndex].id = socket.id;
+                room.players[oldPlayerIndex].disconnected = false;
                 player = room.players[oldPlayerIndex];
+
+                // Гравець повернувся — скасовуємо таймер автозакриття катки/кімнати
+                clearDisconnectTimer(roomCode, oldPlayerId);
+                clearDisconnectTimer(roomCode, socket.id);
                 console.log('[server] request-game-state: mapped old player ID to new socket ID', { oldPlayerId, newSocketId: socket.id });
 
                 if (room.turnOrder) {
@@ -3844,48 +3950,62 @@ io.on('connection', (socket) => {
         if (room) {
             const playerIndex = room.players.findIndex(p => p.id === socket.id);
             if (playerIndex !== -1) {
-            const wasHost = room.host === socket.id;
-                room.players.splice(playerIndex, 1);
-                
-                // If a player leaves during the restart voting phase (game over),
-                // remove them from the ready set so the vote count stays correct.
-                if (room.restartReady && room.restartReady.has(socket.id)) {
-                    room.restartReady.delete(socket.id);
-                }
-                
-                // If host left, delete room and notify all players
+                const wasHost = room.host === socket.id;
+
+                // If host left, delete room and notify all players.
+                // Хозяїн вийшов з кімнати — кімната зникає автоматично.
                 if (wasHost) {
                     io.to(roomCode).emit('room-closed', {
                         message: 'Хозяїн вийшов з кімнати'
                     });
                     rooms.delete(roomCode);
+                    clearAllDisconnectTimersForRoom(roomCode);
+                } else if (room.gamePhase && room.status !== 'game-over') {
+                    // Гра триває: гравець, що вийшов, має 1 хвилину, щоб повернутися
+                    // через rejoin-room. Якщо не повернеться — катку буде завершено
+                    // автоматично (кімната закриється).
+                    const leaver = room.players[playerIndex];
+                    leaver.disconnected = true;
+                    io.to(roomCode).emit('player-disconnected', {
+                        playerId: socket.id,
+                        graceSeconds: Math.round(DISCONNECT_GRACE_MS / 1000)
+                    });
+                    scheduleDisconnectTimeout(room, leaver, socket.id);
                 } else {
+                    const leftPlayerName = (room.players[playerIndex] && room.players[playerIndex].name) || 'Гравець ' + socket.id.slice(0, 4);
+                    room.players.splice(playerIndex, 1);
+
+                    // If a player leaves during the restart voting phase (game over),
+                    // remove them from the ready set so the vote count stays correct.
+                    if (room.restartReady && room.restartReady.has(socket.id)) {
+                        room.restartReady.delete(socket.id);
+                    }
+
                     io.to(roomCode).emit('player-left', {
                         playerId: socket.id,
                         players: room.players
                     });
-                    
+
                     // If the game is over and a player left, block restart and notify all players
                     if (room.status === 'game-over' && room.players.length > 0) {
                         room.restartBlocked = true;
-                        const leftPlayer = room.players.find(p => p.id === socket.id);
-                        const leftPlayerName = leftPlayer ? leftPlayer.name : 'Гравець ' + socket.id.slice(0, 4);
-                        
+
                         io.to(roomCode).emit('game-over-blocked', {
                             message: 'Гравець ' + leftPlayerName + ' вийшов з гри. Рестарт неможливий.',
-                        leftPlayerId: socket.id,
-                        leftPlayerName: leftPlayerName,
-                        readyPlayers: Array.from(room.restartReady || []),
-                        players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
+                            leftPlayerId: socket.id,
+                            leftPlayerName: leftPlayerName,
+                            readyPlayers: Array.from(room.restartReady || []),
+                            players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
                         });
                     }
-                    
+
                     // If room is empty, delete it
                     if (room.players.length === 0) {
                         rooms.delete(roomCode);
+                        clearAllDisconnectTimersForRoom(roomCode);
                     }
                 }
-                
+
                 // Update room list
                 io.emit('rooms-list', getRoomsList());
             }
@@ -3901,22 +4021,25 @@ io.on('connection', (socket) => {
             const playerIndex = room.players.findIndex(p => p.id === socket.id);
             if (playerIndex === -1) return;
             const player = room.players[playerIndex];
-            
+
             // If host disconnects
             if (room.host === socket.id) {
                 if (room.gamePhase) {
-                    // Game already started - don't delete room, just mark as disconnected
-                    // Host can rejoin via rejoin-room
+                    // Гра вже почалась: хозяїн має 1 хвилину, щоб повернутися
+                    // через rejoin-room. Якщо не повернеться — кімната зникне автоматично.
                     player.disconnected = true;
                     socket.to(code).emit('host-disconnected', {
-                        message: 'Хозяїн тимчасово відключився'
+                        message: 'Хозяїн тимчасово відключився. Якщо не повернеться за 1 хвилину — кімнату буде закрито.',
+                        graceSeconds: Math.round(DISCONNECT_GRACE_MS / 1000)
                     });
+                    scheduleDisconnectTimeout(room, player, socket.id);
                 } else {
-                    // Game not started yet - close the room
+                    // Гра не почалась — закриваємо кімнату одразу
                     io.to(code).emit('room-closed', {
                         message: 'Хозяїн вийшов з кімнати'
                     });
                     rooms.delete(code);
+                    clearAllDisconnectTimersForRoom(code);
                 }
 
                 // If the game is over and the HOST leaves, block restart and notify
@@ -3935,12 +4058,13 @@ io.on('connection', (socket) => {
                 }
                 return;
             }
-            
+
             if (!room.gamePhase) {
-                // Game not started yet - remove player completely
+                // Гра ще не почалась — прибираємо гравця з кімнати одразу
                 room.players.splice(playerIndex, 1);
                 if (room.players.length === 0) {
                     rooms.delete(code);
+                    clearAllDisconnectTimersForRoom(code);
                     return;
                 }
                 io.to(code).emit('player-left', {
@@ -3948,34 +4072,38 @@ io.on('connection', (socket) => {
                     players: room.players
                 });
             } else {
-                // Game started - mark as disconnected but keep in room
+                // Гра почалась — даємо гравцю 1 хвилину, щоб повернутися
+                // через rejoin-room. Якщо не повернеться — катку буде завершено
+                // автоматично (кімната закриється, всі повернуться в лобі).
+                const wasAlreadyMarked = !!player.disconnected;
                 player.disconnected = true;
-                socket.to(code).emit('player-disconnected', {
-                    playerId: socket.id
-                });
-                
+                if (!wasAlreadyMarked) {
+                    socket.to(code).emit('player-disconnected', {
+                        playerId: socket.id,
+                        graceSeconds: Math.round(DISCONNECT_GRACE_MS / 1000)
+                    });
+                }
+                scheduleDisconnectTimeout(room, player, socket.id);
+
                 // If the game is over and a player disconnects, block restart
                 if (room.status === 'game-over') {
                     room.restartBlocked = true;
                     const leftPlayerName = player.name || 'Гравець ' + socket.id.slice(0, 4);
                     io.to(code).emit('game-over-blocked', {
                         message: 'Гравець ' + leftPlayerName + ' відключився. Рестарт неможливий.',
-                            leftPlayerId: socket.id,
-                            leftPlayerName: leftPlayerName,
-                            readyPlayers: Array.from(room.restartReady || []),
-                            players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
+                        leftPlayerId: socket.id,
+                        leftPlayerName: leftPlayerName,
+                        readyPlayers: Array.from(room.restartReady || []),
+                        players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
                     });
                 }
-                
-                // If all players disconnected, delete the room immediately
-                const allDisconnected = room.players.every(p => p.disconnected);
-                if (allDisconnected) {
-                    rooms.delete(code);
-                    io.emit('rooms-list', getRoomsList());
-                }
+
+                // NOTE: кімнату НЕ видаляємо навіть якщо відключились усі —
+                // у кожного є 1 хвилина, щоб повернутися. Якщо ніхто не повернеться,
+                // таймери очікування (або прибиральник кімнат) закриють її автоматично.
             }
         });
-        
+
         // Update room list
         io.emit('rooms-list', getRoomsList());
     });

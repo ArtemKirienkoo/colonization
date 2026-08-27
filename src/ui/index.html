@@ -5396,14 +5396,29 @@ function registerMultiplayerHandlers(client) {
         if (data && data.playerId) {
             const player = multiplayerClient?.players?.find(p => p.id === data.playerId);
             const name = player ? player.name : 'Гравець ' + data.playerId.slice(0, 4);
-            showMessage('⚠️ ' + name + ' відключився від гри');
+            const graceSeconds = (data && data.graceSeconds) ? data.graceSeconds : 60;
+            showMessage('⚠️ ' + name + ' відключився. Якщо не повернеться за ' + graceSeconds + ' с — гру буде завершено автоматично');
         }
     });
     
     // Handle host disconnected (during game)
     client.onHostDisconnected((data) => {
         console.log('Host disconnected:', data);
-        showMessage('⚠️ Хазяїн тимчасово відключився. Очікування перепідключення...');
+        const hostGrace = (data && data.graceSeconds) ? data.graceSeconds : 60;
+        showMessage('⚠️ Хазяїн відключився. Якщо не повернеться за ' + hostGrace + ' с — кімнату буде закрито');
+    });
+    
+    // Handle room closed automatically (host left / player didn't return in time)
+    client.onRoomClosed((data) => {
+        console.log('Room closed:', data);
+        showMessage('🚪 ' + ((data && data.message) || 'Кімнату закрито') + '. Повертаємось у меню...');
+        // Прибираємо оверлей завершення гри, якщо він відкритий
+        const gameOverOverlay = document.getElementById('gameOverOverlay');
+        if (gameOverOverlay) gameOverOverlay.style.display = 'none';
+        // Повертаємось у лобі мультиплеєра
+        setTimeout(() => {
+            window.location.href = 'splash.html?mode=multiplayer';
+        }, 2500);
     });
 }
 
