@@ -5325,6 +5325,11 @@ function registerMultiplayerHandlers(client) {
     });
     client.onStartDicePhase((data) => {
     console.log('Отримано start-dice-phase:', data, ' myPlayerId=', myPlayerId, ' initialPhase=', initialPhase);
+    // Prevent showing dice again if initial phase has already started
+    if (initialPhase.active || initialPhase.phase === 'complete') {
+        console.log('[start-dice-phase] Initial phase already active, skipping');
+        return;
+    }
     startDicePhase(data);
     });
     client.onPlayerDiceRolled((data) => {
@@ -5858,6 +5863,12 @@ function registerMultiplayerHandlers(client) {
         // Handle dice-roll phase as a fallback (in case start-dice-phase event was missed)
         if (data.gamePhase === 'dice-roll') {
             console.log('[game-state-sync] dice-roll phase detected, showing dice overlay');
+            // Only show dice overlay if initial phase hasn't started yet
+            // This prevents showing dice again after turn order is determined
+            if (initialPhase.active || initialPhase.phase === 'complete') {
+                console.log('[game-state-sync] Initial phase already active, skipping dice overlay');
+                return;
+            }
             // Only show dice overlay if it's not already visible
             const existingOverlay = document.getElementById('dicePhaseOverlay');
             if (existingOverlay && existingOverlay.style.display !== 'flex') {
