@@ -6400,6 +6400,28 @@ function initMatchmakingGame(urlParams) {
 function setupMatchmakingGameHandlers() {
     let matchmakingStarted = false;
 
+    // Handle game-started event (map deserialization)
+    mpClient.socket.on('game-started', (data) => {
+        console.log('[matchmaking] Game started event (map):', data);
+        if (data && data.mapSeed) {
+            const deserialized = deserializeMap(data.mapSeed);
+            if (deserialized) {
+                mapData = deserialized;
+                resizeCanvas();
+                const hexSize = calculateHexSize();
+                mapHexSize = hexSize;
+                if (!gameState.robber.hexKey) {
+                    const desertHex = findDesertHex();
+                    if (desertHex) {
+                        gameState.robber.hexKey = hexKey(desertHex);
+                        gameState.robber.placedBy = null;
+                    }
+                }
+                renderMap(mapData, canvas, hexSize);
+            }
+        }
+    });
+
     // Handle matchmaking player ready notification
     mpClient.socket.on('matchmaking-player-ready', (data) => {
         console.log('[matchmaking] Player ready:', data);

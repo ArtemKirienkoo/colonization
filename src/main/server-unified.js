@@ -4349,6 +4349,9 @@ io.on('connection', (socket) => {
 
         console.log('[matchmaking] Game starting:', roomCode);
 
+        // Send game-started event first (for map deserialization)
+        io.to(roomCode).emit('game-started', { mapSeed: room.gameState || {} });
+
         // Notify both players to start the game
         io.to(roomCode).emit('matchmaking-game-started', {
             roomCode,
