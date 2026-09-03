@@ -29,6 +29,152 @@ if (!isCloud) {
 // Store active rooms
 const rooms = new Map();
 
+// ===== MATCHMAKING QUEUE =====
+// Queue of players waiting for a quick match (1v1)
+// Each entry: { socketId, playerName, avatar, joinedAt }
+const matchmakingQueue = [];
+
+// Active matchmaking games (roomCode -> { player1Id, player2Id })
+const matchmakingGames = new Map();
+
+// Remove a player from the matchmaking queue
+function removeFromMatchmakingQueue(socketId) {
+    const index = matchmakingQueue.findIndex(p => p.socketId === socketId);
+    if (index !== -1) {
+        matchmakingQueue.splice(index, 1);
+    }
+}
+
+// Try to match a player with another waiting player
+function tryMatchmaking(socketId) {
+    // Remove current player from queue if already there
+    removeFromMatchmakingQueue(socketId);
+
+    // Add current player to queue
+    const socket = io.sockets.sockets.get(socketId);
+    if (!socket) return;
+
+    let playerName = 'Гравець';
+    let avatar = 0;
+    try {
+        const acc = socket.authAccount;
+        if (acc) {
+            playerName = acc.nick || 'Гравець';
+            avatar = (Number.isInteger(acc.avatar) && acc.avatar >= 0 && acc.avatar <= 8) ? acc.avatar : 0;
+        }
+    } catch (e) {}
+
+    matchmakingQueue.push({
+        socketId,
+        playerName,
+        avatar,
+        joinedAt: Date.now()
+    });
+
+    console.log('[matchmaking] Player joined queue:', socketId, playerName, 'Queue size:', matchmakingQueue.length);
+
+    // Check if we can make a match (need at least 2 players)
+    if (matchmakingQueue.length >= 2) {
+        const player1 = matchmakingQueue.shift();
+        const player2 = matchmakingQueue.shift();
+
+        createMatchmakingGame(player1, player2);
+    }
+}
+
+// Create a game for two matched players
+function createMatchmakingGame(player1, player2) {
+    const roomCode = generateRoomCode();
+
+    const room = {
+        code: roomCode,
+        name: 'Швидка гра',
+        host: player1.socketId, // First player is host
+        maxPlayers: 2,
+        players: [
+            {
+                id: player1.socketId,
+                name: player1.playerName,
+                isHost: true,
+                color: 'red', // First player gets red
+                avatar: player1.avatar
+            },
+            {
+                id: player2.socketId,
+                name: player2.playerName,
+                isHost: false,
+                color: 'blue', // Second player gets blue
+                avatar: player2.avatar
+            }
+        ],
+        gameState: null,
+        createdAt: Date.now(),
+        status: 'in-game', // Immediately in-game
+        gamePhase: 'dice-roll',
+        diceRolls: new Map(),
+        initialBuildOrder: [],
+        currentInitialBuildIndex: 0,
+        initialBuildRoundComplete: false,
+        turnOrder: [],
+        currentTurnIndex: 0,
+        turnState: { diceRolled: false, actionsLocked: true },
+        buildings: new Map(),
+        topology: null,
+        robber: { hexKey: null, placedBy: null },
+        devCardHands: new Map(),
+        knightCards: new Map(),
+        largestArmy: { holderId: null, level: 0 },
+        longestRoad: { holderId: null, level: 0 },
+        winnerId: null,
+        restartReady: new Set(),
+        restarting: false,
+        restartBlocked: false,
+        playerVP: new Map(),
+        playerResources: new Map(),
+        isMatchmaking: true // Flag to identify matchmaking games
+    };
+
+    rooms.set(roomCode, room);
+
+    // Make both players join the room
+    const socket1 = io.sockets.sockets.get(player1.socketId);
+    const socket2 = io.sockets.sockets.get(player2.socketId);
+
+    if (socket1) socket1.join(roomCode);
+    if (socket2) socket2.join(roomCode);
+
+    // Store matchmaking game info
+    matchmakingGames.set(roomCode, {
+        player1Id: player1.socketId,
+        player2Id: player2.socketId
+    });
+
+    console.log('[matchmaking] Game created:', roomCode, 'Players:', player1.playerName, '(red)', 'vs', player2.playerName, '(blue)');
+
+    // Notify both players about the match
+    const matchData = {
+        roomCode,
+        roomName: room.name,
+        players: room.players,
+        mapSeed: null // Will be set by host
+    };
+
+    if (socket1) {
+        socket1.emit('matchmaking-found', {
+            ...matchData,
+            yourColor: 'red',
+            opponent: { name: player2.playerName, color: 'blue', avatar: player2.avatar }
+        });
+    }
+    if (socket2) {
+        socket2.emit('matchmaking-found', {
+            ...matchData,
+            yourColor: 'blue',
+            opponent: { name: player1.playerName, color: 'red', avatar: player1.avatar }
+        });
+    }
+}
+
 // ===== AUTO-CLEANUP: таймери відключення та прибиральник мертвих кімнат =====
 // Якщо гравець відключився під час гри (збій мережі / закрив гру), у нього є
 // 1 хвилина, щоб повернутися через rejoin-room. Якщо не повернувся:
@@ -108,6 +254,88 @@ function scheduleDisconnectTimeout(room, player, socketId) {
     }, DISCONNECT_GRACE_MS);
     disconnectTimers.set(key, { timer, player });
     console.log('[server] Disconnect grace timer (' + graceSeconds + 's) started for room ' + room.code + ', player ' + socketId);
+}
+
+// Перемістити ВСІ сліди гравця зі старого id на новий (reconnect / навігація між сторінками).
+// Важливо: без цього залишаються "привиди" у devCardHands / knightCards / playerResources /
+// playerVP, через які sync-и надсилають дані неіснуючого гравця.
+function remapPlayerIdEverywhere(room, oldPlayerId, newPlayerId) {
+    if (!oldPlayerId || oldPlayerId === newPlayerId) return;
+
+    const playerIndex = room.players.findIndex(p => p.id === oldPlayerId);
+    if (playerIndex !== -1) {
+        room.players[playerIndex].id = newPlayerId;
+        room.players[playerIndex].disconnected = false;
+    }
+
+    if (Array.isArray(room.turnOrder)) {
+        room.turnOrder = room.turnOrder.map(pid => pid === oldPlayerId ? newPlayerId : pid);
+    }
+
+    if (Array.isArray(room.initialBuildOrder)) {
+        room.initialBuildOrder = room.initialBuildOrder.map(item =>
+            item && item.playerId === oldPlayerId ? { ...item, playerId: newPlayerId } : item
+        );
+    }
+
+    if (room.diceRolls instanceof Map && room.diceRolls.has(oldPlayerId)) {
+        const roll = room.diceRolls.get(oldPlayerId);
+        room.diceRolls.delete(oldPlayerId);
+        room.diceRolls.set(newPlayerId, roll);
+    }
+
+    if (room.initialBuildProgress instanceof Map && room.initialBuildProgress.has(oldPlayerId)) {
+        const progress = room.initialBuildProgress.get(oldPlayerId);
+        room.initialBuildProgress.delete(oldPlayerId);
+        room.initialBuildProgress.set(newPlayerId, progress);
+    }
+
+    if (room.buildings instanceof Map) {
+        for (const [key, building] of room.buildings.entries()) {
+            if (building && building.playerId === oldPlayerId) {
+                room.buildings.set(key, { ...building, playerId: newPlayerId });
+            }
+        }
+    }
+
+    if (room.devCardHands instanceof Map && room.devCardHands.has(oldPlayerId)) {
+        const hand = room.devCardHands.get(oldPlayerId);
+        room.devCardHands.delete(oldPlayerId);
+        room.devCardHands.set(newPlayerId, hand);
+    }
+
+    if (room.knightCards instanceof Map && room.knightCards.has(oldPlayerId)) {
+        const cnt = room.knightCards.get(oldPlayerId);
+        room.knightCards.delete(oldPlayerId);
+        room.knightCards.set(newPlayerId, cnt);
+    }
+
+    if (room.playerResources instanceof Map && room.playerResources.has(oldPlayerId)) {
+        const res = room.playerResources.get(oldPlayerId);
+        room.playerResources.delete(oldPlayerId);
+        room.playerResources.set(newPlayerId, res);
+    }
+
+    if (room.playerVP instanceof Map && room.playerVP.has(oldPlayerId)) {
+        const vp = room.playerVP.get(oldPlayerId);
+        room.playerVP.delete(oldPlayerId);
+        room.playerVP.set(newPlayerId, vp);
+    }
+}
+
+// Прибрати записи "привидів" — ключі, що не відповідають жодному гравцю кімнати
+function pruneGhostPlayerEntries(room) {
+    const ids = new Set(room.players.map(p => p.id));
+    for (const mapName of ['devCardHands', 'knightCards', 'playerResources', 'playerVP']) {
+        const m = room[mapName];
+        if (!(m instanceof Map)) continue;
+        for (const key of Array.from(m.keys())) {
+            if (!ids.has(key)) m.delete(key);
+        }
+    }
+    if (Array.isArray(room.turnOrder)) {
+        room.turnOrder = room.turnOrder.filter(pid => ids.has(pid));
+    }
 }
 
 // Страховка: раз на 30 с підчищаемо кімнати, де ВСІ гравці відключилися, але
@@ -2245,7 +2473,7 @@ io.on('connection', (socket) => {
     });
 
     // Create room
-    socket.on('create-room', ({ roomName, playerName, maxPlayers, color }) => {
+    socket.on('create-room', ({ roomName, playerName, maxPlayers, color, avatar }) => {
         // Check if room name already exists
         const existingRoom = Array.from(rooms.values()).find(room => 
             room.name.toLowerCase() === (roomName || 'Кімната').toLowerCase()
@@ -2270,7 +2498,8 @@ io.on('connection', (socket) => {
                 id: socket.id,
                 name: playerName || 'Гравець',
                 isHost: true,
-                color: color || defaultColors[0]
+                color: color || defaultColors[0],
+                avatar: (Number.isInteger(avatar) && avatar >= 0 && avatar <= 8) ? avatar : 0
             }],
             gameState: null,
             createdAt: Date.now(),
@@ -2316,7 +2545,7 @@ io.on('connection', (socket) => {
     });
 
     // Join room
-    socket.on('join-room', ({ roomCode, playerName, color }) => {
+    socket.on('join-room', ({ roomCode, playerName, color, avatar }) => {
         const room = rooms.get(roomCode);
         
         if (!room) {
@@ -2347,7 +2576,8 @@ io.on('connection', (socket) => {
             id: socket.id,
             name: playerName || 'Гравець',
             isHost: false,
-            color: assignedColor
+            color: assignedColor,
+            avatar: (Number.isInteger(avatar) && avatar >= 0 && avatar <= 8) ? avatar : 0
         });
         
         socket.join(roomCode);
@@ -2374,94 +2604,74 @@ io.on('connection', (socket) => {
         const room = rooms.get(roomCode);
         if (!room) return;
 
-        // Preserve the same player record on reconnect
-        if (oldPlayerId) {
-            const oldPlayerIndex = room.players.findIndex(p => p.id === oldPlayerId);
-            if (oldPlayerIndex !== -1) {
-                room.players[oldPlayerIndex].id = socket.id;
-                room.players[oldPlayerIndex].disconnected = false;
-            }
-
-            if (room.turnOrder) {
-                room.turnOrder = room.turnOrder.map(pid => pid === oldPlayerId ? socket.id : pid);
-            }
-
-            if (room.initialBuildOrder) {
-                room.initialBuildOrder = room.initialBuildOrder.map(item => {
-                    if (item.playerId === oldPlayerId) {
-                        return { ...item, playerId: socket.id };
-                    }
-                    return item;
-                });
-            }
-
-            if (room.diceRolls && room.diceRolls.has(oldPlayerId)) {
-                const roll = room.diceRolls.get(oldPlayerId);
-                room.diceRolls.delete(oldPlayerId);
-                room.diceRolls.set(socket.id, roll);
-            }
-
-            if (room.initialBuildProgress && room.initialBuildProgress.has(oldPlayerId)) {
-                const progress = room.initialBuildProgress.get(oldPlayerId);
-                room.initialBuildProgress.delete(oldPlayerId);
-                room.initialBuildProgress.set(socket.id, progress);
-            }
-
-            if (room.buildings) {
-                for (const [key, building] of room.buildings.entries()) {
-                    if (building.playerId === oldPlayerId) {
-                        room.buildings.set(key, { ...building, playerId: socket.id });
-                    }
-                }
-            }
-        }
+        // ===== Preserve the same player record on reconnect (NO duplicates) =====
+        // 1) Основний шлях: прямий ремап за oldPlayerId (навігація splash -> index)
+        remapPlayerIdEverywhere(room, oldPlayerId, socket.id);
 
         if (isHost) room.host = socket.id;
 
-        // Check if player already exists in the room (by socket.id or oldPlayerId)
+        // Check if player already exists in the room (by socket.id after remap)
         let existingPlayer = room.players.find(p => p.id === socket.id);
-        
-        // Also check if oldPlayerId still exists (in case it wasn't updated above)
-        if (!existingPlayer && oldPlayerId && oldPlayerId !== socket.id) {
-            const oldPlayerIndex = room.players.findIndex(p => p.id === oldPlayerId);
-            if (oldPlayerIndex !== -1) {
-                // Update the old player's ID to the new socket ID
-                room.players[oldPlayerIndex].id = socket.id;
-                room.players[oldPlayerIndex].disconnected = false;
-                existingPlayer = room.players[oldPlayerIndex];
-                console.log('[server] rejoin-room: found player by oldPlayerId on second attempt', { oldPlayerId, newSocketId: socket.id });
+
+        // 2) Збіг за іменем серед ВІДКЛЮЧЕНИХ гравців (той самий фізичний гравець
+        //    повернувся, але sessionStorage містив id, якого сервер ніколи не бачив)
+        if (!existingPlayer && playerName) {
+            const nameMatch = room.players.find(p =>
+                p.id !== socket.id &&
+                p.disconnected === true &&
+                p.name === playerName
+            );
+            if (nameMatch) {
+                remapPlayerIdEverywhere(room, nameMatch.id, socket.id);
+                existingPlayer = room.players.find(p => p.id === socket.id);
+                console.log('[server] rejoin-room: reused disconnected player by name (no duplicate)', { playerName, socketId: socket.id });
             }
-        }
-        
-        if (!existingPlayer) {
-            // Check if there's already a player with this socket.id in the room
-            // (e.g., from a previous connection that wasn't cleaned up)
-            const duplicateBySocket = room.players.find(p => p.id === socket.id);
-            if (duplicateBySocket) {
-                console.log('[server] rejoin-room: player already exists by socket.id, no duplicate created', { roomCode, socketId: socket.id });
-                existingPlayer = duplicateBySocket;
-                existingPlayer.disconnected = false;
-            } else {
-                console.log('[server] rejoin-room: player not found, pushing new player', { roomCode, socketId: socket.id, oldPlayerId });
-                // Assign a free color instead of always 'red' to avoid duplicate colors
-                const rejoinDefaultColors = ['red', 'blue', 'yellow', 'green'];
-                const rejoinUsedColors = new Set(room.players.map(p => p.color).filter(c => c));
-                const rejoinAssignedColor = rejoinDefaultColors.find(c => !rejoinUsedColors.has(c)) || 'red';
-                room.players.push({
-                    id: socket.id,
-                    name: 'Гравець',
-                    isHost: isHost,
-                    color: rejoinAssignedColor
-                });
-            }
-        } else {
-            console.log('[server] rejoin-room: player found, no duplicate created', { roomCode, socketId: socket.id });
         }
 
-        // Гравець повернувся — скасовуємо таймер автозакриття катки/кімнати
-        if (existingPlayer && !existingPlayer.disconnected) {
-            clearDisconnectTimer(roomCode, oldPlayerId);
-            clearDisconnectTimer(roomCode, socket.id);
+        // 3) Реаттач до відключеного запису навіть якщо ім'я невідоме.
+        //    rejoin-room емітять ЛИШЕ гравці, що повертаються, тому відключений
+        //    запис у кімнаті завжди кращий варіант, ніж створення дубліката.
+        if (!existingPlayer) {
+            const disconnectedPlayers = room.players.filter(p => p.id !== socket.id && p.disconnected === true);
+            let reattach = null;
+            if (disconnectedPlayers.length === 1) {
+                reattach = disconnectedPlayers[0];
+            } else if (disconnectedPlayers.length > 1) {
+                // Якщо ролі відрізняються — предпочту запис із такою ж роллю (host/не host)
+                const byRole = disconnectedPlayers.filter(p => !!p.isHost === !!isHost);
+                reattach = byRole[0] || disconnectedPlayers[0];
+            }
+            if (reattach) {
+                remapPlayerIdEverywhere(room, reattach.id, socket.id);
+                existingPlayer = room.players.find(p => p.id === socket.id);
+                console.log('[server] rejoin-room: reattached to disconnected player entry (no duplicate)', { reattachedName: reattach.name, socketId: socket.id });
+            }
+        }
+
+        // Гравець повернувся — скасовуємо таймери очікування повернення
+        clearDisconnectTimer(roomCode, oldPlayerId);
+        clearDisconnectTimer(roomCode, socket.id);
+
+        // Прибираємо "привиди" — ключі зі старих id, що лишились від попередніх підключень
+        pruneGhostPlayerEntries(room);
+
+        // 4) Останній засіб — створити новий запис (гравця, якого раніше в кімнаті
+        //    не було взагалі). Використовуємо передане ім'я, а не дефолтне.
+        if (!existingPlayer) {
+            console.log('[server] rejoin-room: no matching entry, pushing new player', { roomCode, socketId: socket.id, oldPlayerId });
+            const rejoinDefaultColors = ['red', 'blue', 'yellow', 'green'];
+            const rejoinUsedColors = new Set(room.players.map(p => p.color).filter(c => c));
+            const rejoinAssignedColor = rejoinDefaultColors.find(c => !rejoinUsedColors.has(c)) || 'red';
+            room.players.push({
+                id: socket.id,
+                name: playerName || 'Гравець',
+                isHost: isHost,
+                disconnected: false,
+                color: rejoinAssignedColor
+            });
+            existingPlayer = room.players[room.players.length - 1];
+        } else {
+            console.log('[server] rejoin-room: player found, no duplicate created', { roomCode, socketId: socket.id });
         }
 
         // If every player is connected again, allow restart once more
@@ -2472,39 +2682,7 @@ io.on('connection', (socket) => {
 
         socket.join(roomCode);
 
-        // ===== ЗАХИСТ ВІД ДУБЛІКАТІВ =====
-        // Той самий гравець (за socket.id / oldPlayerId) міг потрапити в кімнату
-        // двічі через повторні rejoin/перезавантаження сторінки. Якщо знаходимо
-        // гравця, що вже підключений цим сокетом — прибираємо зайві записи.
-        if (!existingPlayer && oldPlayerId) {
-            const stillOld = room.players.find(p => p.id === oldPlayerId && p.id !== socket.id);
-            if (stillOld) {
-                existingPlayer = stillOld;
-                existingPlayer.id = socket.id;
-                existingPlayer.disconnected = false;
-                clearDisconnectTimer(roomCode, oldPlayerId);
-                clearDisconnectTimer(roomCode, socket.id);
-                console.log('[server] rejoin-room: reused oldPlayerId entry instead of creating duplicate', { oldPlayerId, socketId: socket.id });
-            }
-        }
-
-        // Якщо oldPlayerId не вдалося знайти (наприклад, його перезаписали в
-        // sessionStorage) — шукаємо того самого гравця за іменем серед тих, хто
-        // позначений disconnected. Це той самий фізичний гравець, що вийшов.
-        if (!existingPlayer && playerName) {
-            const nameMatch = room.players.find(p =>
-                p.id !== socket.id &&
-                p.disconnected === true &&
-                p.name === playerName
-            );
-            if (nameMatch) {
-                existingPlayer = nameMatch;
-                existingPlayer.id = socket.id;
-                existingPlayer.disconnected = false;
-                clearDisconnectTimer(roomCode, socket.id);
-                console.log('[server] rejoin-room: reused disconnected player by name (no duplicate)', { playerName, socketId: socket.id });
-            }
-        }
+        // Страховка: той самий сокет не повинен мати більше одного запису в кімнаті
 
         const socksHere = room.players.filter(p => p.id === socket.id);
         if (socksHere.length > 1) {
@@ -2632,29 +2810,11 @@ io.on('connection', (socket) => {
                 clearDisconnectTimer(roomCode, socket.id);
                 console.log('[server] request-game-state: mapped old player ID to new socket ID', { oldPlayerId, newSocketId: socket.id });
 
-                if (room.turnOrder) {
-                    room.turnOrder = room.turnOrder.map(pid => pid === oldPlayerId ? socket.id : pid);
-                }
-                if (room.initialBuildOrder) {
-                    room.initialBuildOrder = room.initialBuildOrder.map(item => item.playerId === oldPlayerId ? { ...item, playerId: socket.id } : item);
-                }
-                if (room.diceRolls && room.diceRolls.has(oldPlayerId)) {
-                    const roll = room.diceRolls.get(oldPlayerId);
-                    room.diceRolls.delete(oldPlayerId);
-                    room.diceRolls.set(socket.id, roll);
-                }
-                if (room.initialBuildProgress && room.initialBuildProgress.has(oldPlayerId)) {
-                    const progress = room.initialBuildProgress.get(oldPlayerId);
-                    room.initialBuildProgress.delete(oldPlayerId);
-                    room.initialBuildProgress.set(socket.id, progress);
-                }
-                if (room.buildings) {
-                    for (const [key, building] of room.buildings.entries()) {
-                        if (building.playerId === oldPlayerId) {
-                            room.buildings.set(key, { ...building, playerId: socket.id });
-                        }
-                    }
-                }
+                // Повний ремап усіх структур (devCardHands, playerVP тощо включно)
+                remapPlayerIdEverywhere(room, oldPlayerId, socket.id);
+                // Відновлюємо прапорець disconnected і пов'язуємо запис із кімнатою,
+                // бо remapPlayerIdEverywhere міг не знайти запис, якщо він уже був
+                // переміщений раніше — у цьому разі нічого робити не треба.
                 socket.join(roomCode);
             }
         }
@@ -4058,9 +4218,128 @@ io.on('connection', (socket) => {
         }
     });
 
+    // ===== MATCHMAKING HANDLERS =====
+
+    // Join matchmaking queue
+    socket.on('join-matchmaking', ({ playerName, avatar }) => {
+        console.log('[matchmaking] Player joining queue:', socket.id, playerName);
+
+        // Remove from queue if already there
+        removeFromMatchmakingQueue(socket.id);
+
+        // Add to queue
+        matchmakingQueue.push({
+            socketId: socket.id,
+            playerName: playerName || 'Гравець',
+            avatar: (Number.isInteger(avatar) && avatar >= 0 && avatar <= 8) ? avatar : 0,
+            joinedAt: Date.now()
+        });
+
+        console.log('[matchmaking] Queue size:', matchmakingQueue.length);
+
+        // Notify player they're in queue
+        socket.emit('matchmaking-queued', {
+            message: 'Пошук противника...',
+            queueSize: matchmakingQueue.length
+        });
+
+        // Try to find a match
+        if (matchmakingQueue.length >= 2) {
+            const player1 = matchmakingQueue.shift();
+            const player2 = matchmakingQueue.shift();
+            createMatchmakingGame(player1, player2);
+        }
+    });
+
+    // Leave matchmaking queue
+    socket.on('leave-matchmaking', () => {
+        console.log('[matchmaking] Player leaving queue:', socket.id);
+        removeFromMatchmakingQueue(socket.id);
+        socket.emit('matchmaking-left', { message: 'Пошук скасовано' });
+    });
+
+    // Handle matchmaking game start (host sends map)
+    socket.on('matchmaking-start-game', ({ roomCode, mapData, topology }) => {
+        const room = rooms.get(roomCode);
+        if (!room || room.host !== socket.id) return;
+
+        // Store map data
+        room.gameState = mapData;
+
+        // Store topology
+        if (topology) {
+            room.topology = {
+                edges: new Map(topology.edges || []),
+                vertices: new Map(topology.vertices || [])
+            };
+        }
+
+        // Initialize game state
+        room.status = 'in-game';
+        room.gamePhase = 'dice-roll';
+        room.diceRolls = new Map();
+        room.initialBuildOrder = [];
+        room.currentInitialBuildIndex = 0;
+        room.initialBuildRoundComplete = false;
+        room.buildings = new Map();
+        room.turnOrder = [];
+        room.currentTurnIndex = 0;
+        room.turnState = { diceRolled: false, actionsLocked: true };
+        room.largestArmy = { holderId: null, level: 0 };
+        room.longestRoad = { holderId: null, level: 0 };
+        room.winnerId = null;
+        room.restartReady = new Set();
+        room.restarting = false;
+        room.restartBlocked = false;
+        room.playerVP = new Map();
+        room.playerResources = new Map();
+
+        // Initialize robber on desert hex
+        let desertHexKey = '0,0,0';
+        if (room.gameState && room.gameState.resources) {
+            for (const [key, res] of Object.entries(room.gameState.resources)) {
+                if (res === 'desert') {
+                    desertHexKey = key;
+                    break;
+                }
+            }
+        }
+        room.robber = { hexKey: desertHexKey, placedBy: null };
+        room.devCardHands = new Map();
+        room.knightCards = new Map();
+
+        // Initialize dev card deck
+        room.devCardDeck = createDevCardDeck();
+
+        // Initialize player resources and dev card hands
+        for (const p of room.players) {
+            room.devCardHands.set(p.id, []);
+            room.knightCards.set(p.id, 0);
+            room.playerResources.set(p.id, { wood: 0, brick: 0, geese: 0, water: 0, stone: 0 });
+            room.playerVP.set(p.id, 0);
+        }
+
+        console.log('[matchmaking] Game starting:', roomCode);
+
+        // Notify both players to start the game
+        io.to(roomCode).emit('matchmaking-game-started', {
+            roomCode,
+            mapSeed: room.gameState,
+            players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
+        });
+
+        // Start dice phase
+        io.to(roomCode).emit('start-dice-phase', {
+            players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
+        });
+    });
+
     // Disconnect
     socket.on('disconnect', () => {
         console.log('Player disconnected:', socket.id);
+
+        // Remove from matchmaking queue if waiting
+        removeFromMatchmakingQueue(socket.id);
 
         // Remove player from rooms
         rooms.forEach((room, code) => {
