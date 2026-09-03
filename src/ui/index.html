@@ -5133,6 +5133,58 @@ function deserializeMap(serializedMap) {
     };
 }
 
+// Helper: серіалізує Map-поля карти у plain-об'єкти ПЕРЕД відправкою через
+// socket.io / sessionStorage. ВАЖЛИВО: socket.io НЕ зберігає Map — будь-який Map
+// перетворюється на порожній {}, тож без серіалізації клієнти отримують карту
+// без ресурсів/номерів/океану, і renderMap падає на data.ocean.get(...) ->
+// "мапа не малюється, поки не наведеш курсор". Дружні кімнати так уже роблять
+// (splash.html обгортає через Object.fromEntries), матчмейкінг — ще ні.
+function serializeMapForServer(mapData) {
+    if (!mapData) return mapData;
+    const hasMapFields = mapData.resources && typeof mapData.resources.entries === 'function';
+    if (!hasMapFields) return mapData; // уже серіалізована (plain-об'єкти)
+    return {
+        center: mapData.center,
+        ring1: mapData.ring1,
+        ring2: mapData.ring2,
+        ring3: mapData.ring3,
+        resources: Object.fromEntries(mapData.resources),
+        numbers: Object.fromEntries(mapData.numbers || []),
+        ocean: Object.fromEntries(mapData.ocean || [])
+    };
+}
+
+// Helper: гарантовано застосовує карту від сервера і МАЛЮЄ дошку одразу.
+// Якщо seed пошкоджений (порожні Map-поля після серіалізації старого сервера,
+// відсутні ресурси/океан) — генерує локальну карту, щоб гра була видна з першої
+// секунди, а не після випадкового hover/кліку по канвасу.
+function applyMapToClient(serializedMap) {
+    let next = deserializeMap(serializedMap);
+    if (next) {
+        const landKeys = [next.center, ...(next.ring1 || []), ...(next.ring2 || []), ...(next.ring3 || [])].map(hexKey);
+        const hasResources = landKeys.some(k => next.resources && next.resources.has(k));
+        const hasOcean = !(next.ring3 || []).length || (next.ring3 || []).some(h => next.ocean && next.ocean.has(hexKey(h)));
+        if (!hasResources || !hasOcean) next = null;
+    }
+    if (!next) {
+        console.warn('[map] seed від сервера неповний/пошкоджений — генерую локальну карту');
+        next = generateMap();
+    }
+    mapData = next;
+    resizeCanvas();
+    const hexSize = calculateHexSize();
+    mapHexSize = hexSize;
+    if (!gameState.robber.hexKey) {
+        const desertHex = findDesertHex();
+        if (desertHex) {
+            gameState.robber.hexKey = hexKey(desertHex);
+            gameState.robber.placedBy = null;
+        }
+    }
+    renderMap(mapData, canvas, hexSize);
+    return mapData;
+}
+
 // ===== MULTIPLAYER INTEGRATION =====
 // Declare multiplayer variables BEFORE any code that might use them
 // (e.g. updateAllUI -> updateBuildStats -> computeVictoryPoints -> hasLargestArmy uses myPlayerId)
@@ -5302,25 +5354,10 @@ function registerMultiplayerHandlers(client) {
     client.onGameStarted((data) => {
         console.log('Game started with map seed:', data);
         if (data && data.mapSeed) {
-            const deserialized = deserializeMap(data.mapSeed);
-            if (deserialized) {
-                mapData = deserialized;
-                resizeCanvas();
-                const hexSize = calculateHexSize();
-                mapHexSize = hexSize;
-                // Страховка: якщо позиція розбійника не встановлена
-                // (наприклад, після рестарту гри через "Зіграти знову"),
-                // ставимо фішку розбійника на гекс пустині нової карти.
-                // Без цього фішка зникає з карти після рестарту.
-                if (!gameState.robber.hexKey) {
-                    const desertHex = findDesertHex();
-                    if (desertHex) {
-                        gameState.robber.hexKey = hexKey(desertHex);
-                        gameState.robber.placedBy = null;
-                    }
-                }
-                renderMap(mapData, canvas, hexSize);
-            }
+            // applyMapToClient: десеріалізація + страховка розбійника + resize +
+            // ГАРАНТОВАНИЙ рендер одразу (fallback на локальну карту, якщо seed
+            // пошкоджений socket.io-серіалізацією). Замінив дубльований код нижче.
+            applyMapToClient(data.mapSeed);
         }
     });
     client.onStartDicePhase((data) => {
@@ -6404,21 +6441,7 @@ function setupMatchmakingGameHandlers() {
     mpClient.socket.on('game-started', (data) => {
         console.log('[matchmaking] Game started event (map):', data);
         if (data && data.mapSeed) {
-            const deserialized = deserializeMap(data.mapSeed);
-            if (deserialized) {
-                mapData = deserialized;
-                resizeCanvas();
-                const hexSize = calculateHexSize();
-                mapHexSize = hexSize;
-                if (!gameState.robber.hexKey) {
-                    const desertHex = findDesertHex();
-                    if (desertHex) {
-                        gameState.robber.hexKey = hexKey(desertHex);
-                        gameState.robber.placedBy = null;
-                    }
-                }
-                renderMap(mapData, canvas, hexSize);
-            }
+            applyMapToClient(data.mapSeed);
         }
     });
 
@@ -6438,10 +6461,14 @@ function setupMatchmakingGameHandlers() {
         const mapData = generateMap();
         const topology = window.gameState?.topology || null;
 
+        // Серіалізуємо Map-поля ДО відправки: socket.io не вміє передавати Map
+        // (перетворює на {}), і клієнти отримували карту без ресурсів/океану.
+        const serializedMapData = serializeMapForServer(mapData);
+
         // Send map to server
         mpClient.socket.emit('matchmaking-start-game', {
             roomCode: roomCode,
-            mapData: mapData,
+            mapData: serializedMapData,
             topology: topology ? {
                 edges: Array.from(topology.edges.entries()),
                 vertices: Array.from(topology.vertices.entries())
@@ -6449,7 +6476,7 @@ function setupMatchmakingGameHandlers() {
         });
 
         // Store map locally
-        sessionStorage.setItem('matchmakingMapSeed', JSON.stringify(mapData));
+        sessionStorage.setItem('matchmakingMapSeed', JSON.stringify(serializedMapData));
     });
 
     // Handle matchmaking game started
@@ -6464,7 +6491,8 @@ function setupMatchmakingGameHandlers() {
             sessionStorage.setItem('matchmakingPlayers', JSON.stringify(data.players));
         }
         if (data.mapSeed) {
-            sessionStorage.setItem('matchmakingMapSeed', JSON.stringify(data.mapSeed));
+            const serializedMapData = serializeMapForServer(data.mapSeed);
+            sessionStorage.setItem('matchmakingMapSeed', JSON.stringify(serializedMapData));
         }
     });
 
@@ -6481,17 +6509,18 @@ function setupMatchmakingGameHandlers() {
 
             const mapData = generateMap();
             const topology = window.gameState?.topology || null;
+            const serializedMapData = serializeMapForServer(mapData);
 
             mpClient.socket.emit('matchmaking-start-game', {
                 roomCode: roomCode,
-                mapData: mapData,
+                mapData: serializedMapData,
                 topology: topology ? {
                     edges: Array.from(topology.edges.entries()),
                     vertices: Array.from(topology.vertices.entries())
                 } : null
             });
 
-            sessionStorage.setItem('matchmakingMapSeed', JSON.stringify(mapData));
+            sessionStorage.setItem('matchmakingMapSeed', JSON.stringify(serializedMapData));
         }
     }, 15000);
 }

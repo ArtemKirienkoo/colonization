@@ -1150,6 +1150,84 @@ function syncBuildingsToRoom(roomCode, room) {
     return buildingsData;
 }
 
+// ===== Перехід у початкове будівництво (спільний для 'dice-roll' і 'matchmaking-start-game') =====
+// Викликається, коли ВСІ гравці кинули кубики. Містить обробку нічиєї (перекидання)
+// і сам перехід: initialBuildOrder/progress + розилка initial-build-start/your-turn/waiting.
+// ВАЖЛИВО: викликати ЛИШЕ коли room.gameState вже встановлено (карта від хозяїна):
+// гейт у обробнику 'dice-roll' тримає фазу до приходу matchmaking-start-game, інакше
+// клієнти почнуть будувати без карти, а пізній matchmaking-start-game стер би їхні
+// будівлі (room.buildings = new Map()) — "зниклі поселення" на старті катки.
+function checkDiceRollsComplete(roomCode, room) {
+    // Calculate build order (highest to lowest)
+    const rolls = Array.from(room.diceRolls.entries()).map(([playerId, total]) => ({
+        playerId,
+        total
+    }));
+    rolls.sort((a, b) => b.total - a.total);
+
+    // In case of tie, re-roll is needed
+    const totals = rolls.map(r => r.total);
+    const uniqueTotals = new Set(totals);
+    if (uniqueTotals.size < rolls.length) {
+        const tiedPlayers = [];
+        for (let i = 0; i < rolls.length; i++) {
+            for (let j = i + 1; j < rolls.length; j++) {
+                if (rolls[i].total === rolls[j].total) {
+                    if (!tiedPlayers.includes(rolls[i].playerId)) tiedPlayers.push(rolls[i].playerId);
+                    if (!tiedPlayers.includes(rolls[j].playerId)) tiedPlayers.push(rolls[j].playerId);
+                }
+            }
+        }
+
+        // Clear only tied players' rolls
+        for (const pid of tiedPlayers) {
+            room.diceRolls.delete(pid);
+        }
+
+        io.to(roomCode).emit('dice-tie', {
+            players: tiedPlayers,
+            message: 'Нічия! Перекиньте кубики'
+        });
+        return;
+    }
+
+    room.initialBuildOrder = rolls;
+    room.turnOrder = rolls.map(r => r.playerId); // Same order for regular turns
+    room.gamePhase = 'initial-build';
+    room.currentInitialBuildIndex = 0;
+    room.initialBuildRoundComplete = false;
+
+    // Track each player's built items during initial phase
+    room.initialBuildProgress = new Map(); // playerId -> {settlements: number, roads: number}
+    for (const p of room.players) {
+        room.initialBuildProgress.set(p.id, { settlements: 0, roads: 0 });
+    }
+
+    // Notify the first player to build
+    const firstPlayerId = rolls[0].playerId;
+    io.to(roomCode).emit('initial-build-start', {
+        order: rolls,
+        currentPlayerId: firstPlayerId,
+        round: 0
+    });
+
+    // Tell the first player it's their turn
+    io.to(firstPlayerId).emit('initial-build-your-turn', {
+        playerId: firstPlayerId,
+        order: rolls
+    });
+
+    // Tell others they're waiting
+    for (let i = 1; i < rolls.length; i++) {
+        const pid = rolls[i].playerId;
+        io.to(pid).emit('initial-build-waiting', {
+            currentPlayerId: firstPlayerId,
+            yourPosition: i,
+            order: rolls
+        });
+    }
+}
+
 // ===== MEDALS (LARGEST ARMY / LONGEST ROAD) - SERVER-SIDE AUTHORITATIVE =====
 const ARMY_BASE_THRESHOLD = 3;
 const ROAD_BASE_THRESHOLD = 5;
@@ -2952,6 +3030,10 @@ io.on('connection', (socket) => {
     socket.on('store-topology', ({ roomCode, topology }) => {
         const room = rooms.get(roomCode);
         if (room && room.host === socket.id) {
+            // ЗАХИСТ: клієнт (index.html matchmaking-can-start) надсилає topology: null,
+            // якщо топологія ще не згенерована — без перевірки це валило весь сервер
+            // (TypeError: Cannot read properties of null (reading 'edges')).
+            if (!topology) return;
             // Convert arrays back to Maps for server-side validation
             room.topology = {
                 edges: new Map(topology.edges || []),
@@ -3061,74 +3143,16 @@ io.on('connection', (socket) => {
         
         // Check if all players have rolled
         if (room.diceRolls.size === room.players.length) {
-            // Calculate build order (highest to lowest)
-            const rolls = Array.from(room.diceRolls.entries()).map(([playerId, total]) => ({
-                playerId,
-                total
-            }));
-            rolls.sort((a, b) => b.total - a.total);
-            
-            // In case of tie, re-roll is needed
-            const totals = rolls.map(r => r.total);
-            const uniqueTotals = new Set(totals);
-            if (uniqueTotals.size < rolls.length) {
-                const tiedPlayers = [];
-                for (let i = 0; i < rolls.length; i++) {
-                    for (let j = i + 1; j < rolls.length; j++) {
-                        if (rolls[i].total === rolls[j].total) {
-                            if (!tiedPlayers.includes(rolls[i].playerId)) tiedPlayers.push(rolls[i].playerId);
-                            if (!tiedPlayers.includes(rolls[j].playerId)) tiedPlayers.push(rolls[j].playerId);
-                        }
-                    }
-                }
-                
-                // Clear only tied players' rolls
-                for (const pid of tiedPlayers) {
-                    room.diceRolls.delete(pid);
-                }
-                
-                io.to(roomCode).emit('dice-tie', {
-                    players: tiedPlayers,
-                    message: 'Нічия! Перекиньте кубики'
-                });
+            // ВАЖЛИВО (гейт): чекаємо карту від хозяїна (matchmaking-start-game), перш ніж
+            // починати початкове будівництво. Без карти клієнти будують "у повітря"
+            // (у них ще своя локально згенерована дошка), а пізній matchmaking-start-game
+            // стер би вже поставлені будівлі (room.buildings = new Map()) — звідси
+            // "зниклі поселення" і "Ви повинні побудувати 1 село та 2 дороги".
+            if (!room.gameState) {
+                console.log('[dice-roll] всі кинули, але карта ще не надійшла — чекаємо matchmaking-start-game');
                 return;
             }
-            
-            room.initialBuildOrder = rolls;
-            room.turnOrder = rolls.map(r => r.playerId); // Same order for regular turns
-            room.gamePhase = 'initial-build';
-            room.currentInitialBuildIndex = 0;
-            room.initialBuildRoundComplete = false;
-            
-            // Track each player's built items during initial phase
-            room.initialBuildProgress = new Map(); // playerId -> {settlements: number, roads: number}
-            for (const p of room.players) {
-                room.initialBuildProgress.set(p.id, { settlements: 0, roads: 0 });
-            }
-            
-            // Notify the first player to build
-            const firstPlayerId = rolls[0].playerId;
-            io.to(roomCode).emit('initial-build-start', {
-                order: rolls,
-                currentPlayerId: firstPlayerId,
-                round: 0
-            });
-            
-            // Tell the first player it's their turn
-            io.to(firstPlayerId).emit('initial-build-your-turn', {
-                playerId: firstPlayerId,
-                order: rolls
-            });
-            
-            // Tell others they're waiting
-            for (let i = 1; i < rolls.length; i++) {
-                const pid = rolls[i].playerId;
-                io.to(pid).emit('initial-build-waiting', {
-                    currentPlayerId: firstPlayerId,
-                    yourPosition: i,
-                    order: rolls
-                });
-            }
+            checkDiceRollsComplete(roomCode, room);
         }
     });
     
@@ -3438,6 +3462,15 @@ io.on('connection', (socket) => {
         const key = data.edgeKey || data.vertexKey;
         if (!key) return;
         
+        // VALIDATION: будівництво можливе лише у фазах initial-build/regular-turn.
+        // У фазі dice-roll (зокрема, поки чекаємо карту від хозяїна — гейт переходу
+        // в initial-build) будувати заборонено, інакше такі будівлі стер би пізній
+        // matchmaking-start-game.
+        if (room.gamePhase !== 'initial-build' && room.gamePhase !== 'regular-turn') {
+            socket.emit('action-error', { message: 'Спочатку киньте кубики!' });
+            return;
+        }
+
         // VALIDATION: For cities, check if it's the player's own settlement first
         if (type === 'city') {
             const existing = room.buildings.get(key);
@@ -4295,6 +4328,20 @@ io.on('connection', (socket) => {
         const room = rooms.get(roomCode);
         if (!room || room.host !== socket.id) return;
 
+        // IDEМПОТЕНТНІСТЬ: якщо гра вже ініціалізована, повторний виклик (подвійний
+        // matchmaking-can-start, 15-с фолбек клієнта після втраченого can-start)
+        // НЕ має стирати стан. Раніше повторний виклик проходив далі:
+        // room.buildings = new Map() стирав УСІ будівлі, поставлені під час
+        // початкового будівництва ("поселення не відображаються", "Ви повинні
+        // побудувати 1 село та 2 дороги"), а повторний game-started підміняв
+        // карту гравцям посеред катки. Тепер лише надсилаємо актуальний стан.
+        if (room.gameState) {
+            console.log('[matchmaking] start-game повторно — надсилаю актуальний стан без скидання');
+            socket.emit('game-started', { mapSeed: room.gameState });
+            socket.emit('sync-buildings', { buildings: getBuildingsArray(room) });
+            return;
+        }
+
         // Store map data
         room.gameState = mapData;
 
@@ -4367,10 +4414,17 @@ io.on('connection', (socket) => {
         // заново відкривала вікно кубиків. Додаємо актуальні diceRolls, щоб
         // пізно підключений клієнт бачив уже зроблені кидки.
         if (room.gamePhase === 'dice-roll') {
-            io.to(roomCode).emit('start-dice-phase', {
-                players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color })),
-                diceRolls: Array.from(room.diceRolls.entries()).map(([playerId, total]) => ({ playerId, total }))
-            });
+            // Якщо ВСІ вже встигли кинути, поки карта летіла — гейт у 'dice-roll'
+            // чекав саме на цю карту: одразу починаємо початкове будівництво.
+            if (room.diceRolls.size >= room.players.length) {
+                console.log('[matchmaking] карта надійшла після того, як всі кинули — стартую initial-build');
+                checkDiceRollsComplete(roomCode, room);
+            } else {
+                io.to(roomCode).emit('start-dice-phase', {
+                    players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color })),
+                    diceRolls: Array.from(room.diceRolls.entries()).map(([playerId, total]) => ({ playerId, total }))
+                });
+            }
         }
     });
 
