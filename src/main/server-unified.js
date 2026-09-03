@@ -131,7 +131,8 @@ function createMatchmakingGame(player1, player2) {
         restartBlocked: false,
         playerVP: new Map(),
         playerResources: new Map(),
-        isMatchmaking: true // Flag to identify matchmaking games
+        isMatchmaking: true, // Flag to identify matchmaking games
+        matchmakingReady: new Set() // Track which players are ready
     };
 
     rooms.set(roomCode, room);
@@ -4256,6 +4257,33 @@ io.on('connection', (socket) => {
         console.log('[matchmaking] Player leaving queue:', socket.id);
         removeFromMatchmakingQueue(socket.id);
         socket.emit('matchmaking-left', { message: 'Пошук скасовано' });
+    });
+
+    // Handle matchmaking player ready (both players must be ready before host starts)
+    socket.on('matchmaking-player-ready', ({ roomCode }) => {
+        const room = rooms.get(roomCode);
+        if (!room) return;
+
+        // Mark player as ready
+        if (!room.matchmakingReady) {
+            room.matchmakingReady = new Set();
+        }
+        room.matchmakingReady.add(socket.id);
+
+        console.log('[matchmaking] Player ready:', socket.id, 'Ready count:', room.matchmakingReady.size, 'Total players:', room.players.length);
+
+        // Notify other player that this player is ready
+        socket.to(roomCode).emit('matchmaking-player-ready', {
+            playerId: socket.id,
+            readyCount: room.matchmakingReady.size,
+            totalPlayers: room.players.length
+        });
+
+        // If all players are ready and this is the host, auto-start
+        if (room.matchmakingReady.size >= room.players.length && socket.id === room.host) {
+            console.log('[matchmaking] All players ready, host can start the game');
+            socket.emit('matchmaking-can-start', { roomCode });
+        }
     });
 
     // Handle matchmaking game start (host sends map)
