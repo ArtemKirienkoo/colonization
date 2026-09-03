@@ -2100,6 +2100,12 @@
                 sessionStorage.setItem('matchmakingRoomCode', data.roomCode);
                 sessionStorage.setItem('matchmakingPlayerColor', data.yourColor);
                 sessionStorage.setItem('matchmakingOpponent', JSON.stringify(data.opponent));
+
+                // Navigate to game page after showing found modal briefly
+                setTimeout(() => {
+                    document.getElementById('loading').classList.add('active');
+                    window.location.href = 'index.html?mode=matchmaking&code=' + data.roomCode;
+                }, 2000);
             });
 
             // Handle matchmaking game started
@@ -2110,12 +2116,6 @@
                 sessionStorage.setItem('matchmakingRoomCode', data.roomCode);
                 sessionStorage.setItem('matchmakingPlayers', JSON.stringify(data.players));
                 sessionStorage.setItem('matchmakingMapSeed', JSON.stringify(data.mapSeed));
-
-                // Navigate to game page
-                document.getElementById('loading').classList.add('active');
-                setTimeout(() => {
-                    window.location.href = 'index.html?mode=matchmaking&code=' + data.roomCode;
-                }, 1500);
             });
 
             // Handle matchmaking left
