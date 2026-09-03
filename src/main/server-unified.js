@@ -4279,10 +4279,14 @@ io.on('connection', (socket) => {
             totalPlayers: room.players.length
         });
 
-        // If all players are ready and this is the host, auto-start
-        if (room.matchmakingReady.size >= room.players.length && socket.id === room.host) {
-            console.log('[matchmaking] All players ready, host can start the game');
-            socket.emit('matchmaking-can-start', { roomCode });
+        // If all players are ready, tell the HOST it can start.
+        // Умова `socket.id === room.host` тут була помилковою: 'matchmaking-can-start'
+        // надсилався ЛИШЕ якщо останнім готовність підтвердив сам хазяїн. Якщо
+        // хазяїн підтвердив першим — can-start не прилетів узагалі, і гра стартувала
+        // лише через 15-секундний клієнтський fallback, що знову влучало в гонку
+        // з фазою кубиків (друге "запізніле" вікно кубиків).
+        if (room.matchmakingReady.size >= room.players.length) {
+            io.to(room.host).emit('matchmaking-can-start', { roomCode });
         }
     });
 
@@ -4304,15 +4308,13 @@ io.on('connection', (socket) => {
 
         // Initialize game state
         room.status = 'in-game';
-        room.gamePhase = 'dice-roll';
-        room.diceRolls = new Map();
-        room.initialBuildOrder = [];
-        room.currentInitialBuildIndex = 0;
-        room.initialBuildRoundComplete = false;
+        // ВАЖЛИВО: фазу кубиків (gamePhase/diceRolls/initialBuild*/turn*) НЕ скидаємо!
+        // Кімната матчмейкінгу створюється одразу у фазі 'dice-roll' (createMatchmakingGame),
+        // тож гравці можуть встигнути КИНУТИ КУБИКИ ДО цього обробника — він летить
+        // через ~2-3 с після показу вікна (навігація 2 с + matchmaking-player-ready 1 с).
+        // Скидання тут стирало вже зроблені кидки і повторно розсилало 'start-dice-phase':
+        // саме звідси "друге вікно кубиків" і тупік, коли вікно не закривається.
         room.buildings = new Map();
-        room.turnOrder = [];
-        room.currentTurnIndex = 0;
-        room.turnState = { diceRolled: false, actionsLocked: true };
         room.largestArmy = { holderId: null, level: 0 };
         room.longestRoad = { holderId: null, level: 0 };
         room.winnerId = null;
@@ -4359,10 +4361,17 @@ io.on('connection', (socket) => {
             players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
         });
 
-        // Start dice phase
-        io.to(roomCode).emit('start-dice-phase', {
-            players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
-        });
+        // Start dice phase — ЛИШЕ якщо фаза кубиків ще триває.
+        // Якщо обидва встигли кинути до цього моменту, фаза вже 'initial-build':
+        // повторна подія не потрібна (клієнти вже будують) і раніше саме вона
+        // заново відкривала вікно кубиків. Додаємо актуальні diceRolls, щоб
+        // пізно підключений клієнт бачив уже зроблені кидки.
+        if (room.gamePhase === 'dice-roll') {
+            io.to(roomCode).emit('start-dice-phase', {
+                players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color })),
+                diceRolls: Array.from(room.diceRolls.entries()).map(([playerId, total]) => ({ playerId, total }))
+            });
+        }
     });
 
     // Disconnect

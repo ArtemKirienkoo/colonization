@@ -5325,11 +5325,9 @@ function registerMultiplayerHandlers(client) {
     });
     client.onStartDicePhase((data) => {
     console.log('Отримано start-dice-phase:', data, ' myPlayerId=', myPlayerId, ' initialPhase=', initialPhase);
-    // Prevent showing dice again if initial phase has already started
-    if (initialPhase.active || initialPhase.phase === 'complete') {
-        console.log('[start-dice-phase] Initial phase already active, skipping');
-        return;
-    }
+    // Ідемпотентність усередині startDicePhase: якщо фаза кубиків вже активна —
+    // подія лише доносить кидки (не скидає стан і не ламає кнопку), якщо фаза
+    // завершена — повністю ігнорується. Ранній return тут більше не потрібен.
     startDicePhase(data);
     });
     client.onPlayerDiceRolled((data) => {
@@ -5862,23 +5860,14 @@ function registerMultiplayerHandlers(client) {
         myPlayerId = getMyPlayerId();
         // Handle dice-roll phase as a fallback (in case start-dice-phase event was missed)
         if (data.gamePhase === 'dice-roll') {
-            console.log('[game-state-sync] dice-roll phase detected, showing dice overlay');
-            // Only show dice overlay if initial phase hasn't started yet
-            // This prevents showing dice again after turn order is determined
-            if (initialPhase.active || initialPhase.phase === 'complete') {
-                console.log('[game-state-sync] Initial phase already active, skipping dice overlay');
-                return;
-            }
-            // Only show dice overlay if it's not already visible
-            const existingOverlay = document.getElementById('dicePhaseOverlay');
-            if (existingOverlay && existingOverlay.style.display !== 'flex') {
-                // Build the data structure expected by startDicePhase
-                const diceRollsData = data.diceRolls || [];
-                startDicePhase({
-                    players: data.players || [],
-                    diceRolls: diceRollsData
-                });
-            }
+            console.log('[game-state-sync] dice-roll phase detected');
+            // startDicePhase ідемпотентний: якщо фаза кубиків вже активна — лише
+            // доносить кидки, якщо завершена (initial-build/complete) — ігнорує.
+            // Це fallback на випадок пропущеного start-dice-phase (rejoin/реконект).
+            startDicePhase({
+                players: data.players || [],
+                diceRolls: data.diceRolls || []
+            });
         } else if (data.gamePhase === 'regular-turn') {
             initialPhase.active = false;
             initialPhase.phase = 'complete';
@@ -6721,8 +6710,38 @@ function getMyPlayerId() {
 // Start dice phase
 function startDicePhase(data) {
     console.log('startDicePhase викликано, data:', data);
+
+    // Умова: якщо фаза вже завершена, не показуємо вікно кубиків
+    // Це вирішує проблему з другим вікном кубиків, яке не потрібно після завершення фази
+    if (initialPhase.phase === 'complete' || initialPhase.phase === 'initial-build') {
+        console.log('startDicePhase: фаза вже завершена, пропускаємо показ вікна кубиків');
+        return;
+    }
+
     const rollBtn = document.getElementById('rollBtn');
     if (rollBtn) rollBtn.disabled = true;
+
+    // Повторний виклик у ТІЙ САМІЙ активній фазі кубиків (rejoin, delayed
+    // request-game-state, повторний re-broadcast): НЕ скидаємо стан і НЕ
+    // перестворюємо кнопку — інакше втрачається обробник кліку та вже зроблений
+    // кидок. Лише доносимо кидки, що прилетіли з сервера.
+    const incomingRolls = (data && Array.isArray(data.diceRolls)) ? data.diceRolls : null;
+    if (initialPhase.active && initialPhase.phase === 'dice-roll') {
+        console.log('startDicePhase: фаза кубиків вже активна — оновлюємо лише дані кидків');
+        if (incomingRolls) {
+            for (const item of incomingRolls) {
+                if (!initialPhase.diceRolls.has(item.playerId)) {
+                    initialPhase.diceRolls.set(item.playerId, item.total);
+                }
+            }
+        }
+        myPlayerId = getMyPlayerId() || myPlayerId;
+        if (initialPhase.myRoll === null && myPlayerId && initialPhase.diceRolls.has(myPlayerId)) {
+            initialPhase.myRoll = initialPhase.diceRolls.get(myPlayerId);
+        }
+        updateDicePhaseUI();
+        return;
+    }
 
     initialPhase.active = true;
     initialPhase.phase = 'dice-roll';
@@ -6733,9 +6752,9 @@ function startDicePhase(data) {
     myPlayerId = getMyPlayerId();
     console.log('myPlayerId:', myPlayerId);
 
-    if (data && Array.isArray(data.diceRolls)) {
-        initialPhase.diceRolls = new Map(data.diceRolls.map(item => [item.playerId, item.total]));
-        if (initialPhase.diceRolls.has(myPlayerId)) {
+    if (incomingRolls) {
+        initialPhase.diceRolls = new Map(incomingRolls.map(item => [item.playerId, item.total]));
+        if (myPlayerId && initialPhase.diceRolls.has(myPlayerId)) {
             initialPhase.myRoll = initialPhase.diceRolls.get(myPlayerId);
         }
     }
@@ -6744,26 +6763,23 @@ function startDicePhase(data) {
     const status = document.getElementById('dicePhaseStatus');
     const results = document.getElementById('dicePhaseResults');
     const initialRollBtn = document.getElementById('rollDiceInitialBtn');
+    if (!overlay || !status || !results || !initialRollBtn) {
+        console.error('startDicePhase: відсутні DOM-елементи вікна кубиків');
+        return;
+    }
 
     overlay.style.display = 'flex';
     status.textContent = '🎲 Киньте кубики для визначення черги. Натисніть «Продовжити», щоб здійснити свій кидок.';
     status.style.color = '#f1c40f';
     results.innerHTML = '';
 
-    if (data && Array.isArray(data.diceRolls)) {
-        initialPhase.diceRolls = new Map(data.diceRolls.map(item => [item.playerId, item.total]));
-        if (initialPhase.diceRolls.has(myPlayerId)) {
-            initialPhase.myRoll = initialPhase.diceRolls.get(myPlayerId);
-        }
-    }
-
-    // Видаляємо старі обробники, щоб уникнути дублювання
-    // Просто замінюємо кнопку на нову (без клонування)
-    const newBtn = document.createElement('button');
-    newBtn.id = 'rollDiceInitialBtn';
-    newBtn.style.cssText = 'padding: 15px 40px; font-size: 1.2em; background: linear-gradient(135deg, #9b59b6, #8e44ad); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold;';
+    // Оновлюємо текст кнопки та видаляємо старі обробники клонуванням
+    const newBtn = initialRollBtn.cloneNode(true);
     newBtn.textContent = 'Продовжити';
-    // Замінюємо стару кнопку
+    newBtn.disabled = false;
+    newBtn.style.opacity = '1';
+    newBtn.style.cursor = 'pointer';
+    // Замінюємо стару кнопку на нову (без клонування)
     initialRollBtn.parentNode.replaceChild(newBtn, initialRollBtn);
 
     // Додаємо обробник кліку
