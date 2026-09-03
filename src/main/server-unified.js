@@ -230,31 +230,57 @@ function closeRoomAutomatically(roomCode, message) {
 // Запустити 1-хвилинний таймер на повернення для гравця, що відключився
 function scheduleDisconnectTimeout(room, player, socketId) {
     const key = room.code + ':' + socketId;
-    if (disconnectTimers.has(key)) return; // таймер уже запущено
+    if (disconnectTimers.has(key)) return;
     const isHostLeaver = room.host === socketId;
     const graceSeconds = Math.round(DISCONNECT_GRACE_MS / 1000);
     const timer = setTimeout(() => {
         disconnectTimers.delete(key);
-        // Кімната ще існує і гравець так і не повернувся?
         const current = rooms.get(room.code);
         if (!current) return;
-        if (!current.players.includes(player) || !player.disconnected) return; // повернувся
+        // Перевіряємо, чи гравець досі відключений (не повернувся)
+        const stillDisconnected = current.players.some(p => p.id === socketId && p.disconnected === true);
+        if (!stillDisconnected) return; // повернувся – нічого не робимо
+
         if (current.status === 'game-over') {
-            // Гра вже завершилась — просто закриваємо кімнату
             closeRoomAutomatically(room.code, 'Кімнату закрито: гравці покинули гру');
-        } else if (isHostLeaver) {
-            // Хозяїн не повернувся — кімната зникає автоматично
-            closeRoomAutomatically(room.code, 'Хозяїн не повернувся — кімнату закрито автоматично');
+            return;
+        }
+
+        // Знаходимо гравців, які залишились у кімнаті (не відключені і не той, хто вийшов)
+        const activePlayers = current.players.filter(p => p.id !== socketId && !p.disconnected);
+
+        if (activePlayers.length === 1) {
+            // 1v1 – перемагає той, хто залишився
+            const winner = activePlayers[0];
+            current.winnerId = winner.id;
+            current.status = 'game-over';
+
+            io.to(current.code).emit('game-over', {
+                winnerId: winner.id,
+                message: `Гравець ${winner.name} переміг, оскільки суперник не повернувся`,
+                players: current.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
+            });
+
+            // Зупиняємо всі таймери для цієї кімнати
+            clearAllDisconnectTimersForRoom(current.code);
+            console.log(`[server] Game over by timeout: ${winner.name} wins (opponent ${player.name} disconnected)`);
+        } else if (activePlayers.length > 1) {
+            // Якщо більше 2 гравців – просто видаляємо відключеного гравця з кімнати
+            const idx = current.players.findIndex(p => p.id === socketId);
+            if (idx !== -1) {
+                current.players.splice(idx, 1);
+                io.to(current.code).emit('player-left', { playerId: socketId, players: current.players });
+            }
+            if (current.players.length === 0) {
+                rooms.delete(current.code);
+                clearAllDisconnectTimersForRoom(current.code);
+            }
         } else {
-            // Звичайний гравець не повернувся — катка завершується автоматично
-            closeRoomAutomatically(
-                room.code,
-                'Гравець ' + (player.name || 'Гравець') + ' не повернувся — катку завершено автоматично'
-            );
+            // Немає активних гравців – закриваємо кімнату
+            closeRoomAutomatically(room.code, 'Кімнату закрито: усі гравці вийшли');
         }
     }, DISCONNECT_GRACE_MS);
     disconnectTimers.set(key, { timer, player });
-    console.log('[server] Disconnect grace timer (' + graceSeconds + 's) started for room ' + room.code + ', player ' + socketId);
 }
 
 // Перемістити ВСІ сліди гравця зі старого id на новий (reconnect / навігація між сторінками).
@@ -2730,6 +2756,9 @@ io.on('connection', (socket) => {
         // Гравець повернувся — скасовуємо таймери очікування повернення
         clearDisconnectTimer(roomCode, oldPlayerId);
         clearDisconnectTimer(roomCode, socket.id);
+        io.to(roomCode).emit('player-returned', {
+            playerId: socket.id
+        });
 
         // Прибираємо "привиди" — ключі зі старих id, що лишились від попередніх підключень
         pruneGhostPlayerEntries(room);
