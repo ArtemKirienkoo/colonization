@@ -8,72 +8,110 @@
     <script src="multiplayer.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+
+        /* ===== TITLE FONT =====
+           Ruslan Display (OFL) — декоративний «дереворитний» шрифт з підтримкою
+           кирилиці та латиниці, під стилістику гри (замок/старовинна карта).
+           Файл локальний: гра виглядає однаково й без інтернету. */
+        @font-face {
+            font-family: 'Ruslan Display';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('../../assets/fonts/RuslanDisplay-Regular.ttf') format('truetype');
+        }
         
         /* ===== CUSTOM CURSOR ===== */
         /* Default: golden mouse cursor arrow */
-        html { cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2232%22 height=%2232%22 viewBox=%220 0 32 32%22%3E%3Cpath d=%22M7 8 L7 24 L12 18 L16 24 L20 20 L14 14 L23 14 Z%22 fill=%22%23f39c12%22 stroke=%22%23e67e22%22 stroke-width=%220.8%22 stroke-linejoin=%22round%22 opacity=%220.95%22/%3E%3C/svg%3E') 8 8, auto !important; }
+        html { cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2232%22 height=%2232%22 viewBox=%220 0 32 32%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%220%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23fdf6d8%22/%3E%3Cstop offset=%220.45%22 stop-color=%22%23f2cf7e%22/%3E%3Cstop offset=%220.8%22 stop-color=%22%23d9a441%22/%3E%3Cstop offset=%221%22 stop-color=%22%238a5a24%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d=%22M7 8 L7 24 L12 18 L16 24 L20 20 L14 14 L23 14 Z%22 transform=%22translate(1.6 2)%22 fill=%22%23000000%22 opacity=%220.3%22/%3E%3Cpath d=%22M7 8 L7 24 L12 18 L16 24 L20 20 L14 14 L23 14 Z%22 fill=%22url(%23g)%22 stroke=%22%234a2f10%22 stroke-width=%221.6%22 stroke-linejoin=%22round%22/%3E%3Cpath d=%22M9.2 11.2 L9.2 19.8 L11.8 16.6%22 fill=%22none%22 stroke=%22%23ffffff%22 stroke-opacity=%220.55%22 stroke-width=%221.3%22 stroke-linecap=%22round%22/%3E%3C/svg%3E') 8 8, auto !important; }
         body, body * { cursor: inherit !important; }
         /* Hover: BIG WHITE arrow with golden glow on interactive elements */
         button, .menu-btn, .mode-btn, .back-btn, .room-item, .yop-res-option, .primary, .secondary, .exit-btn, .volume-slider-container input[type="range"] {
-            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22 viewBox=%220 0 40 40%22%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f1c40f%22 stroke-width=%224%22 stroke-linejoin=%22round%22 opacity=%220.6%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22%23ffffff%22 stroke=%22%23f39c12%22 stroke-width=%221.5%22 stroke-linejoin=%22round%22/%3E%3C/svg%3E') 10 12, pointer !important;
+            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22 viewBox=%220 0 40 40%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%220%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23fffbe8%22/%3E%3Cstop offset=%220.45%22 stop-color=%22%23f6e2a0%22/%3E%3Cstop offset=%220.8%22 stop-color=%22%23d9a441%22/%3E%3Cstop offset=%221%22 stop-color=%22%239a6a1f%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f2cf7e%22 stroke-width=%226%22 stroke-linejoin=%22round%22 opacity=%220.25%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f2cf7e%22 stroke-width=%223.2%22 stroke-linejoin=%22round%22 opacity=%220.45%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22url(%23g)%22 stroke=%22%234a2f10%22 stroke-width=%222%22 stroke-linejoin=%22round%22/%3E%3Cpath d=%22M11.4 12.6 L11.4 25 L14.6 21.2%22 fill=%22none%22 stroke=%22%23ffffff%22 stroke-opacity=%220.6%22 stroke-width=%221.4%22 stroke-linecap=%22round%22/%3E%3C/svg%3E') 10 12, pointer !important;
         }
         /* Disabled: gray arrow */
         .menu-btn[disabled], button[disabled], .disabled, .buy-dev-btn.disabled {
-            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2232%22 height=%2232%22 viewBox=%220 0 32 32%22%3E%3Cpath d=%22M7 8 L7 24 L12 18 L16 24 L20 20 L14 14 L23 14 Z%22 fill=%22%23888%22 stroke=%22%23666%22 stroke-width=%220.8%22 stroke-linejoin=%22round%22 opacity=%220.5%22/%3E%3C/svg%3E') 8 8, not-allowed !important;
+            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2232%22 height=%2232%22 viewBox=%220 0 32 32%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%220%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23d6d6d6%22/%3E%3Cstop offset=%221%22 stop-color=%22%23808080%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d=%22M7 8 L7 24 L12 18 L16 24 L20 20 L14 14 L23 14 Z%22 fill=%22url(%23g)%22 stroke=%22%233f3f3f%22 stroke-width=%221.6%22 stroke-linejoin=%22round%22 opacity=%220.9%22/%3E%3C/svg%3E') 8 8, not-allowed !important;
         }
         body {
-            background: linear-gradient(135deg, #0d1b2a, #1a1a2e);
+            background: #0d1b2a;
             min-height: 100vh;
+            /* Єдиний шрифт UI = шрифт текста на кам'яних кнопках, з їхнім
+               характерним стилем: напівжирний, теплий відтінок, темна тінь. */
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            color: #fff;
+            font-weight: 600;
+            color: #f7f0dc;
+            text-shadow: 1px 2px 4px rgba(0, 0, 0, 0.85), 0 0 10px rgba(0, 0, 0, 0.35);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             overflow: hidden;
         }
-        .background-animation {
+        /* Винятки: власне тінь/градієнт (логотип, відсотки) малюються фільтрами —
+           загальна тінь текста їм шкодить; у полях вводу тінь знижує читабельність */
+        .logo, .loading-logo, .loading-status-percent,
+        input, textarea, select {
+            text-shadow: none;
+        }
+        /* ===== ANIMATED MENU BACKGROUND (відео-луп із асетів користувача) — 100% екрана ===== */
+        .bg-video {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 50%; left: 50%;
+            width: 100vw;
+            height: 100vh;
+            min-width: 100vw;
+            min-height: 100vh;
+            transform: translate(-50%, -50%) scale(1.1);
+            object-fit: cover;
             z-index: 0;
+            filter: brightness(0.92);
         }
-        .hex-grid {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            opacity: 0.1;
-        }
-        .hex {
-            position: absolute;
-            background: linear-gradient(135deg, #2d7d3a, #1e5c28);
-            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-            animation: float 20s infinite ease-in-out;
-        }
-        @keyframes float {
-            0%, 100% { transform: translateY(0) rotate(0deg); }
-            50% { transform: translateY(-20px) rotate(180deg); }
-        }
-        .main-content {
+        /* Dark vignette so buttons/text pop */
+        .bg-vignette {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
             z-index: 1;
+            pointer-events: none;
+            background: radial-gradient(ellipse at center, rgba(0,0,0,0) 40%, rgba(0,0,0,0.55) 100%),
+                        linear-gradient(to bottom, rgba(13,27,42,0.25) 0%, rgba(13,27,42,0.45) 100%);
+        }
+        /* ===== MATCHMAKING LOADING DOTS ===== */
+        @keyframes loadingDot {
+            0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+            40% { opacity: 1; transform: scale(1.2); }
+        }
+        .loading-dots .dot {
+            display: inline-block;
+            animation: loadingDot 1.4s infinite ease-in-out both;
+        }
+        .loading-dots .dot:nth-child(1) { animation-delay: -0.32s; }
+        .loading-dots .dot:nth-child(2) { animation-delay: -0.16s; }
+        .loading-dots .dot:nth-child(3) { animation-delay: 0s; }
+
+        .main-content {
+            position: relative;
+            z-index: 2;
             text-align: center;
             padding: 40px;
-            background: rgba(26, 26, 46, 0.8);
-            border-radius: 20px;
-            border: 2px solid rgba(243, 156, 18, 0.3);
-            box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(10px);
         }
         .logo {
-            font-size: 4em;
-            margin-bottom: 20px;
-            background: linear-gradient(135deg, #f39c12, #e74c3c, #8e44ad);
+            font-family: 'Ruslan Display', 'Times New Roman', serif;
+            font-size: 6em;
+            margin-top: -46px;      /* назва ще вище */
+            margin-bottom: 24px;
+            /* «Старе золото» під тематику (пергамент → золото → бронза),
+               вертикальний градієнт дає ефект гравіровки на металі */
+            background: linear-gradient(180deg, #fdf6d8 0%, #f2cf7e 30%, #d9a441 55%, #9a6a1f 80%, #6e4a15 100%);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
-            letter-spacing: 5px;
-            text-shadow: 0 0 30px rgba(243, 156, 18, 0.3);
+            -webkit-text-stroke: 1px rgba(62, 39, 12, 0.45);
+            letter-spacing: 4px;
+            /* drop-shadow (а не text-shadow): малюється ПОВЕРХ готових градієнтних
+               літер, не просвічує крізь transparent-fill, дає глибину + тепле сяйво */
+            filter: drop-shadow(0 4px 7px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 26px rgba(242, 207, 126, 0.3));
         }
         .title {
             font-size: 2.5em;
@@ -92,39 +130,74 @@
             gap: 15px;
             margin-bottom: 30px;
         }
+        /* ===== STONE BUTTONS (готові камені з асету користувача) =====
+           Кожна кнопка — ЦЕ сам камінь з PNG (btn-0…btn-7, вирізані з нового асету
+           686f…png). Через mask-image кнопка приймає ФОРМУ каменю з альфа-каналу:
+           без прямокутника, без border-radius — тільки неправильний силует каменю.
+           Рандомний вибір каменя задає JS через --btn-bg. */
         .menu-btn {
-            padding: 15px 40px;
-            font-size: 1.1em;
+            width: fit-content; /* не розтягуємо камінь — розмір по контенту */
+            margin-left: auto;
+            margin-right: auto;
+            padding: 18px 48px;
+            font-size: 1.15em;
             border: none;
-            border-radius: 10px;
+            border-radius: 0;
             cursor: pointer;
-            font-weight: 600;
+            font-weight: 700;
             letter-spacing: 1px;
-            transition: all 0.3s;
+            transition: all 0.25s;
             min-width: 250px;
+            color: #f7f0dc;
+            text-shadow: 1px 2px 4px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.5);
+            background-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-0.png'));
+            background-size: 100% 100%;
+            background-position: center;
+            background-repeat: no-repeat;
+            -webkit-mask-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-0.png'));
+            mask-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-0.png'));
+            -webkit-mask-size: 100% 100%;
+            mask-size: 100% 100%;
+            -webkit-mask-position: center;
+            mask-position: center;
+            -webkit-mask-repeat: no-repeat;
+            mask-repeat: no-repeat;
+            box-shadow:
+                0 4px 12px rgba(0,0,0,0.5),
+                0 1px 3px rgba(0,0,0,0.4);
         }
-        .menu-btn.primary {
-            background: linear-gradient(135deg, #f39c12, #e67e22);
+        .menu-btn:hover {
+            transform: translateY(-3px);
+            filter: brightness(1.07) saturate(1.08);
+            box-shadow:
+                0 10px 24px rgba(0,0,0,0.55),
+                0 2px 5px rgba(0,0,0,0.45);
             color: #fff;
+        }
+        .menu-btn:active {
+            transform: translateY(1px);
+            filter: brightness(0.94);
+            box-shadow:
+                0 2px 6px rgba(0,0,0,0.5);
         }
         .menu-btn.primary:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 30px rgba(243, 156, 18, 0.4);
-        }
-        .menu-btn.secondary {
-            background: rgba(255, 255, 255, 0.1);
-            color: #ccc;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-        .menu-btn.secondary:hover {
-            background: rgba(255, 255, 255, 0.15);
-            color: #fff;
+            box-shadow: 0 10px 24px rgba(90,130,60,0.4), 0 2px 5px rgba(0,0,0,0.45);
         }
         .menu-btn.exit-btn:hover {
-            background: linear-gradient(135deg, #e74c3c, #c0392b);
-            color: #fff;
-            border-color: #e74c3c;
-            box-shadow: 0 10px 30px rgba(231, 76, 60, 0.4);
+            box-shadow: 0 10px 24px rgba(160,64,48,0.4), 0 2px 5px rgba(0,0,0,0.45);
+        }
+        /* Disabled state */
+        .menu-btn[disabled] {
+            opacity: 0.5;
+            cursor: not-allowed;
+            filter: grayscale(0.6);
+        }
+        .menu-btn[disabled]:hover {
+            transform: none;
+            filter: grayscale(0.6);
+            box-shadow:
+                0 4px 12px rgba(0,0,0,0.5),
+                0 1px 3px rgba(0,0,0,0.4);
         }
         .version {
             font-size: 0.9em;
@@ -154,14 +227,17 @@
             pointer-events: none;
         }
         .loading-logo {
+            font-family: 'Ruslan Display', 'Times New Roman', serif;
             font-size: 6em;
-            font-weight: bold;
-            letter-spacing: 8px;
-            background: linear-gradient(135deg, #f39c12, #e74c3c, #8e44ad);
+            letter-spacing: 4px;
+            /* Той самий «старий золотий» градієнт, що й у меню (пергамент → бронза) */
+            background: linear-gradient(180deg, #fdf6d8 0%, #f2cf7e 30%, #d9a441 55%, #9a6a1f 80%, #6e4a15 100%);
             -webkit-background-clip: text;
             background-clip: text;
             -webkit-text-fill-color: transparent;
+            -webkit-text-stroke: 1px rgba(62, 39, 12, 0.45);
             margin-bottom: 50px;
+            filter: drop-shadow(0 4px 7px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 26px rgba(242, 207, 126, 0.3));
             animation: loadingLogoPulse 2.5s infinite ease-in-out;
         }
         @keyframes loadingLogoPulse {
@@ -169,20 +245,44 @@
             50% { transform: scale(1.03); opacity: 1; }
         }
         .progress-track {
-            width: min(520px, 70vw);
-            height: 16px;
+            position: relative;
+            width: min(560px, 72vw);
+            height: 20px;
             border-radius: 10px;
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(243, 156, 18, 0.35);
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.4), inset 0 0 8px rgba(0, 0, 0, 0.5);
-            overflow: hidden;
+            /* Дерев'яна опалубка: темний брус + подвійна обводка (темний кант + бронза) */
+            background: linear-gradient(180deg, #3c2812, #1f1206);
+            border: 2px solid #8a5a24;
+            box-shadow:
+                0 0 0 2px rgba(30, 18, 6, 0.8),
+                inset 0 2px 6px rgba(0, 0, 0, 0.8),
+                0 6px 18px rgba(0, 0, 0, 0.55);
+            overflow: visible; /* ромби-орнаменти виступають за межі треку */
         }
+        /* Золоті ковані ромби-заклепки по обох краях бруса */
+        .progress-track::before,
+        .progress-track::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 13px;
+            height: 13px;
+            transform: translate(-50%, -50%) rotate(45deg);
+            background: linear-gradient(135deg, #f6e2a0, #d9a441 55%, #8a5a24);
+            border: 2px solid #5c3a10;
+            box-shadow: 0 0 10px rgba(242, 207, 126, 0.45), inset 0 0 3px rgba(255, 255, 255, 0.5);
+            z-index: 2;
+        }
+        .progress-track::after { left: 100%; }
         .progress-fill {
             height: 100%;
             width: 0%;
-            border-radius: 10px;
-            background: linear-gradient(90deg, #f39c12, #e67e22, #e74c3c);
-            box-shadow: 0 0 15px rgba(243, 156, 18, 0.7);
+            border-radius: 9px;
+            /* Коване золото: сегментні «зарубки» + старий золотий градієнт */
+            background:
+                repeating-linear-gradient(90deg, rgba(110, 74, 21, 0.35) 0 2px, transparent 2px 14px),
+                linear-gradient(180deg, #fdf6d8, #f2cf7e 30%, #d9a441 60%, #9a6a1f 100%);
+            box-shadow: 0 0 15px rgba(242, 207, 126, 0.55), inset 0 1px 2px rgba(255, 255, 255, 0.55);
             transition: width 0.25s ease-out;
             position: relative;
             overflow: hidden;
@@ -202,19 +302,30 @@
             100% { transform: translateX(100%); }
         }
         .loading-status-row {
-            margin-top: 18px;
+            margin-top: 20px;
             font-size: 1.05em;
-            color: #aaa;
-            letter-spacing: 2px;
+            justify-content: center; /* відсотки по центру під полоскою */
+            color: #dcc590; /* пергамент */
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8), 0 0 12px rgba(0, 0, 0, 0.5);
             display: flex;
             align-items: baseline;
             gap: 12px;
         }
         .loading-status-percent {
-            color: #f39c12;
-            font-weight: 700;
-            min-width: 3.2em;
-            text-align: left;
+            font-family: 'Ruslan Display', 'Times New Roman', serif;
+            font-size: 1.5em;
+            line-height: 1;
+            letter-spacing: 2px;
+            /* Той самий золотий градієнт, що й у назви */
+            background: linear-gradient(180deg, #fdf6d8, #f2cf7e 40%, #d9a441 70%, #9a6a1f);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.7));
+            min-width: 2.6em;
+            text-align: center;
         }
         /* Поки йде загрузка сервера — прямокутник меню та кнопка профілю приховані */
         .main-content,
@@ -261,57 +372,113 @@
             z-index: 3000;
         }
         .settings-box {
-            background: rgba(26,26,46,0.98);
-            border: 2px solid #f39c12;
+            position: relative;
+            z-index: 1;
+            background: transparent;
+            border: none;
             border-radius: 12px;
-            padding: 24px 32px;
+            padding: 30px 38px;
             color: #fff;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            box-shadow: 0 0 30px rgba(243,156,18,0.4);
             text-align: center;
             max-width: 420px;
             min-width: 320px;
         }
+        /* ===== ДЕРЕВ'ЯНІ ПІДВІСКИ ЗА МОДАЛЬНИМИ ВІКНАМИ =====
+           Рандомна дерев'яна дошка із ланцюгами: ланцюги йдуть від верху
+           екрана до верху вікна, дошка ззаду вікна (шар створює JS). */
+        .pendant-layer {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 0;
+            pointer-events: none;
+            filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.55));
+        }
+        .pendant-layer .pendant-chains,
+        .pendant-layer .pendant-board {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            background-repeat: no-repeat;
+        }
         .settings-box h3 {
-            color: #f39c12;
+            color: #ffd88a;
             margin-bottom: 16px;
             font-size: 1.3em;
+            text-shadow: 1px 2px 4px rgba(0, 0, 0, 0.65);
         }
         .settings-box button {
-            width: 100%;
-            padding: 14px 24px;
+            /* база: текстура й відступи — БЕЗ ширини/мінімальної ширини, щоб
+               не ламати сервісні кнопки (копіювати код, кольори гравців,
+               іконки ✏️/📋) та кнопки всередині рядів/панелей */
+            padding: 16px 38px;
             font-size: 1.05em;
             margin: 6px 0;
-            background: linear-gradient(135deg, #f39c12, #e67e22);
-            color: #fff;
             border: none;
-            border-radius: 8px;
+            border-radius: 0;
             cursor: pointer;
-            font-weight: 600;
-            transition: all 0.2s;
+            font-weight: 700;
+            color: #f7f0dc;
+            text-shadow: 1px 2px 4px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.5);
+            transition: all 0.25s;
+            background-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-0.png'));
+            background-size: 100% 100%;
+            background-position: center;
+            background-repeat: no-repeat;
+            -webkit-mask-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-0.png'));
+            mask-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-0.png'));
+            -webkit-mask-size: 100% 100%;
+            mask-size: 100% 100%;
+            -webkit-mask-position: center;
+            mask-position: center;
+            -webkit-mask-repeat: no-repeat;
+            mask-repeat: no-repeat;
+            box-shadow:
+                0 4px 12px rgba(0,0,0,0.5),
+                0 1px 3px rgba(0,0,0,0.4);
         }
         .settings-box button:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(243,156,18,0.4);
+            filter: brightness(1.07) saturate(1.08);
+            box-shadow:
+                0 10px 24px rgba(0,0,0,0.55),
+                0 2px 5px rgba(0,0,0,0.45);
+            color: #fff;
         }
         .settings-box button:active {
             transform: translateY(0);
+            filter: brightness(0.94);
+            box-shadow:
+                0 2px 6px rgba(0,0,0,0.5);
+        }
+        /* Компактні «камені»: тільки кнопки-прямі діти вікна та звичайні
+           mode/back кнопки. Сервісні (✏️ 📋, кольори гравців, копіювання
+           коду) і кнопки всередині панелей мають власні розміри. */
+        .settings-box > button,
+        .settings-box .mode-btn,
+        .settings-box .back-btn {
+            display: block;
+            width: fit-content;
+            min-width: 210px;
+            max-width: 100%;
+            margin-left: auto;
+            margin-right: auto;
         }
         .settings-box button.back-btn {
-            background: rgba(255, 255, 255, 0.1);
-            color: #ccc;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            background-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-4.png'));
+            -webkit-mask-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-4.png'));
+            mask-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-4.png'));
+            color: #e2dcc6;
         }
-.settings-box button.back-btn:hover {
-            background: rgba(255, 255, 255, 0.15);
+        .settings-box button.back-btn:hover {
             color: #fff;
-            box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2);
+            filter: brightness(1.07) saturate(1.08);
         }
         .settings-box button.back-btn.exit-btn:hover {
-            background: linear-gradient(135deg, #e74c3c, #c0392b);
-            color: #fff;
-            border-color: #e74c3c;
-            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
+            filter: brightness(1.07) saturate(1.1);
+            box-shadow: 0 10px 24px rgba(160,64,48,0.4), 0 2px 5px rgba(0,0,0,0.45);
         }
 
         /* ===== ЗАБУЛИ ПАРОЛЬ? (маленьке текстове посилання у вікні входу) ===== */
@@ -339,6 +506,23 @@
             color: #f1c40f;
             opacity: 1;
             text-shadow: 0 0 8px rgba(243, 156, 18, 0.45);
+        }
+        /* Це текстове посилання — без кам'яної форми й текстури */
+        .settings-box button.forgot-pass-link,
+        .settings-box button.forgot-pass-link:hover,
+        .settings-box button.forgot-pass-link:active {
+            -webkit-mask-image: none;
+            mask-image: none;
+        }
+        /* Кольорові свотчі вибору кольору — чисті круглі кольори, без каменю */
+        .settings-box button.color-option,
+        .settings-box button.color-option:hover,
+        .settings-box button.color-option:active {
+            background-image: none;
+            -webkit-mask-image: none;
+            mask-image: none;
+            border-radius: 50%;
+            box-shadow: none;
         }
 
         /* ===== ВІКНО ВІДНОВЛЕННЯ ПАРОЛЯ ===== */
@@ -370,6 +554,60 @@
             margin-bottom: 10px;
         }
 
+        /* ===== ВИБІР ІКОНКИ ГРАВЦЯ (окремі відцентровані файли) ===== */
+        .settings-box button.avatar-option {
+            padding: 0;
+            width: 76px;
+            height: 76px;
+            min-width: 76px;
+            margin: 0;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, 0.35);
+            background: #1a1a1a;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            /* вимикаємо кам'яний масок-силует кнопок — іконки круглі */
+            -webkit-mask-image: none;
+            mask-image: none;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(0, 0, 0, 0.35);
+            transition: all 0.2s;
+        }
+        .settings-box button.avatar-option:hover {
+            transform: scale(1.07);
+            border-color: rgba(242, 207, 126, 0.7);
+            filter: brightness(1.1);
+        }
+        .settings-box button.avatar-option.selected {
+            border-color: #f2cf7e;
+            box-shadow: 0 0 0 3px rgba(242, 207, 126, 0.35), 0 0 18px rgba(242, 207, 126, 0.55), 0 3px 10px rgba(0, 0, 0, 0.5);
+            transform: scale(1.08);
+        }
+        /* Іконка гравця у списку кімнати */
+        .room-player-avatar {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            border: 2px solid rgba(255, 255, 255, 0.75);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+            flex-shrink: 0;
+            display: inline-block;
+        }
+        /* Іконка у картці профілю — клікабельна (відкриває вибір іконки) */
+        .profile-card .profile-avatar {
+            cursor: pointer;
+            border: 3px solid rgba(242, 207, 126, 0);
+            transition: all 0.2s;
+        }
+        .profile-card .profile-avatar:hover {
+            border-color: rgba(242, 207, 126, 0.8);
+            box-shadow: 0 0 14px rgba(242, 207, 126, 0.5);
+            transform: scale(1.05);
+        }
+
         /* ===== VOLUME SETTINGS ===== */
         .volume-slider-container {
             margin: 12px 0;
@@ -377,37 +615,47 @@
         }
         .volume-slider-container label {
             display: block;
-            color: #ccc;
+            color: #f7f0dc;
             margin-bottom: 6px;
             font-size: 0.95em;
-            font-weight: 600;
+            font-weight: 700;
         }
         .volume-slider-container input[type="range"] {
             width: 100%;
-            height: 8px;
-            border-radius: 4px;
-            background: rgba(255,255,255,0.1);
+            height: 14px;
+            border-radius: 8px;
             outline: none;
             -webkit-appearance: none;
             appearance: none;
+            /* дерев'яний брус; золоту заповнену частину малює JS (paintRange) */
+            background: linear-gradient(to right, #4a2f18 0%, #2b1a0c 100%);
+            border: 2px solid #6e4a15;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.65), 0 2px 6px rgba(0,0,0,0.5);
         }
         .volume-slider-container input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
-            width: 18px;
-            height: 18px;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
-            background: #f39c12;
-            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22 viewBox=%220 0 40 40%22%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f1c40f%22 stroke-width=%224%22 stroke-linejoin=%22round%22 opacity=%220.6%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22%23ffffff%22 stroke=%22%23f39c12%22 stroke-width=%221.5%22 stroke-linejoin=%22round%22/%3E%3C/svg%3E') 10 12, pointer !important;
-            border: 2px solid #fff;
+            /* кована золота заклепка */
+            background: radial-gradient(circle at 35% 30%, #fff7dd 0%, #f2cf7e 40%, #d9a441 75%, #a06e22 100%);
+            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22 viewBox=%220 0 40 40%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%220%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23fffbe8%22/%3E%3Cstop offset=%220.45%22 stop-color=%22%23f6e2a0%22/%3E%3Cstop offset=%220.8%22 stop-color=%22%23d9a441%22/%3E%3Cstop offset=%221%22 stop-color=%22%239a6a1f%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f2cf7e%22 stroke-width=%226%22 stroke-linejoin=%22round%22 opacity=%220.25%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f2cf7e%22 stroke-width=%223.2%22 stroke-linejoin=%22round%22 opacity=%220.45%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22url(%23g)%22 stroke=%22%234a2f10%22 stroke-width=%222%22 stroke-linejoin=%22round%22/%3E%3Cpath d=%22M11.4 12.6 L11.4 25 L14.6 21.2%22 fill=%22none%22 stroke=%22%23ffffff%22 stroke-opacity=%220.6%22 stroke-width=%221.4%22 stroke-linecap=%22round%22/%3E%3C/svg%3E') 10 12, pointer !important;
+            border: 2px solid #6e4a15;
+            box-shadow: 0 0 0 2px rgba(0,0,0,0.35), 0 2px 6px rgba(0,0,0,0.55), 0 0 12px rgba(242,207,126,0.5);
+            transition: transform 0.15s;
+        }
+        .volume-slider-container input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.12);
         }
         .volume-slider-container input[type="range"]::-moz-range-thumb {
-            width: 18px;
-            height: 18px;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
-            background: #f39c12;
-            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22 viewBox=%220 0 40 40%22%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f1c40f%22 stroke-width=%224%22 stroke-linejoin=%22round%22 opacity=%220.6%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22%23ffffff%22 stroke=%22%23f39c12%22 stroke-width=%221.5%22 stroke-linejoin=%22round%22/%3E%3C/svg%3E') 10 12, pointer !important;
-            border: 2px solid #fff;
+            background: radial-gradient(circle at 35% 30%, #fff7dd 0%, #f2cf7e 40%, #d9a441 75%, #a06e22 100%);
+            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22 viewBox=%220 0 40 40%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%220%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23fffbe8%22/%3E%3Cstop offset=%220.45%22 stop-color=%22%23f6e2a0%22/%3E%3Cstop offset=%220.8%22 stop-color=%22%23d9a441%22/%3E%3Cstop offset=%221%22 stop-color=%22%239a6a1f%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f2cf7e%22 stroke-width=%226%22 stroke-linejoin=%22round%22 opacity=%220.25%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f2cf7e%22 stroke-width=%223.2%22 stroke-linejoin=%22round%22 opacity=%220.45%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22url(%23g)%22 stroke=%22%234a2f10%22 stroke-width=%222%22 stroke-linejoin=%22round%22/%3E%3Cpath d=%22M11.4 12.6 L11.4 25 L14.6 21.2%22 fill=%22none%22 stroke=%22%23ffffff%22 stroke-opacity=%220.6%22 stroke-width=%221.4%22 stroke-linecap=%22round%22/%3E%3C/svg%3E') 10 12, pointer !important;
+            border: 2px solid #6e4a15;
+            box-shadow: 0 0 0 2px rgba(0,0,0,0.35), 0 2px 6px rgba(0,0,0,0.55), 0 0 12px rgba(242,207,126,0.5);
         }
         .volume-value {
             color: #f1c40f;
@@ -423,47 +671,56 @@
         
         /* ===== COLOR SELECTION ===== */
         .color-option:disabled {
-            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2232%22 height=%2232%22 viewBox=%220 0 32 32%22%3E%3Cpath d=%22M7 8 L7 24 L12 18 L16 24 L20 20 L14 14 L23 14 Z%22 fill=%22%23888%22 stroke=%22%23666%22 stroke-width=%220.8%22 stroke-linejoin=%22round%22 opacity=%220.5%22/%3E%3C/svg%3E') 8 8, not-allowed !important;
+            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2232%22 height=%2232%22 viewBox=%220 0 32 32%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%220%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23d6d6d6%22/%3E%3Cstop offset=%221%22 stop-color=%22%23808080%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d=%22M7 8 L7 24 L12 18 L16 24 L20 20 L14 14 L23 14 Z%22 fill=%22url(%23g)%22 stroke=%22%233f3f3f%22 stroke-width=%221.6%22 stroke-linejoin=%22round%22 opacity=%220.9%22/%3E%3C/svg%3E') 8 8, not-allowed !important;
         }
 
         /* ===== PLAYER PROFILE (кнопка у верхньому кутку + вікна) ===== */
         #profileBtn {
             position: fixed;
-            top: 15px;
-            right: 15px;
+            top: 0; /* ланцюги бейджа ростуть від самого верха екрана */
+            right: 12px;
             z-index: 2500;
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 7px 48px 7px 7px;
-            background: rgba(26, 26, 46, 0.9);
-            border: 2px solid rgba(243, 156, 18, 0.4);
-            border-radius: 14px;
+            gap: 11px;
+            width: 300px;
+            /* Висоту і padding-top виставляє JS під обрану дошку:
+               padding-top = ланцюги, висота = повна комірка текстури —
+               завдяки border-box контент центрується рівно на дошці */
+            padding: 0 34px 0 18px;
+            background-color: transparent;
+            background-repeat: no-repeat;
+            border: none;
             cursor: pointer;
             transition: all 0.2s;
+            filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.5));
         }
         #profileBtn:hover {
-            background: rgba(243, 156, 18, 0.15);
-            border-color: #f39c12;
             transform: scale(1.03);
+            filter: brightness(1.09);
         }
         .profile-avatar {
-            width: 44px;
-            height: 44px;
+            width: 46px;
+            height: 46px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #b8b8b8, #8a8a8a);
+            /* темний круглий диск під іконку: прозорі кути іконки показують круг, а не квадрат */
+            background: radial-gradient(circle at 50% 30%, #3a3a3a, #171717 85%);
+            background-size: 100% 100%;
+            background-position: center;
+            background-repeat: no-repeat;
             display: flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
+            overflow: hidden;
             box-shadow: inset 0 -3px 6px rgba(0,0,0,0.25), 0 2px 6px rgba(0,0,0,0.35);
         }
         .profile-avatar svg { width: 26px; height: 26px; }
         .profile-nick {
             color: #fff;
             font-weight: 600;
-            font-size: 1em;
-            max-width: 170px;
+            font-size: 1.05em;
+            max-width: 190px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
@@ -476,6 +733,7 @@
             display: flex;
             align-items: center;
             gap: 4px;
+            flex-shrink: 0;
         }
         /* Червоний квадратик-бейдж із кількістю запитів у друзі */
         .btn-badge {
@@ -538,6 +796,7 @@
         .profile-actions .mode-btn {
             flex: 1;
             width: auto;
+            min-width: 0; /* ряд із двох кнопок має влазити у вікно */
             margin-top: 0;
             margin-bottom: 0;
         }
@@ -699,7 +958,11 @@
     </style>
 </head>
 <body class="boot-loading">
-    <div class="background-animation" id="bgAnimation"></div>
+    <!-- Анімований фон головного меню (відео-луп з асетів користувача) -->
+    <video class="bg-video" autoplay muted loop playsinline preload="auto">
+        <source src="../../assets/textures/menu/0331f2e3336021c488d45b19.mp4" type="video/mp4">
+    </video>
+    <div class="bg-vignette"></div>
 
     <!-- Server Loading Screen (видимий при запуску гри, поки сервер не готовий) -->
     <div id="serverLoadingScreen">
@@ -708,7 +971,6 @@
             <div class="progress-fill" id="serverProgressFill"></div>
         </div>
         <div class="loading-status-row">
-            <span id="serverLoadingStatus">Запуск сервера</span><span id="serverLoadingDots"></span>
             <span class="loading-status-percent" id="serverLoadingPercent">0%</span>
         </div>
     </div>
@@ -759,6 +1021,15 @@
             </div>
             <button id="backFromProfile" class="back-btn">Вийти</button>
             <div id="profileStatus" style="color:#27ae60; font-size:0.9em; min-height:1.3em; margin-bottom:0;"></div>
+        </div>
+    </div>
+
+    <!-- Avatar Picker Modal (відкривається кліком по іконці у профілі) -->
+    <div class="settings-overlay" id="avatarModal" style="display: none;">
+        <div class="settings-box" style="max-width: 380px;">
+            <h3>ВИБІР ІКОНКИ</h3>
+            <div id="avatarGrid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; justify-items: center; margin: 18px 0 20px;"></div>
+            <button id="backFromAvatar" class="back-btn">Назад</button>
         </div>
     </div>
 
@@ -905,16 +1176,60 @@
 <div class="settings-overlay" id="gameModeModal" style="display: none;">
     <div class="settings-box">
         <h3>ВИБЕРІТЬ РЕЖИМ</h3>
-        <button id="singlePlayerBtn" class="mode-btn">Одиночна гра</button>
-        <button id="multiplayerBtn" class="mode-btn">Мультіплеєр</button>
+        <button id="singlePlayerBtn" class="mode-btn">Грати з людиною</button>
+        <button id="playWithBotBtn" class="mode-btn">Грати з ботом</button>
+        <button id="multiplayerBtn" class="mode-btn">Під'єднатися</button>
         <button id="backFromMode" class="back-btn">Назад</button>
+    </div>
+</div>
+
+<!-- Matchmaking Search Modal -->
+<div class="settings-overlay" id="matchmakingModal" style="display: none;">
+    <div class="settings-box">
+        <h3>ПОШУК ПРОТИВНИКА</h3>
+        <div id="matchmakingStatus" style="margin: 20px 0; text-align: center;">
+            <div class="loading-dots" style="font-size: 2em; color: #f39c12;">
+                <span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
+            </div>
+            <div id="matchmakingMessage" style="color: #ccc; margin-top: 15px; font-size: 1.1em;">
+                Пошук противника...
+            </div>
+            <div id="matchmakingQueueInfo" style="color: #888; margin-top: 10px; font-size: 0.9em;">
+                Гравців в черзі: <span id="queueCount">1</span>
+            </div>
+        </div>
+        <button id="cancelMatchmakingBtn" class="back-btn">Скасувати</button>
+    </div>
+</div>
+
+<!-- Matchmaking Found Modal -->
+<div class="settings-overlay" id="matchmakingFoundModal" style="display: none;">
+    <div class="settings-box">
+        <h3>ПРОТИВНИК ЗНАЙДЕНИЙ!</h3>
+        <div id="matchmakingFoundContent" style="margin: 20px 0; text-align: center;">
+            <div style="display: flex; justify-content: center; align-items: center; gap: 30px; margin: 20px 0;">
+                <div id="yourPlayerInfo" style="text-align: center;">
+                    <div style="width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 10px;" id="yourColorBox"></div>
+                    <div style="color: #f39c12; font-weight: bold;" id="yourPlayerName">Ви</div>
+                    <div style="color: #888; font-size: 0.9em;" id="yourPlayerColor"></div>
+                </div>
+                <div style="font-size: 2em; color: #f39c12;">VS</div>
+                <div id="opponentPlayerInfo" style="text-align: center;">
+                    <div style="width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 10px;" id="opponentColorBox"></div>
+                    <div style="color: #f39c12; font-weight: bold;" id="opponentPlayerName">Противник</div>
+                    <div style="color: #888; font-size: 0.9em;" id="opponentPlayerColor"></div>
+                </div>
+            </div>
+            <div id="matchmakingStartingMessage" style="color: #27ae60; margin-top: 20px;">
+                Запуск гри...
+            </div>
+        </div>
     </div>
 </div>
 
 <!-- Multiplayer Lobby Modal -->
 <div class="settings-overlay" id="multiplayerLobbyModal" style="display: none;">
     <div class="settings-box" style="max-width: 500px; min-width: 400px;">
-        <h3>МУЛЬТИПЛЕЕР</h3>
         
         <!-- Loading indicator -->
         <div id="connectionLoading" style="display: none; margin-bottom: 15px; padding: 15px; background: rgba(243,156,18,0.1); border-radius: 6px; border: 1px solid rgba(243,156,18,0.2);">
@@ -972,7 +1287,7 @@
             <div id="playersList" style="display: flex; flex-direction: column; gap: 5px;"></div>
         </div>
         <div id="startGameContainer" style="margin-bottom: 10px;">
-            <button id="startGameBtn" class="mode-btn" style="background: linear-gradient(135deg, #27ae60, #229954);">Почати гру</button>
+            <button id="startGameBtn" class="mode-btn" style="border-color: #6b8e4e; box-shadow: inset 0 2px 4px rgba(255,255,255,0.28), inset 0 -4px 8px rgba(0,0,0,0.45), 0 8px 22px rgba(90,130,60,0.5);">Почати гру</button>
         </div>
         <button id="exitRoomBtn" class="back-btn exit-btn">Вийти</button>
     </div>
@@ -1035,19 +1350,41 @@
 </div>
 
     <script>
-        // Create animated hex background
-        const bg = document.getElementById('bgAnimation');
-        for (let i = 0; i < 20; i++) {
-            const hex = document.createElement('div');
-            hex.className = 'hex';
-            const size = Math.random() * 100 + 50;
-            hex.style.width = size + 'px';
-            hex.style.height = size + 'px';
-            hex.style.left = Math.random() * 100 + '%';
-            hex.style.top = Math.random() * 100 + '%';
-            hex.style.animationDelay = Math.random() * 20 + 's';
-            bg.appendChild(hex);
+        // ===== РАНДОМІЗАЦІЯ КАМ'ЯНИХ КНОПОК =====
+        // Кожна кнопка випадково бере ОДНУ з 8 готових каменів (btn-0.png…btn-7.png):
+        // форма, колір, бевел і мох — повністю з текстури.
+        // ВАЖЛИВО: поки PNG у mask-image/background-image ЩЕ НЕ ДЕКОДОВАНО, Chromium
+        // малює кнопку повністю прозорою ("зниклі" кнопки; з'являються лише на hover,
+        // бо filter/transform форсують репаїнт). Тому всі текстури пре-декодовуються
+        // на старті, а --btn-bg призначається ЛИШЕ ПІСЛЯ decode() обраної текстури —
+        // до того моменту кнопка залишається видимою з попередньою (готовою) текстурою.
+        const stoneTextures = Array.from({ length: 8 }, (_, i) => {
+            const url = "../../assets/textures/buttons/stone-textures/btn-" + i + ".png";
+            const img = new Image();
+            img.src = url;
+            return { url: url, img: img };
+        });
+        let stoneDecodedPromise = null;
+        function ensureStoneTexturesDecoded() {
+            if (!stoneDecodedPromise) {
+                stoneDecodedPromise = Promise.all(stoneTextures.map(t => t.img.decode().catch(() => {})));
+            }
+            return stoneDecodedPromise;
         }
+        async function applyRandomStone() {
+            await ensureStoneTexturesDecoded();
+            document.querySelectorAll('.menu-btn, .settings-box button:not(.forgot-pass-link):not(.color-option)').forEach(btn => {
+                const t = stoneTextures[Math.floor(Math.random() * 8)];
+                btn.style.setProperty('--btn-bg', "url('" + t.url + "')");
+            });
+        }
+        applyRandomStone();
+        // Пере-рандомізуємо щоразу, коли відкривається будь-яка модалка
+        document.querySelectorAll('.settings-overlay').forEach(overlay => {
+            new MutationObserver(() => {
+                if (overlay.style.display && overlay.style.display !== 'none') applyRandomStone();
+            }).observe(overlay, { attributes: true, attributeFilter: ['style'] });
+        });
 
         // ===== SERVER LOADING SCREEN: екран загрузки сервера при старті гри =====
         // Показується замість головного меню, поки сервер не запуститься повністю
@@ -1066,8 +1403,6 @@
 
             const fillEl = document.getElementById('serverProgressFill');
             const percentEl = document.getElementById('serverLoadingPercent');
-            const statusEl = document.getElementById('serverLoadingStatus');
-            const dotsEl = document.getElementById('serverLoadingDots');
             const SERVER_URL = 'https://colonization.onrender.com';
             const SERVER_TIMEOUT_MS = 80000; // скільки очікувати повернення сервера зі сну (Render free: 30-60 с cold start)
 
@@ -1075,13 +1410,6 @@
             let target = 10;
             let finished = false;
             const startedAt = Date.now();
-
-            // Анімовані крапки після статусу ("Запуск сервера...")
-            let dotCount = 0;
-            const dotsTimer = setInterval(() => {
-                dotCount = (dotCount % 3) + 1;
-                if (dotsEl) dotsEl.textContent = '.'.repeat(dotCount);
-            }, 400);
 
             function renderProgress(p) {
                 const value = p !== undefined ? p : progress;
@@ -1131,9 +1459,6 @@
                 if (finished) return;
                 finished = true;
                 clearInterval(moveTimer);
-                clearInterval(dotsTimer);
-                if (dotsEl) dotsEl.textContent = '';
-                if (statusEl) statusEl.textContent = serverOnline ? 'Сервер запущено' : 'Сервер недоступний';
 
                 // Плавно доводимо полоску до 100% і ОДРАЗУ після цього ховаємо екран.
                 // Жодних штучних затримок: 100% означає, що сервер вже готовий.
@@ -1192,8 +1517,19 @@
             // ===== Реальна фонова музика з файлу (CC0) =====
             // Пробуємо заграти ~/assets/audio/<name>.mp3; якщо файл недоступний,
             // повертаємось до старої синтезованої мелодії (_startSynthMusic).
+            _audioBases() {
+                const bases = ['../../assets/audio/', '../assets/audio/', 'assets/audio/', '/assets/audio/'];
+                try {
+                    if (window.electronAPI && typeof window.electronAPI.getAudioAssetBase === 'function') {
+                        const p = window.electronAPI.getAudioAssetBase();
+                        if (p) bases.unshift(p);
+                    }
+                } catch (e) {}
+                return bases;
+            }
+
             _audioCandidates(name) {
-                return ['../../assets/audio/', '../assets/audio/', 'assets/audio/', '/assets/audio/']
+                return this._audioBases()
                     .map(base => base + name);
             }
 
@@ -1249,9 +1585,46 @@
                 oscillator.stop(this.audioContext.currentTime + duration);
             }
 
+            // ===== Файлові SFX з fallback-ом на синтез (як в index.html) =====
+            // Одноразово визначаємо робочу базу шляху до assets/audio і кешуємо її.
+            _resolveSfxBase(cb) {
+                const cands = this._audioBases();
+                if (this._sfxIdx !== undefined) return cb(this._sfxIdx >= 0 ? cands[this._sfxIdx] : null);
+                const a = new Audio();
+                let i = 0;
+                a.addEventListener('error', () => {
+                    i++;
+                    if (i < cands.length) { a.src = cands[i] + 'Dice_Roll.ogg'; }
+                    else { this._sfxIdx = -1; cb(null); }
+                });
+                a.addEventListener('canplaythrough', () => { this._sfxIdx = i; cb(cands[i]); }, { once: true });
+                a.preload = 'auto';
+                a.src = cands[0] + 'Dice_Roll.ogg';
+            }
+
+            _playFileSfx(file, base, fallbackFn, maxDurMs) {
+                try {
+                    this._resolveSfxBase(baseDir => {
+                        if (!baseDir) { if (fallbackFn) fallbackFn(); return; }
+                        try {
+                            const a = new Audio(baseDir + file);
+                            a.volume = Math.max(0, Math.min(1, base * this.masterVolume * this.sfxVolume));
+                            const p = a.play();
+                            if (p && p.catch) p.catch(() => {});
+                            if (maxDurMs && maxDurMs > 0) {
+                                setTimeout(() => { try { a.pause(); } catch (e) {} }, maxDurMs);
+                            }
+                        } catch (e) { if (fallbackFn) fallbackFn(); }
+                    });
+                } catch (e) { if (fallbackFn) fallbackFn(); }
+            }
+
             playClickSound() {
-                this.playTone(600, 0.08, 'square', 0.15);
-                setTimeout(() => this.playTone(800, 0.06, 'square', 0.1), 50);
+                this._playFileSfx('UI_Click.wav', 0.5, () => {
+                    // Fallback: мʼякий низький «тук» замість дзвінкого square-тону
+                    this.playTone(220, 0.06, 'sine', 0.12);
+                });
+                // (другий дзвінкий тон прибрано; fallback — вище)
             }
 
             playHoverSound() { this.playTone(800, 0.05, 'sine', 0.1); }
@@ -1271,7 +1644,7 @@
                     return;
                 }
                 this.musicPlaying = true;
-                this._ensureFileMusic('TownTheme.mp3', 0.14);
+                this._ensureFileMusic('TownTheme.mp3', 0.05);
                 if (this.musicEl) {
                     try { this.musicEl.currentTime = 0; } catch (e) {}
                     const p = this.musicEl.play();
@@ -1376,7 +1749,7 @@
                 // Dark intro fade-in
                 const introStart = this.audioContext.currentTime;
                 this.musicGainNode.gain.setValueAtTime(0.0, introStart);
-                this.musicGainNode.gain.linearRampToValueAtTime(0.05 * this.masterVolume * this.musicVolume, introStart + 3.0);
+                this.musicGainNode.gain.linearRampToValueAtTime(0.02 * this.masterVolume * this.musicVolume, introStart + 3.0);
 
                 playPhrase(0);
             }
@@ -1385,13 +1758,13 @@
                 // Файлова музика: гучність напряму через audio.volume
                 if (this.musicEl) {
                     this.musicEl.volume = Math.max(0, Math.min(1,
-                        (this._fileGainBase || 0.14) * this.masterVolume * this.musicVolume));
+                        (this._fileGainBase || 0.05) * this.masterVolume * this.musicVolume));
                 }
                 if (!this.musicGainNode) return;
-                // ВАЖЛИВО: мусимо зберігати той самий базовий коефіцієнт (0.05),
+                // ВАЖЛИВО: мусимо зберігати той самий базовий коефіцієнт (0.02),
                 // з яким стартує мелодія в _startSynthMusic. Якщо його тут не
                 // помножити — при зміні гучності музика стрибне в 20 разів голосніше.
-                const volume = 0.05 * this.masterVolume * this.musicVolume;
+                const volume = 0.02 * this.masterVolume * this.musicVolume;
                 // setValueAtTime: миттєво й без накопичення запланованих подій
                 this.musicGainNode.gain.setValueAtTime(volume, this.audioContext.currentTime);
             }
@@ -1685,6 +2058,73 @@
                 });
         }
 
+        // ===== MATCHMAKING HANDLERS =====
+        let matchmakingRoomCode = null;
+        let matchmakingPlayerColor = null;
+
+        function setupMatchmakingHandlers() {
+            // Handle matchmaking queued
+            mpClient.socket.on('matchmaking-queued', (data) => {
+                console.log('[matchmaking] Queued:', data);
+                document.getElementById('matchmakingMessage').textContent = data.message || 'Пошук противника...';
+                document.getElementById('queueCount').textContent = data.queueSize || 1;
+            });
+
+            // Handle matchmaking found
+            mpClient.socket.on('matchmaking-found', (data) => {
+                console.log('[matchmaking] Found opponent:', data);
+
+                matchmakingRoomCode = data.roomCode;
+                matchmakingPlayerColor = data.yourColor;
+
+                // Hide search modal, show found modal
+                document.getElementById('matchmakingModal').style.display = 'none';
+                document.getElementById('matchmakingFoundModal').style.display = 'flex';
+
+                // Update UI with player info
+                const colorMap = {
+                    'red': '#e74c3c',
+                    'blue': '#3498db',
+                    'yellow': '#f1c40f',
+                    'green': '#27ae60'
+                };
+
+                document.getElementById('yourColorBox').style.background = colorMap[data.yourColor] || '#888';
+                document.getElementById('yourPlayerColor').textContent = data.yourColor === 'red' ? 'Червоний' : 'Синій';
+
+                document.getElementById('opponentColorBox').style.background = colorMap[data.opponent.color] || '#888';
+                document.getElementById('opponentPlayerName').textContent = data.opponent.name;
+                document.getElementById('opponentPlayerColor').textContent = data.opponent.color === 'red' ? 'Червоний' : 'Синій';
+
+                // Store data for game page
+                sessionStorage.setItem('matchmakingRoomCode', data.roomCode);
+                sessionStorage.setItem('matchmakingPlayerColor', data.yourColor);
+                sessionStorage.setItem('matchmakingOpponent', JSON.stringify(data.opponent));
+            });
+
+            // Handle matchmaking game started
+            mpClient.socket.on('matchmaking-game-started', (data) => {
+                console.log('[matchmaking] Game started:', data);
+
+                // Store game data
+                sessionStorage.setItem('matchmakingRoomCode', data.roomCode);
+                sessionStorage.setItem('matchmakingPlayers', JSON.stringify(data.players));
+                sessionStorage.setItem('matchmakingMapSeed', JSON.stringify(data.mapSeed));
+
+                // Navigate to game page
+                document.getElementById('loading').classList.add('active');
+                setTimeout(() => {
+                    window.location.href = 'index.html?mode=matchmaking&code=' + data.roomCode;
+                }, 1500);
+            });
+
+            // Handle matchmaking left
+            mpClient.socket.on('matchmaking-left', (data) => {
+                console.log('[matchmaking] Left queue:', data);
+                document.getElementById('matchmakingModal').style.display = 'none';
+            });
+        }
+
         function showGameModeModal() {
             audioManager.playClickSound();
             document.getElementById('gameModeModal').style.display = 'flex';
@@ -1756,7 +2196,13 @@
 
         document.getElementById('exitBtn').addEventListener('click', () => {
             audioManager.playClickSound();
-            window.electronAPI.closeGame();
+            // Основний шлях — IPC у головний процес. Fallback: window.close()
+            // теж закриває BrowserWindow, якщо preload раптом недоступний.
+            if (window.electronAPI && typeof window.electronAPI.closeGame === 'function') {
+                window.electronAPI.closeGame();
+            } else {
+                try { window.close(); } catch (_) {}
+            }
         });
 
         document.getElementById('settingsBtn').addEventListener('click', () => {
@@ -1765,11 +2211,48 @@
         });
 
         // Game Mode Modal handlers
-        document.getElementById('singlePlayerBtn').addEventListener('click', () => {
+        document.getElementById('singlePlayerBtn').addEventListener('click', async () => {
+            audioManager.playClickSound();
+
+            // Show matchmaking modal
+            document.getElementById('matchmakingModal').style.display = 'flex';
+
+            try {
+                // Get cloud server URL
+                const serverUrl = await getSelectedServerUrl();
+                sessionStorage.setItem('serverUrl', serverUrl);
+
+                // Connect to server
+                await initMultiplayer(serverUrl);
+
+                // Setup matchmaking event handlers
+                setupMatchmakingHandlers();
+
+                // Join matchmaking queue
+                let profileNick = 'Гравець';
+                let avatar = 0;
+                try {
+                    const acc = JSON.parse(localStorage.getItem('playerAccount') || 'null');
+                    profileNick = (acc && acc.nick) ? acc.nick : (localStorage.getItem('profileNick') || 'Гравець');
+                    avatar = (acc && Number.isInteger(acc.avatar)) ? acc.avatar : 0;
+                } catch (e) {}
+
+                mpClient.socket.emit('join-matchmaking', {
+                    playerName: profileNick,
+                    avatar: avatar
+                });
+            } catch (err) {
+                console.error('Failed to connect for matchmaking:', err);
+                document.getElementById('matchmakingModal').style.display = 'none';
+                alert('Не вдалося підключитися до сервера для пошуку гри.\n\n' + (err.message || err));
+            }
+        });
+
+        document.getElementById('playWithBotBtn').addEventListener('click', () => {
             audioManager.playClickSound();
             document.getElementById('loading').classList.add('active');
             setTimeout(() => {
-                window.location.href = 'index.html?mode=single';
+                window.location.href = 'index.html?mode=bot';
             }, 500);
         });
 
@@ -1797,7 +2280,10 @@
             } catch (err) {
                 console.error('Failed to connect to server:', err);
                 stopLoadingAnimation();
-                alert('Не вдалося підключитися до сервера.\n\n' + (err.message || err) + '\n\nПеревірте, чи запущений сервер, та спробуйте знову.');
+                alert('Не вдалося підключитися до сервера.\n\n' + (err.message || err) + '\n\nМожливі причини:\n' +
+                    '1. Хмарний сервер (Render free tier) "прокидається" 30–60 секунд — зачекайте та спробуйте знову\n' +
+                    '2. Перевірте з\'єднання з Інтернетом на вашому пристрої\n' +
+                    '3. Брандмауер/антивірус може блокувати з\'єднання до сервера');
                 document.getElementById('multiplayerLobbyModal').style.display = 'none';
             }
         });
@@ -1805,6 +2291,15 @@
         document.getElementById('backFromMode').addEventListener('click', () => {
             audioManager.playClickSound();
             document.getElementById('gameModeModal').style.display = 'none';
+        });
+
+        // Matchmaking cancel button
+        document.getElementById('cancelMatchmakingBtn').addEventListener('click', () => {
+            audioManager.playClickSound();
+            if (mpClient && mpClient.socket) {
+                mpClient.socket.emit('leave-matchmaking');
+            }
+            document.getElementById('matchmakingModal').style.display = 'none';
         });
 
         // Multiplayer Lobby handlers
@@ -1959,6 +2454,68 @@
             if (acc && typeof acc.cups === 'number') return acc.cups;
             return getGuestCups();
         }
+        // ===== ІКОНКИ ГРАВЦЯ (спрайт 3×3: assets/textures/67853b01-….png) =====
+        // Вибір зберігається локально і відправляється на сервер разом із ніком
+        // при створенні/приєднанні до кімнати. За замовчуванням — перша (індекс 0).
+        const AVATAR_KEY = 'avatarIcon';
+        const AVATAR_ICONS = Array.from({ length: 9 }, (_, i) => `../../assets/textures/player-icons/icon-${i}.png`);
+        function normalizeAvatarIndex(v) {
+            const n = parseInt(v, 10);
+            return (Number.isInteger(n) && n >= 0 && n < AVATAR_ICONS.length) ? n : 0;
+        }
+        function getAvatarIndex() {
+            return normalizeAvatarIndex(localStorage.getItem(AVATAR_KEY));
+        }
+        function setAvatarIndex(i) {
+            localStorage.setItem(AVATAR_KEY, String(normalizeAvatarIndex(i)));
+        }
+        // Інлайн-стиль фону для .room-player-avatar (розмір/круг задає CSS-клас)
+        function avatarBgStyle(i) {
+            const idx = normalizeAvatarIndex(i);
+            return `background-image: url('${AVATAR_ICONS[idx]}'); background-size: contain; background-position: center;`;
+        }
+        function applyAvatarToEl(el) {
+            if (!el) return;
+            const idx = getAvatarIndex();
+            el.style.backgroundImage = `url("${AVATAR_ICONS[idx]}")`;
+            el.style.backgroundSize = 'contain';
+            el.style.backgroundPosition = 'center';
+            // svg-заглушка (силует людини) більше не потрібна — малюється іконка
+            const svg = el.querySelector('svg');
+            if (svg) svg.style.display = 'none';
+        }
+        function applyAvatarEverywhere() {
+            applyAvatarToEl(document.querySelector('#profileBtn .profile-avatar'));
+            applyAvatarToEl(document.querySelector('#profileModal .profile-avatar'));
+        }
+        function openAvatarPicker() {
+            const grid = document.getElementById('avatarGrid');
+            if (!grid) return;
+            grid.innerHTML = '';
+            const cur = getAvatarIndex();
+            for (let i = 0; i < AVATAR_ICONS.length; i++) {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'avatar-option' + (i === cur ? ' selected' : '');
+                b.style.backgroundImage = `url("${AVATAR_ICONS[i]}")`;
+                b.title = 'Іконка ' + (i + 1);
+                b.addEventListener('click', () => {
+                    audioManager.playClickSound();
+                    setAvatarIndex(i);
+                    applyAvatarEverywhere();
+                    grid.querySelectorAll('.avatar-option').forEach((el, k) => el.classList.toggle('selected', k === i));
+                    // коротка пауза, щоб побачити підсвітку вибору, і назад у профіль
+                    setTimeout(() => {
+                        document.getElementById('avatarModal').style.display = 'none';
+                        document.getElementById('profileModal').style.display = 'flex';
+                    }, 350);
+                });
+                grid.appendChild(b);
+            }
+            document.getElementById('profileModal').style.display = 'none';
+            document.getElementById('avatarModal').style.display = 'flex';
+        }
+
         function updateProfileUI(statusText) {
             document.getElementById('profileBtnNick').textContent = getProfileNick();
             document.getElementById('profileModalNick').textContent = getProfileNick();
@@ -2044,6 +2601,33 @@
             audioManager.playClickSound();
             document.getElementById('profileModal').style.display = 'none';
         });
+
+        // Клік по іконці у вікні профілю → вікно вибору іконки
+        document.querySelector('#profileModal .profile-avatar').addEventListener('click', () => {
+            audioManager.playClickSound();
+            openAvatarPicker();
+        });
+        document.getElementById('backFromAvatar').addEventListener('click', () => {
+            audioManager.playClickSound();
+            document.getElementById('avatarModal').style.display = 'none';
+            document.getElementById('profileModal').style.display = 'flex';
+        });
+        // Застосувати збережену іконку одразу при запуску (дефолт — перша)
+        applyAvatarEverywhere();
+
+        // Золотий стан полосок (гучність, к-сть гравців): перемальовує заповнену частину
+        function paintRange(el) {
+            if (!el || el.type !== 'range') return;
+            const min = parseFloat(el.min) || 0;
+            const max = isNaN(parseFloat(el.max)) ? 100 : parseFloat(el.max);
+            const v = (parseFloat(el.value) - min) / ((max - min) || 100) * 100;
+            const p = Math.max(0, Math.min(100, isFinite(v) ? v : 0));
+            el.style.background = `linear-gradient(to right, #f6e2a0 0%, #e9c76f ${p * 0.6}%, #c8973a ${p}%, #4a2f18 ${p}%, #2b1a0c 100%)`;
+        }
+        document.addEventListener('input', e => {
+            if (e.target && e.target.type === 'range') paintRange(e.target);
+        });
+        document.querySelectorAll('input[type="range"]').forEach(paintRange);
 
         // Реєстрація
         document.getElementById('openRegisterBtn').addEventListener('click', () => {
@@ -2719,7 +3303,7 @@
             const roomName = document.getElementById('roomNameInput').value || 'Моя кімната';
             const maxPlayers = parseInt(document.getElementById('maxPlayersSelect').value) || 4;
             
-            mpClient.createRoom(roomName, getProfileNick(), maxPlayers).then(data => {
+            mpClient.createRoom(roomName, getProfileNick(), maxPlayers, undefined, getAvatarIndex()).then(data => {
                 currentRoomCode = data.roomCode;
                 isHost = true;
                 document.getElementById('createRoomModal').style.display = 'none';
@@ -2881,14 +3465,14 @@
                 // For non-current-user players, use simpler layout
                 if (!isCurrentUser && !isHostPlayer) {
                     return `<div style="padding: 8px; background: ${color}22; border-radius: 5px; color: ${color}; border-left: 4px solid ${color}; display: flex; align-items: center; justify-content: space-between;">
-                        <span>${playerLabel}</span>
+                        <span style="display: flex; align-items: center; gap: 8px;"><span class="room-player-avatar" style="${avatarBgStyle(p.avatar)}"></span>${playerLabel}</span>
                         <button disabled style="width: 32px; height: 32px; border-radius: 50%; background: ${color}; border: 3px solid #fff; box-shadow: 0 0 0 2px #fff; cursor: not-allowed; transition: all 0.2s; padding: 0; opacity: 0.6;" title="Колір іншого гравця"></button>
                     </div>`;
                 }
                 
                 // For current user and host, show full layout with color button
                 return `<div style="padding: 8px; background: ${color}22; border-radius: 5px; color: ${color}; border-left: 4px solid ${color}; display: flex; align-items: center; justify-content: space-between;">
-                    <span>${playerLabel}</span>
+                    <span style="display: flex; align-items: center; gap: 8px;"><span class="room-player-avatar" style="${avatarBgStyle(p.avatar)}"></span>${playerLabel}</span>
                     <button class="change-color-btn" data-player-id="${p.id}" ${buttonDisabled} style="width: 32px; height: 32px; border-radius: 50%; background: ${color}; border: 4px solid #fff; cursor: ${buttonCursor}; transition: all 0.2s; padding: 0; opacity: ${buttonOpacity};" title="${canChangeColor ? 'Змінити колір' : 'Можна змінити тільки свій колір'}"></button>
                 </div>`;
             }).join('');
@@ -2933,7 +3517,7 @@
             audioManager.playClickSound();
             const code = document.getElementById('joinCodeInput').value.toUpperCase();
             if (code.length === 6) {
-                mpClient.joinRoom(code, getProfileNick()).then(data => {
+                mpClient.joinRoom(code, getProfileNick(), undefined, getAvatarIndex()).then(data => {
                     currentRoomCode = data.roomCode;
                     isHost = false;
                     // Show waiting room for guest with player list
@@ -3110,7 +3694,7 @@
                 }
                 
                 // Check other modals
-                const modals = ['gameModeModal', 'multiplayerLobbyModal', 'joinRoomModal', 'settingsModal', 'volumeModal', 'bindEmailModal'];
+                const modals = ['gameModeModal', 'multiplayerLobbyModal', 'joinRoomModal', 'settingsModal', 'volumeModal', 'bindEmailModal', 'avatarModal'];
                 modals.forEach(modalId => {
                     const modal = document.getElementById(modalId);
                     if (modal && modal.style.display === 'flex') {
@@ -3124,7 +3708,7 @@
 
         // Close modals when clicking outside (except for room modals to prevent accidental closing)
         document.addEventListener('click', (e) => {
-            const modals = ['gameModeModal', 'multiplayerLobbyModal', 'createRoomModal', 'settingsModal', 'volumeModal', 'bindEmailModal'];
+            const modals = ['gameModeModal', 'multiplayerLobbyModal', 'createRoomModal', 'settingsModal', 'volumeModal', 'bindEmailModal', 'avatarModal'];
             modals.forEach(modalId => {
                 const modal = document.getElementById(modalId);
                 if (modal && e.target === modal) {
@@ -3343,7 +3927,7 @@
                         if (returnHost) {
                             if (startGameBtn) startGameBtn.style.display = 'inline-block';
                             document.getElementById('startGameContainer').innerHTML =
-                                '<button id="startGameBtn" class="mode-btn" style="background: linear-gradient(135deg, #27ae60, #229954);">Почати гру</button>';
+                                '<button id="startGameBtn" class="mode-btn" style="border-color: #6b8e4e; box-shadow: inset 0 2px 4px rgba(255,255,255,0.28), inset 0 -4px 8px rgba(0,0,0,0.45), 0 8px 22px rgba(90,130,60,0.5);">Почати гру</button>';
                             document.getElementById('startGameBtn').addEventListener('click', () => {
                                 audioManager.playClickSound();
                                 const mapSeed = generateMap();
@@ -3378,7 +3962,7 @@
                         }
 
                         // Rejoin the room - server emits 'player-joined' with the current players list
-                        mpClient.rejoinRoom(returnCode, returnHost);
+                        mpClient.rejoinRoom(returnCode, returnHost, getProfileNick());
 
                         // When the host starts a NEW game from this returned room window,
                         // guests must follow into the game page as well
@@ -3406,6 +3990,138 @@
                 document.getElementById('multiplayerBtn').click();
             }
         }
+
+        /* ===== ДЕРЕВ'ЯНІ ТЕКСТУРИ ВІКОН МЕНЮ =====
+           16 окремих PNG з альфа-каналом (вирізані впритул по краю дошки):
+           badge — малі дошки з ланцюгами (бейдж профілю), big — великі
+           підвіски (модальні вікна). bt = рядок, з якого починається дошка. */
+        const MENU_WOOD = {
+            badge: [
+                { url: '../../assets/textures/menu/cut/small-0.png', w: 655, h: 249, bt: 101 },
+                { url: '../../assets/textures/menu/cut/small-1.png', w: 652, h: 250, bt: 108 },
+                { url: '../../assets/textures/menu/cut/small-2.png', w: 664, h: 239, bt: 91 },
+                { url: '../../assets/textures/menu/cut/small-3.png', w: 661, h: 237, bt: 94 },
+                { url: '../../assets/textures/menu/cut/small-4.png', w: 664, h: 221, bt: 73 },
+                { url: '../../assets/textures/menu/cut/small-5.png', w: 656, h: 221, bt: 74 },
+                { url: '../../assets/textures/menu/cut/small-6.png', w: 662, h: 197, bt: 42 },
+                { url: '../../assets/textures/menu/cut/small-7.png', w: 654, h: 196, bt: 43 }
+            ],
+            big: [
+                { url: '../../assets/textures/menu/cut/big-0.png', w: 292, h: 512, bt: 103 },
+                { url: '../../assets/textures/menu/cut/big-1.png', w: 301, h: 512, bt: 110 },
+                { url: '../../assets/textures/menu/cut/big-2.png', w: 287, h: 512, bt: 104 },
+                { url: '../../assets/textures/menu/cut/big-3.png', w: 302, h: 512, bt: 97 },
+                { url: '../../assets/textures/menu/cut/big-4.png', w: 284, h: 469, bt: 90 },
+                { url: '../../assets/textures/menu/cut/big-5.png', w: 288, h: 469, bt: 100 },
+                { url: '../../assets/textures/menu/cut/big-6.png', w: 293, h: 466, bt: 90 },
+                { url: '../../assets/textures/menu/cut/big-7.png', w: 296, h: 468, bt: 79 }
+            ]
+        };
+
+        // Кроп-прямокутник rect із листа tex розтягується рівно на всю площу el
+        // (background-size > 100% + процентна позиція X0/(imgW-W0) — стандартна
+        // формула точного спрайт-кропу).
+        function mapWoodSprite(el, tex, rect) {
+            el.style.backgroundImage = 'url("' + tex.url + '")';
+            el.style.backgroundSize =
+                (tex.w / rect.w * 100).toFixed(4) + '% ' +
+                (tex.h / rect.h * 100).toFixed(4) + '%';
+            // якщо кроп займає всю ширину/висоту листа — зсув 0 (ділення
+            // tex.w - rect.w = 0 дало б NaN → невалідний background-position,
+            // який браузер відкидає ціліком, і спрайт малюється з 0 0)
+            const px = rect.w >= tex.w ? 0 : rect.x / (tex.w - rect.w) * 100;
+            const py = rect.h >= tex.h ? 0 : rect.y / (tex.h - rect.h) * 100;
+            el.style.backgroundPosition = px.toFixed(4) + '% ' + py.toFixed(4) + '%';
+        }
+
+        // Бейдж профілю у головному меню: рандомна дошка НА ЛАНЦЮГАХ.
+        // Бейдж — це повна комірка (ланцюги + дошка), притиснута до верха
+        // екрана: ланцюги ростуть від верха екрана, контент сидить на дошці.
+        (function initProfileBadgeWood() {
+            const btn = document.getElementById('profileBtn');
+            if (!btn) return;
+            const t = MENU_WOOD.badge[Math.floor(Math.random() * MENU_WOOD.badge.length)];
+            mapWoodSprite(btn, t, { x: 0, y: 0, w: t.w, h: t.h });
+            const scale = 300 / t.w; // ширина бейджа 300px у CSS
+            // Явна висота = природна висота комірки: інакше фон (100%×100%)
+            // тягнеться під авто-висоту контенту, і дошка з ланцюгами зсувається.
+            // padding-top = ланцюги; контент центрується у решті (на дошці).
+            btn.style.height = Math.round(t.h * scale) + 'px';
+            btn.style.paddingTop = Math.round(t.bt * scale) + 'px';
+        })();
+
+        // Шар підвіски за модальним вікном: ланцюги від верху екрана до вікна,
+        // дошка точно за вікном. Рандомна дошка при кожному відкритті.
+        function layoutPendantLayer(overlay, repick) {
+            const box = overlay.querySelector('.settings-box');
+            if (!box) return;
+            let layer = overlay.querySelector('.pendant-layer');
+            if (!layer) {
+                layer = document.createElement('div');
+                layer.className = 'pendant-layer';
+                const chains = document.createElement('div');
+                chains.className = 'pendant-chains';
+                const board = document.createElement('div');
+                board.className = 'pendant-board';
+                layer.appendChild(chains);
+                layer.appendChild(board);
+                overlay.insertBefore(layer, box);
+                layer._geo = '';
+            }
+            const tex = MENU_WOOD.big;
+            if (repick || !layer._woodRect) {
+                layer._woodRect = tex[Math.floor(Math.random() * tex.length)];
+            }
+            const b = layer._woodRect;
+            const br = box.getBoundingClientRect();
+            const or = overlay.getBoundingClientRect();
+            if (br.width < 40 || br.height < 40) return;
+            // дошка виступає вище вікна на 24px (заголовок сидить на рівній
+            // деревині, а не на рваному краю з мохом) і на 34px нижче
+            const boardTop = Math.max(0, Math.round(br.top - or.top) - 24);
+            const boardH = Math.round(br.height) + 24 + 34;
+            const W = Math.round(br.width * 1.16);
+            const H = boardTop + boardH;
+            // гео-рядок для порівняння: якщо нічого не змінилось — стилі не чіпаємо
+            const geo = [W, H, boardTop, boardH, b.url].join('|');
+            if (layer._geo === geo) return;
+            layer._geo = geo;
+            layer.style.width = W + 'px';
+            layer.style.height = H + 'px';
+            const chains = layer.children[0];
+            const board = layer.children[1];
+            chains.style.top = '0px';
+            chains.style.height = boardTop + 'px';
+            board.style.top = boardTop + 'px';
+            board.style.height = boardH + 'px';
+            // смуга ланцюгів і дошка — дві ділянки одного PNG (спільний масштаб X,
+            // тому кріплення ланцюгів точно збігаються з доскою)
+            mapWoodSprite(chains, b, { x: 0, y: 0, w: b.w, h: b.bt });
+            mapWoodSprite(board, b, { x: 0, y: b.bt, w: b.w, h: b.h - b.bt });
+        }
+
+        (function initWoodPendants() {
+            // Самокоригуюча геометрія: поки модалка відкрита, щокадру звіряємо
+            // шар із живим rect боксу. Це покриває будь-яку причину зсуву —
+            // resize/restore вікна, анімації, пізню загрузку шрифтів тощо —
+            // без покладання на окремі події (resize/RO), які можна пропустити.
+            const states = Array.from(document.querySelectorAll('.settings-overlay'))
+                .map(ov => ({ ov, open: false }));
+            function tick() {
+                for (const s of states) {
+                    const isOpen = s.ov.style.display === 'flex';
+                    if (isOpen) {
+                        // щойно відкрилась — нова рандомна дошка; далі тільки геометрія
+                        layoutPendantLayer(s.ov, !s.open);
+                        s.open = true;
+                    } else {
+                        s.open = false;
+                    }
+                }
+                requestAnimationFrame(tick);
+            }
+            requestAnimationFrame(tick);
+        })();
     </script>
 </body>
 </html>

@@ -1,6 +1,7 @@
 const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { pathToFileURL } = require('url');
 
 // Use a custom userData path to avoid cache conflicts between instances
 // This also prevents the "Unable to move the cache: Access is denied" warnings
@@ -40,6 +41,33 @@ function startServer() {
     }, 3000); // Increased to 3 seconds to ensure server is fully ready
 }
 
+// Resolve the real, non-asar file:// base for the audio assets directory so
+// that <audio> can load files inside a PACKAGED build (Chromium's media stack
+// cannot read audio/video from inside app.asar). This MUST run in the main
+// process: the renderer is SANDBOXED (Electron >= 20), so preload scripts may
+// only require `electron`/`events`/`timers`/`url` — `fs`/`path` would throw and
+// kill the whole preload. The resolved base is handed to the sandboxed preload
+// via webPreferences.additionalArguments and read there from process.argv
+// (getAudioAssetBase stays synchronous for the renderer). In dev (electron .)
+// it returns null and the renderer falls back to relative asset paths.
+function resolveAudioAssetBase() {
+    try {
+        const res = process.resourcesPath;
+        if (!res) return null;
+        // 1) asarUnpack — аудіо розпаковано в app.asar.unpacked/assets/audio
+        const unpacked = path.join(res, 'app.asar.unpacked', 'assets', 'audio');
+        if (fs.existsSync(unpacked)) {
+            return pathToFileURL(unpacked).href.replace(/\/$/, '') + '/';
+        }
+        // 2) extraResources — аудіо скопійовано в resources/assets/audio
+        const er = path.join(res, 'assets', 'audio');
+        if (fs.existsSync(er)) {
+            return pathToFileURL(er).href.replace(/\/$/, '') + '/';
+        }
+    } catch (e) {}
+    return null;
+}
+
 function createWindow() {
     // Create the browser window
     mainWindow = new BrowserWindow({
@@ -57,7 +85,10 @@ function createWindow() {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
             contextIsolation: true,
-            enableRemoteModule: false
+            enableRemoteModule: false,
+            // Передаємо готовий file:// шлях до аудіо в sandboxed preload
+            // (рендер-процес не може сам нічого перевіряти на диску).
+            additionalArguments: ['colonization-audio-base=' + (resolveAudioAssetBase() || '')]
         }
     });
 

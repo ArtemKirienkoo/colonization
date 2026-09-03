@@ -6,7 +6,7 @@ class MultiplayerClient {
         this.socket = null;
         this.roomCode = null;
         this.isHost = false;
-        this.playerName = 'Р“СЂР°РІРµС†СЊ';
+        this.playerName = 'Гравець';
         this.players = [];
         this.connected = false;
         this.pendingListeners = [];
@@ -36,13 +36,16 @@ class MultiplayerClient {
         console.log('РџС–РґРєР»СЋС‡РµРЅРЅСЏ РґРѕ СЃРµСЂРІРµСЂР°:', serverUrl);
         
         // Configure Socket.IO with better error handling and retry logic
+        // timeout: 90000 — хмарний Render free tier "засинає" після ~15 хв
+        // бездіяльності, а холодний старт займає 30–60 с. Таймаут менший за
+        // холодний старт спричиняв помилку "Не вдалося підключитися до сервера".
         this.socket = io(serverUrl, {
             transports: ['websocket', 'polling'],
             reconnection: true,
             reconnectionAttempts: 20,
             reconnectionDelay: 3000,
             reconnectionDelayMax: 15000,
-            timeout: 30000,
+            timeout: 90000,
             forceNew: true,
             upgrade: true,
             allowUpgrade: true
@@ -56,7 +59,7 @@ class MultiplayerClient {
                     this.socket.disconnect();
                 }
                 reject(new Error('РўР°Р№РјР°СѓС‚ РїС–РґРєР»СЋС‡РµРЅРЅСЏ. РњРѕР¶Р»РёРІС– РїСЂРёС‡РёРЅРё:\n1. РЎРµСЂРІРµСЂ РЅРµ Р·Р°РїСѓС‰РµРЅРёР№\n2. Р¤Р°С”СЂРІРѕР» Р±Р»РѕРєСѓС” РїРѕСЂС‚ 3000\n3. РќРµРїСЂР°РІРёР»СЊРЅР° Р°РґСЂРµСЃР° СЃРµСЂРІРµСЂР°'));
-            }, 30000);
+            }, 90000);
 
             this.socket.on('connect', () => {
                 clearTimeout(timeout);
@@ -153,13 +156,13 @@ class MultiplayerClient {
     }
 
     // Create a new room
-    createRoom(roomName, playerName, maxPlayers, color) {
-        this.playerName = playerName || 'Р“СЂР°РІРµС†СЊ';
+    createRoom(roomName, playerName, maxPlayers, color, avatar) {
+        this.playerName = playerName || 'Гравець';
         this.isHost = true;
 
         return new Promise((resolve, reject) => {
-            this._logEmit('create-room', { roomName, playerName: this.playerName, maxPlayers, color });
-            this.socket.emit('create-room', { roomName, playerName: this.playerName, maxPlayers, color });
+            this._logEmit('create-room', { roomName, playerName: this.playerName, maxPlayers, color, avatar });
+            this.socket.emit('create-room', { roomName, playerName: this.playerName, maxPlayers, color, avatar });
 
             const onRoomCreated = (data) => {
                 this.roomCode = data.roomCode;
@@ -181,13 +184,13 @@ class MultiplayerClient {
     }
 
     // Join an existing room
-    joinRoom(roomCode, playerName, color) {
-        this.playerName = playerName || 'Р“СЂР°РІРµС†СЊ';
+    joinRoom(roomCode, playerName, color, avatar) {
+        this.playerName = playerName || 'Гравець';
         this.roomCode = roomCode.toUpperCase();
 
         return new Promise((resolve, reject) => {
-            this._logEmit('join-room', { roomCode: this.roomCode, playerName: this.playerName, color });
-            this.socket.emit('join-room', { roomCode: this.roomCode, playerName: this.playerName, color });
+            this._logEmit('join-room', { roomCode: this.roomCode, playerName: this.playerName, color, avatar });
+            this.socket.emit('join-room', { roomCode: this.roomCode, playerName: this.playerName, color, avatar });
 
             const onRoomJoined = (data) => {
                 this.players = data.players;
@@ -234,9 +237,12 @@ class MultiplayerClient {
     }
 
     // Rejoin room after page navigation (when game starts)
-    rejoinRoom(roomCode, isHost) {
+    rejoinRoom(roomCode, isHost, playerName) {
         this.roomCode = roomCode;
         this.isHost = isHost;
+        // Ім'я гравця потрібне серверу як fallback, щоб знайти ТОЙ САМИЙ запис
+        // гравця і не створити дублікат, якщо старий id уже загубився.
+        if (playerName) this.playerName = playerName;
         let oldPlayerId = null;
         try {
             oldPlayerId = sessionStorage.getItem('multiplayerPlayerId');
