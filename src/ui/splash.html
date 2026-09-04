@@ -2214,6 +2214,15 @@
         document.getElementById('singlePlayerBtn').addEventListener('click', async () => {
             audioManager.playClickSound();
 
+            // Перевіряємо, чи є у гравця активна матчмейкінг-гра (повторний вхід)
+            const activeMatchCode = sessionStorage.getItem('matchmakingRoomCode');
+            if (activeMatchCode) {
+                // Гра активна — повертаємось в неї замість нового пошуку
+                document.getElementById('loading').classList.add('active');
+                window.location.href = 'index.html?mode=matchmaking&code=' + encodeURIComponent(activeMatchCode);
+                return;
+            }
+
             // Show matchmaking modal
             document.getElementById('matchmakingModal').style.display = 'flex';
 

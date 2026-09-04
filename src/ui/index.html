@@ -345,7 +345,7 @@
         .resource-grid {
             display: flex;
             flex-direction: row;
-            gap: 18px;
+            gap: 22px;
             flex-wrap: nowrap;
             justify-content: center;
             align-items: stretch;
@@ -356,23 +356,23 @@
         .card-with-count {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 3px;
         }
         .resource-card-item {
-            width: 80px;
-            height: 110px;
-            border-radius: 6px;
-            background-size: cover;
+            width: 54px;
+            height: 116px;
+            border-radius: 5px;
+            background-size: contain;
             background-position: center;
             background-repeat: no-repeat;
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
             flex-shrink: 0;
         }
-        .resource-card-item.wood-card { background-image: url('../../assets/textures/cards/1.png'); }
-        .resource-card-item.brick-card { background-image: url('../../assets/textures/cards/2.png'); }
-        .resource-card-item.geese-card { background-image: url('../../assets/textures/cards/3.png'); }
-        .resource-card-item.water-card { background-image: url('../../assets/textures/cards/4.png'); }
-        .resource-card-item.stone-card { background-image: url('../../assets/textures/cards/5.png'); }
+        .resource-card-item.wood-card { background-image: url('../../assets/textures/cards/res-wood.png'); }
+        .resource-card-item.brick-card { background-image: url('../../assets/textures/cards/res-brick.png'); }
+        .resource-card-item.geese-card { background-image: url('../../assets/textures/cards/res-geese.png'); }
+        .resource-card-item.water-card { background-image: url('../../assets/textures/cards/res-water.png'); }
+        .resource-card-item.stone-card { background-image: url('../../assets/textures/cards/res-stone.png'); }
         .resource-card-item:hover { transform: translateY(-3px); box-shadow: 0 4px 12px rgba(0,0,0,0.6); }
         .res-count {
             font-size: 1.6em;
@@ -434,15 +434,12 @@
         .build-btn:hover { background: rgba(243, 156, 18, 0.12); border-color: rgba(243, 156, 18, 0.3); color: #fff; }
         .build-btn.active { background: rgba(243, 156, 18, 0.2); border-color: #f39c12; color: #f1c40f; box-shadow: 0 0 8px rgba(243, 156, 18, 0.15); }
         .build-btn .btn-icon { font-size: 1.1em; width: 26px; height: 22px; display: flex; align-items: center; justify-content: center; position: relative; }
-        .btn-icon.road-icon-s { display: flex; align-items: center; justify-content: center; width: 26px; height: 22px; }
-        .btn-icon.road-icon-s::before { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 22px; height: 9px; background: #6B4226; border-radius: 2px; z-index: 1; }
-        .btn-icon.road-icon-s::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 18px; height: 5px; background: #C4904A; border-radius: 1px; z-index: 2; }
-        .btn-icon.house-icon-s { position: relative; width: 26px; height: 22px; }
-        .btn-icon.house-icon-s::before { content: ''; position: absolute; bottom: 1px; left: 50%; transform: translateX(-50%); width: 18px; height: 10px; background: #D4A574; border: 1.5px solid #8B6914; border-radius: 1px; z-index: 1; }
-        .btn-icon.house-icon-s::after { content: ''; position: absolute; bottom: 9px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 11px solid transparent; border-right: 11px solid transparent; border-bottom: 9px solid #A0522D; z-index: 2; }
-        .btn-icon.city-icon-s { position: relative; width: 26px; height: 22px; }
-        .btn-icon.city-icon-s::before { content: ''; position: absolute; bottom: 1px; left: 50%; transform: translateX(-50%); width: 22px; height: 11px; background: #8B9DC3; border: 1.5px solid #5A6E8E; border-radius: 1px; z-index: 1; }
-        .btn-icon.city-icon-s::after { content: ''; position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); width: 17px; height: 11px; background: #7B8DB3; border: 1.5px solid #5A6E8E; clip-path: polygon(10% 100%, 20% 0%, 80% 0%, 90% 100%); z-index: 2; }
+        .btn-icon.road-icon-s { display: flex; align-items: center; justify-content: center; width: 26px; height: 22px; background: url('../../assets/textures/markers/marker-road.png') no-repeat center / contain; }
+        .btn-icon.road-icon-s::before, .btn-icon.road-icon-s::after { display: none; }
+        .btn-icon.house-icon-s { position: relative; width: 26px; height: 22px; background: url('../../assets/textures/markers/marker-settlement.png') no-repeat center / contain; }
+        .btn-icon.house-icon-s::before, .btn-icon.house-icon-s::after, .btn-icon.house-icon-s-details { display: none; }
+        .btn-icon.city-icon-s { position: relative; width: 26px; height: 22px; background: url('../../assets/textures/markers/marker-castle.png') no-repeat center / contain; }
+        .btn-icon.city-icon-s::before, .btn-icon.city-icon-s::after { display: none; }
         .btn-icon.cancel-icon-s { font-size: 1.2em; color: #e74c3c; }
 
         /* ===== STATS ===== */
@@ -1111,8 +1108,9 @@
     .bottom-left { scrollbar-width: none; }
     .bottom-left::-webkit-scrollbar { display: none !important; }
 
-    /* ===== ПРАВА КОЛОНКА: трекінги → будівництво → кубики → кнопки ===== */
-    .right-panel { gap: 7px; min-height: 0; }
+    /* ===== ПРАВА КОЛОНКА: кубики → кнопки (трекінги/будівництво — на висувних вкладках) ===== */
+    /* Контент притиснутий ДОНИЗУ: верх колонки звільнено для висувних вкладок */
+    .right-panel { gap: 7px; min-height: 0; justify-content: flex-end; }
     .right-sec-title {
         flex: 0 0 auto;
         font-size: 0.82em;
@@ -1179,8 +1177,10 @@
     .build-btn .btn-icon { width: 26px; height: 22px; }
     .build-btn .btn-icon.cancel-icon-s { width: auto; height: auto; font-size: 1.3em; }
 
-    /* Кубики: компактна зона внизу правої колонки */
-    .dice-area { flex: 0 0 auto; justify-content: center; gap: 8px; padding: 8px 10px; min-height: 0; }
+    /* Кубики: велика зона — тягнеться від НИЖНЬОЇ МЕЖІ вкладки «Будівництво» до кнопок.
+       Панель будівництва: top 278px + ~191px висоти = низ ~469px; колонка починається на 58px,
+       тому margin-top = 469 - 58 + ~27px запасу = 438px. Кубики + сума центровані по обох осях. */
+    .dice-area { flex: 1 1 auto; margin-top: 458px; justify-content: center; gap: 8px; padding: 8px 10px; min-height: 0; }
     .dice-container { gap: 12px; }
     .die { width: 56px; height: 56px; font-size: 1.9em; border-radius: 10px; }
     .total { font-size: 1.1em; }
@@ -1191,6 +1191,158 @@
     /* Скрол у «Моїх картах» — без видимої смуги */
     .bottom-left { scrollbar-width: none; }
     .bottom-left::-webkit-scrollbar { display: none; }
+
+    /* ===== DEV CARD TEXTURED ===== */
+    .dev-card-item.dev-card-textured {
+        background-size: cover !important;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+        border-width: 3px !important;
+        color: #fff !important;
+        text-shadow: 0 1px 3px rgba(0,0,0,0.9), 0 0 4px rgba(0,0,0,0.7);
+        min-width: 76px;
+    }
+    .dev-card-item.dev-card-textured .dc-name { color: #fff !important; font-size: 0.7em; }
+
+    /* ===== DISCONNECT TIMER OVERLAY ===== */
+    .disconnect-overlay {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.65);
+        display: flex; justify-content: center; align-items: center;
+        z-index: 3000; flex-direction: column;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .disconnect-box {
+        background: rgba(26, 26, 46, 0.97);
+        border: 2px solid #e67e22;
+        border-radius: 16px;
+        padding: 30px 40px;
+        text-align: center;
+        color: #fff;
+        box-shadow: 0 0 40px rgba(230, 126, 34, 0.5);
+        max-width: 420px;
+    }
+    .disconnect-box .dc-title { font-size: 1.3em; color: #e67e22; margin-bottom: 12px; font-weight: bold; }
+    .disconnect-box .dc-name { font-size: 1.1em; color: #f1c40f; margin-bottom: 16px; }
+    .disconnect-box .dc-countdown { font-size: 3.5em; font-weight: bold; color: #fff; margin: 10px 0; }
+    .disconnect-box .dc-countdown.urgent { color: #e74c3c; animation: dc-pulse 1s infinite; }
+    .disconnect-box .dc-hint { font-size: 0.85em; color: #aaa; margin-top: 8px; }
+    @keyframes dc-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+    /* ===== COLLAPSIBLE SIDE PANELS (ВИВІСКИ) — обидві справа ===== */
+    /* Трекінги — вище, будівництво — нижче; у згорнутому стані панель повністю схована */
+    .side-panel-wrap {
+        position: fixed;
+        right: 0;
+        z-index: 50;
+        transition: transform 0.35s ease;
+    }
+    .side-panel-wrap.tracking-panel { top: 74px; }   /* трохи нижче: на рівні верху правої колонки */
+    .side-panel-wrap.building-panel { top: 278px; }  /* нижче, з чітким зазором від трекінгів */
+    .side-panel-wrap.collapsed { transform: translateX(105%); }
+
+    /* Кнопки-перемикачі = залізний наконечник на шості («стрілочка»).
+       Закрито — стирчить справа на краю екрана, вказуючи вліво (напрям висування).
+       Відкрито — кнопка НАКЛАДАЄТЬСЯ на деревяну вивіску в її лівому верхньому
+       куті (24px заходить на панель), а стрілочка повертається вправо = «закрий». */
+    .side-toggle-btn {
+        position: fixed;
+        right: 2px;
+        width: 40px; height: 31px;
+        z-index: 55;
+        background: url('../../assets/textures/menu/rod-tip-right.png') no-repeat center / contain;
+        filter: drop-shadow(0 2px 3px rgba(0,0,0,0.6));
+        cursor: pointer;
+        user-select: none;
+        transition: right 0.35s ease, transform 0.35s ease, filter 0.2s;
+    }
+    .side-toggle-btn:hover { filter: drop-shadow(0 2px 3px rgba(0,0,0,0.6)) brightness(1.35); }
+    #signTabLeft { top: 78px; }   /* на рівні верху вкладки «Трекінги» (панель top:74) */
+    #signTabRight { top: 282px; } /* на рівні верху вкладки «Будівництво» (панель top:278) */
+    .side-toggle-btn.open { right: 254px; transform: scaleX(-1); }
+
+    /* Будівництво: ВЕЛИКА вивіска на залізнім шесті (нарізана з a52d5212, чорний фон прибраний).
+       Фон задається в JS випадково (big-0/1/2); cover + center → деревина заповнює всю вкладку. */
+    .building-panel .side-panel-content {
+        background-image: url('../../assets/textures/menu/signs/big-0.png');
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        width: 280px;
+        height: 210px;
+        padding: 14px 12px 10px;
+        gap: 5px;
+    }
+    .building-panel .build-panel { gap: 3px; }
+    .building-panel .build-row { padding: 0; gap: 6px; }
+    .building-panel .build-btn { padding: 2px 4px; }
+    .building-panel .build-btn .btn-icon { width: 20px; height: 15px; font-size: 0.9em; }
+    .building-panel .br-name { font-size: 0.82em; }
+    .building-panel .br-count { font-size: 0.76em; min-width: 32px; }
+
+    .side-panel-content {
+        width: 280px; height: 190px;
+        background-size: cover; background-position: center; background-repeat: no-repeat;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.55);
+        padding: 14px 12px 10px;
+        display: flex; flex-direction: column; gap: 5px;
+        overflow: hidden;
+    }
+    /* Трекінги: МАЛА вивіска на залізнім шесті (нарізана з a52d5212). Фон — випадково в JS (small-0/1/2). */
+    .tracking-panel .side-panel-content {
+        background-image: url('../../assets/textures/menu/signs/small-0.png');
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        height: 190px;
+        padding: 14px 12px 10px;
+    }
+    .tracking-panel .medal { padding: 3px 8px; gap: 6px; }
+    .tracking-panel .medal-icon { width: 30px; height: 30px; font-size: 1.05em; }
+    .tracking-panel .medal-stats { font-size: 0.8em; }
+    .side-panel-content .medal-stats { font-size: 0.8em; }
+    .side-panel-content .sp-row {
+        display: flex; align-items: center; gap: 6px;
+        color: #eee; font-size: 0.85em; text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    }
+    .side-panel-content .sp-icon { font-size: 1.3em; }
+
+    /* ===== TRADE POPUP (спливаюче вікно на картці ресурсу) ===== */
+    .trade-popup {
+        position: absolute; bottom: 105%; left: 50%; transform: translateX(-50%);
+        background: rgba(26, 26, 46, 0.97);
+        border: 2px solid #27ae60;
+        border-radius: 10px;
+        padding: 8px 10px;
+        z-index: 500;
+        display: flex; flex-direction: column; gap: 6px;
+        box-shadow: 0 0 18px rgba(39,174,96,0.5);
+        min-width: 90px;
+        animation: tp-appear 0.15s ease;
+    }
+    @keyframes tp-appear { from { opacity: 0; transform: translateX(-50%) translateY(6px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+    .trade-popup::after {
+        content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+        border: 7px solid transparent; border-top-color: #27ae60;
+    }
+    .trade-popup .tp-btn {
+        padding: 5px 12px; background: linear-gradient(135deg, #27ae60, #229954);
+        color: #fff; border: none; border-radius: 6px; cursor: pointer;
+        font-size: 0.85em; font-weight: bold; white-space: nowrap; transition: all 0.15s;
+    }
+    .trade-popup .tp-btn:hover { background: linear-gradient(135deg, #2ecc71, #27ae60); }
+    .trade-popup .tp-btn.cancel { background: linear-gradient(135deg, #c0392b, #e74c3c); }
+    .trade-popup .tp-btn.cancel:hover { background: linear-gradient(135deg, #e74c3c, #c0392b); }
+    .trade-popup .tp-target-row { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+    .trade-popup .tp-target {
+        width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
+        display: flex; align-items: center; justify-content: center; font-size: 1.1em;
+        border: 2px solid rgba(255,255,255,0.3); transition: all 0.15s; background: rgba(0,0,0,0.3);
+    }
+    .trade-popup .tp-target:hover { border-color: #f1c40f; transform: scale(1.15); }
+    .card-with-count { position: relative; }
+    /* Стара кнопка "Обмін" — сховати, тепер обмін через клік по картках ресурсів */
+    #tradeBtn { display: none !important; }
     </style>
 </head>
 <body>
@@ -1295,58 +1447,8 @@
             <canvas id="mapCanvas"></canvas>
         </div>
 
-        <!-- Справа: трекінги → будівництво → кубики → кнопки (вся висота, як на скріні) -->
+        <!-- Справа: кубики → кнопки (трекінги/будівництво перенесено на висувні вкладки справа) -->
         <div class="right-panel">
-            <div class="right-sec-title">Трекінги <span class="vp-chip">🏆 <span id="stat-vp">0</span> ПО</span></div>
-            <div class="medals">
-                <div class="medal" id="medal-army">
-                    <div class="medal-icon army-icon">⚔️</div>
-                    <div class="medal-info">
-                        <div class="medal-title">Військо</div>
-                        <div class="medal-stats">Рицарів: <span class="medal-count" id="army-count">0</span>/<span id="army-threshold">3</span></div>
-                    </div>
-                </div>
-                <div class="medal" id="medal-road">
-                    <div class="medal-icon road-icon">🛤️</div>
-                    <div class="medal-info">
-                        <div class="medal-title">Дорога</div>
-                        <div class="medal-stats">Довжина: <span class="medal-count" id="road-count">0</span>/<span id="road-threshold">5</span></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="right-sec-title">Будівництво</div>
-            <div class="build-panel">
-                <div class="build-row">
-                    <span class="btn-icon road-icon-s"></span>
-                    <span class="br-name">Дорога</span>
-                    <span class="br-count" id="stat-roads">0/15</span>
-                    <span class="br-cost">🌲🧱</span>
-                    <div class="build-btn" data-mode="road" title="Будувати дорогу (дерево + цегла)"><span class="btn-icon road-icon-s"></span></div>
-                </div>
-                <div class="build-row">
-                    <span class="btn-icon house-icon-s">
-                        <span class="btn-icon house-icon-s-details"></span>
-                    </span>
-                    <span class="br-name">Село</span>
-                    <span class="br-count" id="stat-settlements">0/5</span>
-                    <span class="br-cost">🌲🧱🦆💧</span>
-                    <div class="build-btn" data-mode="settlement" title="Будувати село"><span class="btn-icon house-icon-s"></span></div>
-                </div>
-                <div class="build-row">
-                    <span class="btn-icon city-icon-s"></span>
-                    <span class="br-name">Місто</span>
-                    <span class="br-count" id="stat-cities">0/4</span>
-                    <span class="br-cost">💧💧🪨🪨🪨</span>
-                    <div class="build-btn" data-mode="city" title="Будувати місто"><span class="btn-icon city-icon-s"></span></div>
-                </div>
-                <div class="build-row">
-                    <span class="br-name" style="opacity:0.65;">Скасувати</span>
-                    <div class="build-btn" data-mode="none" title="Скасувати режим будівництва"><span class="btn-icon cancel-icon-s">✕</span></div>
-                </div>
-            </div>
-
-            <div class="right-sec-title">Кубики</div>
             <div class="dice-area" id="diceArea" title="Натисніть, щоб кинути кубики">
                 <div class="dice-container">
                     <div class="die" id="die1"><span class="die-value">⚄</span></div>
@@ -1417,6 +1519,78 @@
             </div>
         </div>
 
+    </div>
+</div>
+
+<!-- ===== DISCONNECT TIMER OVERLAY ===== -->
+<div class="disconnect-overlay" id="disconnectOverlay" style="display:none;">
+    <div class="disconnect-box">
+        <div class="dc-title" id="disconnectTitle">⚠️ Гравець відключився</div>
+        <div class="dc-name" id="disconnectName"></div>
+        <div class="dc-countdown" id="disconnectCountdown">60</div>
+        <div class="dc-hint" id="disconnectHint">секунд до автоматичного завершення гри</div>
+    </div>
+</div>
+
+<!-- ===== БОКОВІ ВИВІСКИ (трекінги + будівництво) — обидві справа ===== -->
+<!-- Маленькі кнопки-перемикачі: права збоку, кожна на рівні заголовка своєї вкладки -->
+<div class="side-toggle-btn" id="signTabLeft" data-title="Трекінги" title="Трекінги"></div>
+<div class="side-toggle-btn" id="signTabRight" data-title="Будівництво" title="Будівництво"></div>
+
+<!-- Вкладка трекінгів (справа, ВИЩЕ) -->
+<div class="side-panel-wrap panel-right tracking-panel collapsed" id="signPanelLeft">
+    <div class="side-panel-content" id="signContentLeft">
+        <div class="medals">
+            <div class="medal" id="medal-army">
+                <div class="medal-icon army-icon">⚔️</div>
+                <div class="medal-info">
+                    <div class="medal-title">Військо</div>
+                    <div class="medal-stats">Рицарів: <span class="medal-count" id="army-count">0</span>/<span id="army-threshold">3</span></div>
+                </div>
+            </div>
+            <div class="medal" id="medal-road">
+                <div class="medal-icon road-icon">🛤️</div>
+                <div class="medal-info">
+                    <div class="medal-title">Дорога</div>
+                    <div class="medal-stats">Довжина: <span class="medal-count" id="road-count">0</span>/<span id="road-threshold">5</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Вкладка будівництва (справа, НИЖЧЕ) -->
+<div class="side-panel-wrap panel-right building-panel collapsed" id="signPanelRight">
+    <div class="side-panel-content" id="signContentRight">
+        <div class="build-panel">
+            <div class="build-row">
+                <span class="btn-icon road-icon-s"></span>
+                <span class="br-name">Дорога</span>
+                <span class="br-count" id="stat-roads">0/15</span>
+                <span class="br-cost">🌲🧱</span>
+                <div class="build-btn" data-mode="road" title="Будувати дорогу (дерево + цегла)"><span class="btn-icon road-icon-s"></span></div>
+            </div>
+            <div class="build-row">
+                <span class="btn-icon house-icon-s">
+                    <span class="btn-icon house-icon-s-details"></span>
+                </span>
+                <span class="br-name">Село</span>
+                <span class="br-count" id="stat-settlements">0/5</span>
+                <span class="br-cost">🌲🧱🦆💧</span>
+                <div class="build-btn" data-mode="settlement" title="Будувати село"><span class="btn-icon house-icon-s"></span></div>
+            </div>
+            <div class="build-row">
+                <span class="btn-icon city-icon-s"></span>
+                <span class="br-name">Місто</span>
+                <span class="br-count" id="stat-cities">0/4</span>
+                <span class="br-cost">💧💧🪨🪨🪨</span>
+                <div class="build-btn" data-mode="city" title="Будувати місто"><span class="btn-icon city-icon-s"></span></div>
+            </div>
+            <div class="build-row">
+                <span class="br-name" style="opacity:0.65;">Скасувати</span>
+                <div class="build-btn" data-mode="none" title="Скасувати режим будівництва"><span class="btn-icon cancel-icon-s">✕</span></div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -2013,8 +2187,58 @@ let woodTextureImg = null;
 (function loadWoodTexture() {
     const img = new Image();
     img.src = '../../assets/textures/af585fd8-a823-4e03-8b08-61ac4e772977.png';
-    img.onload = function() { woodTextureImg = img; };
+    img.onload = function() { woodTextureImg = img; if (mapData) renderMap(mapData, canvas, mapHexSize); };
 })();
+
+// ===== ТЕКСТУРИ ГЕКСІВ =====
+// Нові рівні гекс-плитки вирізані з атласа hexs/11136ef0-... (land-0..4), чорний фон прибраний.
+// Порядок: wood=0, brick=1, geese=2, water=3, stone=4. Пустеля (desert) лишається старою (hex-5).
+let hexTextures = [];
+(function loadHexTextures() {
+    const srcs = {
+        wood:   '../../assets/textures/hexs/land-0.png',
+        brick:  '../../assets/textures/hexs/land-1.png',
+        geese:  '../../assets/textures/hexs/land-2.png',
+        water:  '../../assets/textures/hexs/land-3.png',
+        stone:  '../../assets/textures/hexs/land-4.png',
+        desert: '../../assets/textures/hexs/hex-5.png'
+    };
+    const order = ['wood', 'brick', 'geese', 'water', 'stone', 'desert'];
+    order.forEach((t, i) => {
+        const img = new Image();
+        img.src = srcs[t];
+        img.onload = function() { hexTextures[i] = img; if (mapData) renderMap(mapData, canvas, mapHexSize); };
+        img.onerror = function() { console.warn('hex texture failed: ' + srcs[t]); };
+    });
+})();
+
+// ===== МАРКЕРИ ДОРОГИ / СЕЛА / ЗАМКУ (вирізані з ddf8e862, чорний фон прибраний) =====
+let markerTextures = {};
+(function loadMarkerTextures() {
+    ['road', 'settlement', 'castle'].forEach(k => {
+        const img = new Image();
+        img.src = '../../assets/textures/markers/marker-' + k + '.png';
+        img.onload = function() { markerTextures[k] = img; if (mapData) renderMap(mapData, canvas, mapHexSize); };
+        img.onerror = function() { console.warn('marker texture failed: ' + k); };
+    });
+})();
+
+// ===== ТЕКСТУРИ КАРТ РОЗВИТКУ (6: колода, рицар, достаток, монополія, дороги, ПО) =====
+let devCardTextures = [];
+(function loadDevCardTextures() {
+    let loaded = 0;
+    for (let i = 0; i < 6; i++) {
+        const img = new Image();
+        img.src = '../../assets/textures/cards/dev-' + i + '.png';
+        img.onload = function() { devCardTextures[i] = img; };
+        img.onerror = function() { console.warn('dev texture failed: dev-' + i + '.png'); };
+    }
+})();
+
+// Текстури вивісок тепер задаються напряму в CSS
+// (.tracking-panel / .building-panel .side-panel-content → menu/{fe8696f4...,a52d5212...}.png)
+
+
 
 // Initial phase state
 let initialPhase = {
@@ -2291,6 +2515,8 @@ function updateResourceCardsDisplay() {
     e('res-stone').textContent = gameState.resourceCards.stone; 
     updateDevHandDisplay(); 
 }
+// Маппінг типу карти розвитку на індекс текстури (dev-1..dev-5; dev-0 = колода)
+const DEV_CARD_TEX_MAP = { knight:1, plenty:2, monopoly:3, roads:4, vp:5 };
 function updateDevHandDisplay() {
     const hand = document.getElementById('devHand'); hand.innerHTML = '';
     const deckCount = isMultiplayer ? devDeckRemaining : gameState.devDeck.length;
@@ -2304,7 +2530,14 @@ function updateDevHandDisplay() {
     for (let i = 0; i < gameState.devHand.length; i++) {
         const card = gameState.devHand[i], info = getDevCardInfo(card.type);
         const div = document.createElement('div');
-        div.className = 'dev-card-item '+info.cls+(card.used?' used':'');
+        div.className = 'dev-card-item dev-card-textured '+info.cls+(card.used?' used':'');
+        const texIdx = DEV_CARD_TEX_MAP[card.type];
+        const tex = (texIdx != null) ? devCardTextures[texIdx] : null;
+        if (tex && tex.complete && tex.naturalWidth > 0) {
+            div.style.backgroundImage = "url('../../assets/textures/cards/dev-" + texIdx + ".png')";
+            div.style.backgroundSize = 'cover';
+            div.style.backgroundPosition = 'center';
+        }
         div.innerHTML = '<span class="dc-icon">'+info.icon+'</span><span class="dc-name">'+info.name+'</span>';
         if (!card.used) div.addEventListener('click', () => confirmActivateDevCard(i));
         hand.appendChild(div);
@@ -2628,57 +2861,43 @@ function drawHexPath(ctx,cx,cy,s) {
     ctx.closePath(); 
 }
 function drawTexture(ctx,cx,cy,s,t) {
-    const sz=s*0.15; 
-    ctx.save(); 
-    ctx.beginPath(); 
-    const c=hexCorners(cx,cy,s*0.6); 
-    ctx.moveTo(c[0].x,c[0].y); 
-    for(let i=1;i<6;i++) ctx.lineTo(c[i].x,c[i].y); 
-    ctx.clip(); 
-    ctx.globalAlpha=0.12;
-    switch(t) {
-        case'wood':ctx.fillStyle='#1a5c28';
-        for(let i=0;i<12;i++){
-            const ax=cx+(Math.random()-0.5)*s*0.9,ay=cy+(Math.random()-0.5)*s*0.9;
-            ctx.beginPath();
-            ctx.arc(ax,ay,sz*0.5,0,Math.PI*2);
-            ctx.fill();
-        }
-        break;
-        case'brick':ctx.fillStyle='#a04a20';
-        for(let r=0;r<4;r++)for(let c=0;c<3;c++){
-            const bx=cx-s*0.6+c*s*0.4+(r%2)*s*0.2,by=cy-s*0.5+r*s*0.25;
-            ctx.fillRect(bx,by,s*0.3,s*0.15);
-        }
-        break;
-        case'geese':ctx.fillStyle='#4a8a2a';
-        for(let i=0;i<15;i++){
-            const gx=cx+(Math.random()-0.5)*s*0.9,gy=cy+(Math.random()-0.5)*s*0.9;
-            ctx.beginPath();ctx.moveTo(gx,gy+sz*0.4);
-            ctx.lineTo(gx-sz*0.3,gy-sz*0.3);
-            ctx.lineTo(gx+sz*0.3,gy-sz*0.3);ctx.closePath();ctx.fill();
-        }
-        break;
-        case'water':ctx.strokeStyle='#2a6d9e';
-        ctx.lineWidth=2;for(let i=0;i<6;i++){
-            const wy=cy-s*0.4+i*s*0.16;ctx.beginPath();
-            for(let x=-s*0.6;x<s*0.6;x+=4)ctx.lineTo(cx+x,wy+Math.sin(x*0.15)*4);
-            ctx.stroke();
-        }
-        break;
-        case'stone':ctx.fillStyle='#5a5c60';
-        for(let i=0;i<6;i++){
-            const rx=cx+(Math.random()-0.5)*s*0.8,
-                ry=cy+(Math.random()-0.5)*s*0.8,
-                rw=sz*(0.5+Math.random()*0.8),
-                rh=sz*(0.5+Math.random()*0.8);
-            ctx.beginPath();
-            ctx.ellipse(rx,ry,rw,rh,Math.random()*Math.PI,0,Math.PI*2);
-            ctx.fill();
-        }
-        break;
+    // Маппінг типу ресурсу на індекс текстури: wood=0, brick=1, geese=2, water=3, stone=4, desert=5
+    const texIndex = { wood:0, brick:1, geese:2, water:3, stone:4, desert:5 };
+    const idx = texIndex[t];
+    const img = (idx != null) ? hexTextures[idx] : null;
+    ctx.save();
+    ctx.beginPath();
+    const c=hexCorners(cx,cy,s);
+    ctx.moveTo(c[0].x,c[0].y);
+    for(let i=1;i<6;i++) ctx.lineTo(c[i].x,c[i].y);
+    ctx.closePath();
+    ctx.clip();
+    if (img && img.complete && img.naturalWidth > 0) {
+        // Текстуру малюємо «cover»: заповнює весь гекс БЕЗ сплющування,
+        // надлишок обрізається по контуру гекса. globalAlpha=1 — без просічування (нема кольорової обводки).
+        const bbox = hexBoundingBox(cx, cy, s);
+        const scale = Math.max(bbox.w / img.naturalWidth, bbox.h / img.naturalHeight);
+        const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
+        ctx.globalAlpha = 1;
+        ctx.drawImage(img, cx - dw/2, cy - dh/2, dw, dh);
+    } else {
+        // Fallback — процедурне забарвлення, якщо текстура не завантажилась
+        ctx.globalAlpha = 1;
+        const fallback = { wood:'#1a5c28', brick:'#a04a20', geese:'#4a8a2a', water:'#2a6d9e', stone:'#5a5c60', desert:'#c4a96a' };
+        ctx.fillStyle = fallback[t] || '#333';
+        ctx.fillRect(cx-s, cy-s, s*2, s*2);
     }
     ctx.restore();
+}
+// Обчислюємо обмежувальний прямокутник гекса для розтягування текстури
+function hexBoundingBox(cx, cy, s) {
+    // Шестикутник з кутами: радіус s від центру
+    // Ширина = 2*s, висота = sqrt(3)*s (плоскі верх/низ) або навпаки
+    // Використовемо hexCorners для точних меж
+    const corners = hexCorners(cx, cy, s);
+    let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+    for (const p of corners) { if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; }
+    return { x:minX, y:minY, w:maxX-minX, h:maxY-minY };
 }
 function markPortCorners(ctx,cx,cy,hs,pc,pc2){
     const c=hexCorners(cx,cy,hs),r=hs*0.12;
@@ -2802,16 +3021,13 @@ function renderMap(data, canvas, hexSize) {
         if(!ls.has(k))continue;
         const p=hexToPixel(h,hexSize),cx=p.x+ox,cy=p.y+oy;
         const rt=data.resources.get(k),num=data.numbers.get(k),res=RESOURCES[rt];
+        // Чисто текстура гекса (без кольорової заливки всіредині): тонка нейтральна обводка
+        // для розділу плиток, далі текстурка покриває весь гекс.
         drawHexPath(ctx,cx,cy,hexSize);
-        ctx.fillStyle=res.border;
-        ctx.fill();
-        ctx.strokeStyle='rgba(0,0,0,0.3)';
-        ctx.lineWidth=2;
+        ctx.strokeStyle='rgba(0,0,0,0.18)';
+        ctx.lineWidth=1.2;
         ctx.stroke();
-        drawHexPath(ctx,cx,cy,hexSize*0.88);
-        ctx.fillStyle=res.fill;
-        ctx.fill();
-        if(rt!=='desert')drawTexture(ctx,cx,cy,hexSize,rt);
+        drawTexture(ctx,cx,cy,hexSize,rt);
         // ===== APPLY TERRITORY TINT =====
         const colors = controlledTerritory.get(k);
         if (colors && colors.size > 0) {
@@ -2947,56 +3163,97 @@ function renderMap(data, canvas, hexSize) {
         const ax=edge.va.x+ox,ay=edge.va.y+oy,bx=edge.vb.x+ox,by=edge.vb.y+oy;
         const playerColor = roadData.color ? getPlayerColor(roadData.color) : null;
         const baseColor = playerColor || {primary:'#6B4226',secondary:'#C4904A',dark:'#3c1e0a',light:'#8B6914'};
-        ctx.lineWidth=hexSize*0.35;
+        const roadImg = markerTextures.road;
+        const hasRoadTex = roadImg && roadImg.complete && roadImg.naturalWidth > 0;
+
+        // Підкладка кольором гравця (видно, чия дорога) — малюється ЗАВЖДИ
+        ctx.lineWidth=hexSize*0.30;
         ctx.beginPath();
         ctx.moveTo(ax,ay);
         ctx.lineTo(bx,by);
         ctx.strokeStyle=baseColor.primary;
         ctx.stroke();
-        ctx.lineWidth=hexSize*0.26;
-        ctx.beginPath();
-        ctx.moveTo(ax,ay);
-        ctx.lineTo(bx,by);
-        ctx.strokeStyle=baseColor.secondary;
-        ctx.stroke();
-        const hw=hexSize*0.16,dx=bx-ax,dy=by-ay,len=Math.sqrt(dx*dx+dy*dy),nx=-dy/len,ny=dx/len;
-        ctx.lineWidth=1.5;
-        ctx.beginPath();
-        ctx.moveTo(ax+nx*hw,ay+ny*hw);
-        ctx.lineTo(bx+nx*hw,by+ny*hw);
-        ctx.strokeStyle=playerColor ? baseColor.dark : 'rgba(60,30,10,0.25)';
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(ax-nx*hw,ay-ny*hw);
-        ctx.lineTo(bx-nx*hw,by-ny*hw);
-        ctx.strokeStyle=playerColor ? baseColor.dark : 'rgba(60,30,10,0.25)';
-        ctx.stroke();
-        ctx.setLineDash([3,6]);
-        ctx.lineWidth=1.5;
-        ctx.beginPath();
-        ctx.moveTo(ax,ay);
-        ctx.lineTo(bx,by);
-        ctx.strokeStyle=playerColor ? baseColor.light : 'rgba(232,200,128,0.5)';
-        ctx.stroke();
-        ctx.setLineDash([]);const ro=hw*0.35;
-        ctx.lineWidth=1;
-        ctx.beginPath();
-        ctx.moveTo(ax+nx*ro,ay+ny*ro);
-        ctx.lineTo(bx+nx*ro,by+ny*ro);
-        ctx.strokeStyle=playerColor ? baseColor.dark : 'rgba(40,20,5,0.2)';
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(ax-nx*ro,ay-ny*ro);
-        ctx.lineTo(bx-nx*ro,by-ny*ro);
-        ctx.strokeStyle=playerColor ? baseColor.dark : 'rgba(40,20,5,0.2)';
-        ctx.stroke();
+
+        if (hasRoadTex) {
+            // Текстура дороги — малюється ОСТАННЬОЮ поверх усього
+            const dxx=bx-ax, dyy=by-ay, rlen=Math.sqrt(dxx*dxx+dyy*dyy);
+            const rang=Math.atan2(dyy,dxx);
+            const rw=rlen*0.55, rh=rw*(roadImg.naturalHeight/roadImg.naturalWidth);
+            ctx.save();
+            ctx.translate((ax+bx)/2,(ay+by)/2);
+            ctx.rotate(rang);
+            ctx.drawImage(roadImg,-rw/2,-rh/2,rw,rh);
+            ctx.restore();
+        } else {
+            // Процедурна дорога (фолбек, якщо текстура не завантажилась)
+            ctx.lineWidth=hexSize*0.26;
+            ctx.beginPath();
+            ctx.moveTo(ax,ay);
+            ctx.lineTo(bx,by);
+            ctx.strokeStyle=baseColor.secondary;
+            ctx.stroke();
+            const hw=hexSize*0.16,dx=bx-ax,dy=by-ay,len=Math.sqrt(dx*dx+dy*dy),nx=-dy/len,ny=dx/len;
+            ctx.lineWidth=1.5;
+            ctx.beginPath();
+            ctx.moveTo(ax+nx*hw,ay+ny*hw);
+            ctx.lineTo(bx+nx*hw,by+ny*hw);
+            ctx.strokeStyle=playerColor ? baseColor.dark : 'rgba(60,30,10,0.25)';
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(ax-nx*hw,ay-ny*hw);
+            ctx.lineTo(bx-nx*hw,by-ny*hw);
+            ctx.strokeStyle=playerColor ? baseColor.dark : 'rgba(60,30,10,0.25)';
+            ctx.stroke();
+            ctx.setLineDash([3,6]);
+            ctx.lineWidth=1.5;
+            ctx.beginPath();
+            ctx.moveTo(ax,ay);
+            ctx.lineTo(bx,by);
+            ctx.strokeStyle=playerColor ? baseColor.light : 'rgba(232,200,128,0.5)';
+            ctx.stroke();
+            ctx.setLineDash([]);const ro=hw*0.35;
+            ctx.lineWidth=1;
+            ctx.beginPath();
+            ctx.moveTo(ax+nx*ro,ay+ny*ro);
+            ctx.lineTo(bx+nx*ro,by+ny*ro);
+            ctx.strokeStyle=playerColor ? baseColor.dark : 'rgba(40,20,5,0.2)';
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(ax-nx*ro,ay-ny*ro);
+            ctx.lineTo(bx-nx*ro,by-ny*ro);
+            ctx.strokeStyle=playerColor ? baseColor.dark : 'rgba(40,20,5,0.2)';
+            ctx.stroke();
+        }
     }
     for(const [vk,bld] of gameState.settlements){
         const vert=vertexGeom.get(vk);
         if(!vert)continue;
         const vx=vert.pos.x+ox,vy=vert.pos.y+oy;
         const playerColor = bld.color ? getPlayerColor(bld.color) : null;
-        if(bld.type==='settlement'){const s=hexSize*0.32;
+        const markerKey = (bld.type === 'settlement') ? 'settlement' : (bld.type === 'city' ? 'castle' : null);
+        const markerImg = markerKey ? markerTextures[markerKey] : null;
+        if (markerImg && markerImg.complete && markerImg.naturalWidth > 0) {
+            const s = (bld.type === 'city') ? hexSize * 0.66 : hexSize * 0.56;
+            const ar = markerImg.naturalHeight / markerImg.naturalWidth;
+            const w = s * (bld.type === 'city' ? 1.3 : 1.1);
+            const h = w * ar;
+            // підкладка-тінь (все ще корисна)
+            ctx.fillStyle = 'rgba(0,0,0,0.25)';
+            ctx.beginPath();
+            ctx.ellipse(vx, vy + h * 0.38, s * 0.5, s * 0.1, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // маркер по центру вершини, піднятий, щоб база стояла на точці
+            ctx.drawImage(markerImg, vx - w / 2, vy - h * 0.82, w, h);
+            // Тонування в колір гравця (source-atop фарбує лише непрозорі пікселі маркера)
+            if (playerColor) {
+                ctx.save();
+                ctx.globalCompositeOperation = 'source-atop';
+                ctx.fillStyle = playerColor.primary;
+                ctx.fillRect(vx - w / 2, vy - h * 0.82, w, h);
+                ctx.restore();
+            }
+        } else if (bld.type === 'settlement') {
+            const s=hexSize*0.32;
             ctx.fillStyle='rgba(0,0,0,0.25)';
             ctx.beginPath();
             ctx.ellipse(vx+2,vy+s*0.55,s*0.85,s*0.15,0,0,Math.PI*2);
@@ -3253,8 +3510,15 @@ function cacheCanvas(ctx) {
 }
 
 function clearHoverAndRedraw(ctx, ox, oy, hs) {
-    if (cachedCanvasData) {
+    const inInteractiveMode = buildMode !== 'none' || gameState.roadBuildingMode > 0 || robberMode;
+    // У режимах будівництва/розбійника — завжди перемальовуємо карту з нуля,
+    // щоб дерев'яна текстура точно була на місці (кеш міг зберегтися до її завантаження)
+    if (inInteractiveMode && mapData) {
+        renderMap(mapData, canvas, mapHexSize);
+    } else if (cachedCanvasData && cachedCanvasData.width === canvas.width && cachedCanvasData.height === canvas.height) {
         ctx.putImageData(cachedCanvasData, 0, 0);
+    } else if (mapData) {
+        renderMap(mapData, canvas, mapHexSize);
     }
     drawHoverOnly(ctx, ox, oy, hs);
 }
@@ -5191,6 +5455,7 @@ function applyMapToClient(serializedMap) {
 let multiplayerClient = null;
 let mpClient = null;
 let isMultiplayer = false;
+let isMatchmakingMode = false; // «Грати проти людини» (швидкий матч 1v1)
 let isHost = false;
 let roomCode = null;
 let myPlayerId = null;
@@ -6117,9 +6382,10 @@ function registerMultiplayerHandlers(client) {
         console.log('Player disconnected:', data);
         if (data && data.playerId) {
             const player = multiplayerClient?.players?.find(p => p.id === data.playerId);
-            const name = player ? player.name : 'Гравець ' + data.playerId.slice(0, 4);
+            const name = player ? player.name : 'Гравець ' + String(data.playerId).slice(0, 4);
             const graceSeconds = (data && data.graceSeconds) ? data.graceSeconds : 60;
             showMessage('⚠️ ' + name + ' відключився. Якщо не повернеться за ' + graceSeconds + ' с — гру буде завершено автоматично');
+            startDisconnectTimer(data.playerId, name, graceSeconds, false);
         }
     });
     
@@ -6127,22 +6393,277 @@ function registerMultiplayerHandlers(client) {
     client.onHostDisconnected((data) => {
         console.log('Host disconnected:', data);
         const hostGrace = (data && data.graceSeconds) ? data.graceSeconds : 60;
+        const hostPlayer = multiplayerClient?.players?.find(p => p.id === data?.playerId);
+        const hostName = hostPlayer ? hostPlayer.name : 'Хазяїн';
         showMessage('⚠️ Хазяїн відключився. Якщо не повернеться за ' + hostGrace + ' с — кімнату буде закрито');
+        startDisconnectTimer(data?.playerId, hostName, hostGrace, true);
+    });
+
+    // Кімната не знайдена (не існує більше) — повертаємось у меню для нового пошуку
+    client.onRoomNotFound((data) => {
+        console.log('Room not found:', data);
+        showMessage('🚫 Кімнату не знайдено. Повертаємось у меню...');
+        setTimeout(() => {
+            window.location.href = 'splash.html';
+        }, 1500);
+    });
+
+    client.onPlayerReturned((data) => {
+        console.log('Player returned:', data);
+        // Таймер зупиняється ЗРАЗУ при будь-якому поверненні (не чекаємо закінчення 60с)
+        if (data && data.roomCode === roomCode && disconnectActivePlayerId) {
+            clearDisconnectTimer();
+            showMessage('✅ Гравець повернувся! Гра продовжується.');
+        }
     });
     
     // Handle room closed automatically (host left / player didn't return in time)
     client.onRoomClosed((data) => {
         console.log('Room closed:', data);
+        clearDisconnectTimer();
         showMessage('🚪 ' + ((data && data.message) || 'Кімнату закрито') + '. Повертаємось у меню...');
         // Прибираємо оверлей завершення гри, якщо він відкритий
         const gameOverOverlay = document.getElementById('gameOverOverlay');
         if (gameOverOverlay) gameOverOverlay.style.display = 'none';
-        // Повертаємось у лобі мультиплеєра
+        // У матчмейкінгу — у вікно вибору режиму; інакше — у лобі мультиплеєра
         setTimeout(() => {
-            window.location.href = 'splash.html?mode=multiplayer';
+            window.location.href = isMatchmakingMode ? 'splash.html' : 'splash.html?mode=multiplayer';
         }, 2500);
     });
 }
+
+// ===== DISCONNECT TIMER =====
+let disconnectTimerId = null;
+let disconnectCountdownId = null;
+let disconnectActivePlayerId = null;
+
+function startDisconnectTimer(playerId, name, graceSeconds, isHost) {
+    clearDisconnectTimer();
+    disconnectActivePlayerId = playerId;
+    const overlay = document.getElementById('disconnectOverlay');
+    const title = document.getElementById('disconnectTitle');
+    const nameEl = document.getElementById('disconnectName');
+    const hint = document.getElementById('disconnectHint');
+    if (isHost) {
+        title.textContent = '⚠️ Хазяїн відключився';
+        hint.textContent = 'секунд до закриття кімнати';
+    } else {
+        title.textContent = '⚠️ Гравець відключився';
+        hint.textContent = 'секунд до автоматичного завершення гри';
+    }
+    nameEl.textContent = name || ('Гравець ' + String(playerId).slice(0, 4));
+    overlay.style.display = 'flex';
+    let remaining = graceSeconds || 60;
+    const cdEl = document.getElementById('disconnectCountdown');
+    cdEl.textContent = remaining;
+    cdEl.classList.toggle('urgent', remaining <= 10);
+    disconnectCountdownId = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) { clearInterval(disconnectCountdownId); disconnectCountdownId = null; cdEl.textContent = '0'; return; }
+        cdEl.textContent = remaining;
+        cdEl.classList.toggle('urgent', remaining <= 10);
+    }, 1000);
+    disconnectTimerId = setTimeout(() => clearDisconnectTimer(), (graceSeconds || 60) * 1000 + 5000);
+}
+
+function clearDisconnectTimer() {
+    if (disconnectTimerId) { clearTimeout(disconnectTimerId); disconnectTimerId = null; }
+    if (disconnectCountdownId) { clearInterval(disconnectCountdownId); disconnectCountdownId = null; }
+    disconnectActivePlayerId = null;
+    const overlay = document.getElementById('disconnectOverlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
+
+
+// ===== ВИВІСКИ НА ЗАЛІЗНИХ ШЕСТАХ (нарізані окремі текстурки, чорний фон прибраний) =====
+// Малі (для трекінгів) і великі (для будівництва) — 3 варіанти кожна, застосовуються ВИПАДКОВО.
+const SIGN_GROUP_FILES = {
+    small: ['small-0.png', 'small-1.png', 'small-2.png'],
+    big:   ['big-0.png', 'big-1.png', 'big-2.png']
+};
+const signGroupUrls = {};
+(function preloadSignGroups() {
+    for (const group of ['small', 'big']) {
+        const base = '../../assets/textures/menu/signs/';
+        signGroupUrls[group] = SIGN_GROUP_FILES[group].map(f => base + f);
+        SIGN_GROUP_FILES[group].forEach(f => {
+            const im = new Image();
+            im.src = base + f;
+        });
+    }
+})();
+function randomSignBackground(group) {
+    const arr = signGroupUrls[group];
+    const idx = Math.floor(Math.random() * arr.length);
+    return "url('" + arr[idx] + "')";
+}
+// Відкриття/закриття висувної вкладки + випадкова вивіска при відкритті + кнопка-«стрілочка»:
+function toggleSignPanel(panelId, btnId) {
+    const panel = document.getElementById(panelId);
+    const btn = btnId ? document.getElementById(btnId) : null;
+    if (!panel) return;
+    const opening = panel.classList.contains('collapsed');
+    panel.classList.toggle('collapsed');
+    if (opening) {
+        // Трекінги → мала вивіска, будівництво → велика; кожне відкриття — випадкова з 3.
+        const isLeft = panelId === 'signPanelLeft';
+        const group = isLeft ? 'small' : 'big';
+        const contentId = isLeft ? 'signContentLeft' : 'signContentRight';
+        const el = document.getElementById(contentId);
+        if (el) el.style.backgroundImage = randomSignBackground(group);
+    }
+    if (btn) {
+        btn.classList.toggle('open', opening);
+        btn.title = opening ? 'Закрити' : (btn.dataset.title || '');
+    }
+}
+document.getElementById('signTabLeft').addEventListener('click', () => toggleSignPanel('signPanelLeft', 'signTabLeft'));
+document.getElementById('signTabRight').addEventListener('click', () => toggleSignPanel('signPanelRight', 'signTabRight'));
+
+// Фонові текстури вивісок задаються випадково в JS (menu/signs/small-* та big-*),
+// тому окреме CSS-застосування більше не потрібне.
+
+// Текстура колоди карт розвитку (dev-0 = зворот колоди)
+function applyDevDeckTexture() {
+    const back = document.querySelector('.dev-deck-back');
+    if (back && devCardTextures[0] && devCardTextures[0].complete && devCardTextures[0].naturalWidth > 0) {
+        back.style.backgroundImage = "url('../../assets/textures/cards/dev-0.png')";
+        back.style.backgroundSize = 'cover';
+        back.style.backgroundPosition = 'center';
+        back.style.backgroundRepeat = 'no-repeat';
+        const icon = back.querySelector('.dev-deck-icon');
+        if (icon) icon.style.display = 'none';
+    }
+}
+const _devDeckInterval = setInterval(() => {
+    if (devCardTextures[0] && devCardTextures[0].complete) { applyDevDeckTexture(); clearInterval(_devDeckInterval); }
+}, 300);
+
+// Секції трекінгів/будівництва тепер ЖИВУТЬ на висувних вкладках (справа):
+// реальні елементи (stat-vp, army-count, stat-roads тощо) перенесені в панелі,
+// тому окрема синхронізація дублів (sp-*) більше не потрібна.
+
+// ===== NEW TRADE SYSTEM =====
+function getBestTradeRatio(resourceType) {
+    let bestRatio = 4, has3to1 = false, has2to1 = false;
+    if (mapData && vertexGeom) {
+        for (const [vk, building] of gameState.settlements) {
+            if (isMultiplayer && building.playerId !== myPlayerId) continue;
+            const vert = vertexGeom.get(vk);
+            if (!vert) continue;
+            for (const h of vert.hexes) {
+                const hk = hexKey(h), oi = mapData.ocean.get(hk);
+                if (oi && (oi.type === 'port3' || oi.type === 'port2') && oi.portCorners && vert.pos) {
+                    const hp = hexToPixel(h, mapHexSize), corn = hexCorners(hp.x, hp.y, mapHexSize);
+                    for (const ci of oi.portCorners) {
+                        if (Math.sqrt((vert.pos.x - corn[ci].x) ** 2 + (vert.pos.y - corn[ci].y) ** 2) < mapHexSize * 0.15) {
+                            if (oi.type === 'port3') has3to1 = true;
+                            if (oi.type === 'port2' && oi.resource === resourceType) has2to1 = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (has2to1) bestRatio = 2; else if (has3to1) bestRatio = 3;
+    return bestRatio;
+}
+
+let activeTrade = null;
+function closeTradePopup() {
+    if (activeTrade && activeTrade.popup) activeTrade.popup.remove();
+    activeTrade = null;
+}
+function openTradePopup(resourceType, anchorEl) {
+    if (isMultiplayer && typeof canPerformMultiplayerActions === 'function' && !canPerformMultiplayerActions()) {
+        showMessage(isMyTurn && !canPerformActions ? 'Спочатку киньте кубики!' : 'Зараз не ваш хід!'); return;
+    }
+    closeTradePopup();
+    const ratio = getBestTradeRatio(resourceType);
+    const popup = document.createElement('div');
+    popup.className = 'trade-popup';
+    renderTradeRatioButton(popup, resourceType, ratio);
+    anchorEl.appendChild(popup);
+    activeTrade = { fromResource: resourceType, ratio, popup, anchor: anchorEl };
+}
+
+// Рендерить початковий стан попапа: кнопка "Обмін X:1"
+// (викликається при відкритті попапа кліком по картці ресурсу)
+function renderTradeRatioButton(popup, resourceType, ratio) {
+    popup.innerHTML = '';
+    const btn = document.createElement('button');
+    btn.className = 'tp-btn';
+    btn.textContent = 'Обмін ' + ratio + ':1';
+    btn.addEventListener('click', () => {
+        // Перевірка ресурсів ДО переходу до вибору цілі:
+        // якщо не вистачає — повідомлення і попап залишається у початковому стані
+        if ((gameState.resourceCards[resourceType] || 0) < ratio) {
+            showMessage('Недостатньо ресурсів!');
+            return;
+        }
+        showTradeTargets(resourceType, popup, ratio);
+    });
+    popup.appendChild(btn);
+}
+function showTradeTargets(fromResource, popup, ratio) {
+    popup.innerHTML = '';
+    const label = document.createElement('div');
+    label.style.cssText = 'color:#aaa;font-size:0.7em;text-align:center;';
+    label.textContent = 'Оберіть ресурс:';
+    popup.appendChild(label);
+    const row = document.createElement('div');
+    row.className = 'tp-target-row';
+    const cards = gameState.resourceCards;
+    for (const rt of ['wood', 'brick', 'geese', 'water', 'stone']) {
+        if (rt === fromResource) continue;
+        const t = document.createElement('div');
+        t.className = 'tp-target';
+        t.textContent = RESOURCES[rt].icon;
+        t.title = RESOURCES[rt].name;
+        t.addEventListener('click', () => {
+            if (cards[fromResource] >= ratio) {
+                gameState.resourceCards[fromResource] -= ratio;
+                gameState.resourceCards[rt] += 1;
+                updateResourceCardsDisplay();
+                if (typeof syncResourcesToServer === 'function') syncResourcesToServer();
+                showMessage('🔄 Обмін ' + ratio + ':1 виконано: ' + RESOURCES[fromResource].name + ' → ' + RESOURCES[rt].name);
+                closeTradePopup();
+            } else {
+                showMessage('Недостатньо ресурсів!');
+            }
+        });
+        row.appendChild(t);
+    }
+    popup.appendChild(row);
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'tp-btn cancel';
+    cancelBtn.textContent = 'Відмінити';
+    cancelBtn.addEventListener('click', closeTradePopup);
+    popup.appendChild(cancelBtn);
+}
+function setupResourceCardTradeClicks() {
+    ['wood', 'brick', 'geese', 'water', 'stone'].forEach(rt => {
+        const card = document.querySelector('.resource-card-item.' + rt + '-card');
+        if (card) {
+            card.style.cursor = 'pointer';
+            card.title = 'Натисніть для обміну';
+            card.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const anchor = card.closest('.card-with-count');
+                if (activeTrade && activeTrade.anchor === anchor) closeTradePopup();
+                else openTradePopup(rt, anchor);
+            });
+        }
+    });
+}
+document.addEventListener('click', (e) => {
+    if (activeTrade && activeTrade.popup && !activeTrade.popup.contains(e.target) && !e.target.closest('.resource-card-item')) {
+        closeTradePopup();
+    }
+});
+setTimeout(setupResourceCardTradeClicks, 500);
 
 // ===== GAME OVER OVERLAY FUNCTIONS =====
 let hasVotedRestart = false;
@@ -6176,12 +6697,31 @@ function showGameOverOverlay(data) {
     
     // Reset voting state
     hasVotedRestart = false;
+
+    // ==== ВІКНО ЗАКІНЧЕННЯ ГРИ В МАТЧМЕЙКІНГУ («грати проти людини») ====
+    // Кнопки: «Реванш» (✓ у списку, обидва → нова катка), «Новий суперник» (✗ + пошук), «Вийти».
+    if (isMatchmakingMode) {
+        const titleEl = document.getElementById('restartVotingTitle');
+        if (titleEl) titleEl.textContent = '♻️ РЕВАНШ';
+        const newOppBtn = document.getElementById('findNewOpponentBtn');
+        if (newOppBtn) {
+            newOppBtn.style.display = 'inline-flex';
+            newOppBtn.style.alignItems = 'center';
+            newOppBtn.disabled = false;
+            newOppBtn.style.opacity = '1';
+            newOppBtn.style.cursor = 'pointer';
+        }
+    } else {
+        const newOppBtn = document.getElementById('findNewOpponentBtn');
+        if (newOppBtn) newOppBtn.style.display = 'none';
+    }
+
     const voteBtn = document.getElementById('voteRestartBtn');
     if (voteBtn) {
         voteBtn.disabled = false;
         voteBtn.style.opacity = '1';
         voteBtn.style.cursor = 'pointer';
-        voteBtn.textContent = '✅ Зіграти ще раз';
+        voteBtn.textContent = isMatchmakingMode ? '♻️ Реванш' : '✅ Зіграти ще раз';
     }
     
     // Initialize votes list with all players
@@ -6192,7 +6732,7 @@ function showGameOverOverlay(data) {
             const div = document.createElement('div');
             div.style.cssText = 'display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.9em;';
             const isMe = p.id === myPlayerId;
-            div.innerHTML = '<span style="color: ' + (isMe ? '#f1c40f' : '#fff') + '; font-weight: ' + (isMe ? 'bold' : 'normal') + ';">' + (isMe ? 'Ви' : p.name) + '</span><span style="margin-left: auto; color: #666;">⏳</span>';
+            div.innerHTML = '<span style="color: ' + (isMe ? '#f1c40f' : '#fff') + '; font-weight: ' + (isMe ? 'bold' : 'normal') + ';">' + (isMe ? 'Ви' : p.name) + '</span><span data-mark style="margin-left: auto; color: #666;">⏳</span>';
             div.id = 'restart-vote-' + p.id;
             votesList.appendChild(div);
         });
@@ -6213,7 +6753,6 @@ function showGameOverOverlay(data) {
 function updateRestartVotesUI(data) {
     const votesList = document.getElementById('restartVotesList');
     const status = document.getElementById('restartVotesStatus');
-    const voteBtn = document.getElementById('voteRestartBtn');
     
     if (votesList && data.players) {
         votesList.innerHTML = '';
@@ -6222,21 +6761,25 @@ function updateRestartVotesUI(data) {
             const div = document.createElement('div');
             div.style.cssText = 'display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.9em;';
             const isMe = p.id === myPlayerId;
-            div.innerHTML = '<span style="color: ' + (isMe ? '#f1c40f' : '#fff') + '; font-weight: ' + (isMe ? 'bold' : 'normal') + ';">' + (isMe ? 'Ви' : p.name) + '</span><span style="margin-left: auto; color: ' + (hasVoted ? '#27ae60' : '#666') + ';">' + (hasVoted ? '✅' : '⏳') + '</span>';
+            div.innerHTML = '<span style="color: ' + (isMe ? '#f1c40f' : '#fff') + '; font-weight: ' + (isMe ? 'bold' : 'normal') + ';">' + (isMe ? 'Ви' : p.name) + '</span><span data-mark style="margin-left: auto; color: ' + (hasVoted ? '#27ae60' : '#666') + ';">' + (hasVoted ? '✅' : '⏳') + '</span>';
+            div.id = 'restart-vote-' + p.id;
             votesList.appendChild(div);
         });
     }
     
     if (status) {
-        status.textContent = 'Голосування: ' + data.readyCount + '/' + data.totalPlayers;
+        status.textContent = isMatchmakingMode
+            ? 'Реванш: ' + data.readyCount + '/' + data.totalPlayers
+            : 'Голосування: ' + data.readyCount + '/' + data.totalPlayers;
     }
     
     // If I already voted, disable the button
+    const voteBtn = document.getElementById('voteRestartBtn');
     if (hasVotedRestart && voteBtn) {
         voteBtn.disabled = true;
         voteBtn.style.opacity = '0.5';
         voteBtn.style.cursor = 'not-allowed';
-        voteBtn.textContent = '✅ Ви проголосували';
+        voteBtn.textContent = isMatchmakingMode ? '♻️ Ви підтвердили реванш' : '✅ Ви проголосували';
     }
 }
 
@@ -6266,7 +6809,19 @@ function showGameOverBlocked(data) {
         voteBtn.disabled = true;
         voteBtn.style.opacity = '0.5';
         voteBtn.style.cursor = 'not-allowed';
-        voteBtn.textContent = '🚫 Рестарт недоступний';
+        voteBtn.textContent = isMatchmakingMode ? '♻️ Реванш недоступний' : '🚫 Рестарт недоступний';
+    }
+    
+    // У матчмейкінгу лишаємо кнопку «Новий суперник» активною
+    if (isMatchmakingMode) {
+        const newOppBtn = document.getElementById('findNewOpponentBtn');
+        if (newOppBtn) {
+            newOppBtn.style.display = 'inline-flex';
+            newOppBtn.style.alignItems = 'center';
+            newOppBtn.disabled = false;
+            newOppBtn.style.opacity = '1';
+            newOppBtn.style.cursor = 'pointer';
+        }
     }
     
     // Update the votes list: ❌ for the player who exited/disconnected,
@@ -6282,14 +6837,78 @@ function showGameOverBlocked(data) {
             const div = document.createElement('div');
             div.style.cssText = 'display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.9em;';
             const isMe = p.id === myPlayerId;
-            div.innerHTML = '<span style="color: ' + (isMe ? '#f1c40f' : '#fff') + '; font-weight: ' + (isMe ? 'bold' : 'normal') + ';">' + (isMe ? 'Ви' : p.name) + '</span><span style="margin-left: auto; color: ' + markColor + ';">' + mark + '</span>';
+            div.innerHTML = '<span style="color: ' + (isMe ? '#f1c40f' : '#fff') + '; font-weight: ' + (isMe ? 'bold' : 'normal') + ';">' + (isMe ? 'Ви' : p.name) + '</span><span data-mark style="margin-left: auto; color: ' + markColor + ';">' + mark + '</span>';
+            div.id = 'restart-vote-' + p.id;
             votesList.appendChild(div);
         });
     }
     
     const status = document.getElementById('restartVotesStatus');
     if (status) {
-        status.textContent = '🚫 Рестарт заблоковано';
+        status.textContent = isMatchmakingMode
+            ? (data.leftPlayerName || 'Суперник') + ' пішов з гри'
+            : '🚫 Рестарт заблоковано';
+        status.style.color = '#e74c3c';
+    }
+}
+
+// ===== МАТЧМЕЙКІНГ: «новий суперник» / «реванш» у вікні перемоги =====
+// Позначити себе у списку гри (✓ за реванш, ✗ за новий суперник)
+function markMyGameOverStatus(mark, color) {
+    if (!myPlayerId) return;
+    const row = document.getElementById('restart-vote-' + myPlayerId);
+    if (!row) return;
+    const span = row.querySelector('span[data-mark]');
+    if (span) {
+        span.textContent = mark;
+        span.style.color = color;
+    }
+}
+
+// Суперник натиснув «Новий суперник» (або вийшов) — показуємо ✗ і блокуємо реванш
+function showMatchmakingOpponentLeft(data) {
+    const overlay = document.getElementById('gameOverOverlay');
+    if (overlay) overlay.style.display = 'flex';
+    document.body.classList.add('is-paused');
+
+    const votesList = document.getElementById('restartVotesList');
+    if (votesList && data.players) {
+        votesList.innerHTML = '';
+        data.players.forEach(p => {
+            const div = document.createElement('div');
+            div.style.cssText = 'display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.9em;';
+            const isMe = p.id === myPlayerId;
+            div.innerHTML = '<span style="color: ' + (isMe ? '#f1c40f' : '#fff') + '; font-weight: ' + (isMe ? 'bold' : 'normal') + ';">' + (isMe ? 'Ви' : p.name) + '</span><span style="margin-left: auto; color: #666;">⏳</span>';
+            div.id = 'restart-vote-' + p.id;
+            votesList.appendChild(div);
+        });
+        // Додаємо рядок суперника, що пішов (✗)
+        const leftName = data.leftPlayerName || 'Суперник';
+        const leftDiv = document.createElement('div');
+        leftDiv.style.cssText = 'display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: rgba(231,76,60,0.08); border-radius: 6px; font-size: 0.9em;';
+        leftDiv.innerHTML = '<span style="color: #e74c3c;">' + leftName + '</span><span style="margin-left: auto; color: #e74c3c; font-weight: bold;">✗</span>';
+        votesList.appendChild(leftDiv);
+    }
+
+    // Блокуємо реванш (суперника більше немає), лишаємо «новий суперник» і «вийти»
+    const voteBtn = document.getElementById('voteRestartBtn');
+    if (voteBtn) {
+        voteBtn.disabled = true;
+        voteBtn.style.opacity = '0.5';
+        voteBtn.style.cursor = 'not-allowed';
+        voteBtn.textContent = '♻️ Реванш недоступний';
+    }
+    const newOppBtn = document.getElementById('findNewOpponentBtn');
+    if (newOppBtn) {
+        newOppBtn.style.display = 'inline-flex';
+        newOppBtn.style.alignItems = 'center';
+        newOppBtn.disabled = false;
+        newOppBtn.style.opacity = '1';
+        newOppBtn.style.cursor = 'pointer';
+    }
+    const status = document.getElementById('restartVotesStatus');
+    if (status) {
+        status.textContent = (data.leftPlayerName || 'Суперник') + ' пішов шукати нового суперника';
         status.style.color = '#e74c3c';
     }
 }
@@ -6328,6 +6947,7 @@ function initMultiplayer() {
 
     // Handle matchmaking mode
     if (urlParams.mode === 'matchmaking') {
+        isMatchmakingMode = true;
         return initMatchmakingGame(urlParams);
     }
 
@@ -6416,6 +7036,12 @@ function initMatchmakingGame(urlParams) {
             roomCode = roomCodeFromUrl;
             myPlayerId = mySocketId;
 
+            // Запам'ятаємо код кімнати, щоб повернутись в неї при повторному вході в режим
+            if (roomCodeFromUrl) {
+                sessionStorage.setItem('matchmakingRoomCode', roomCodeFromUrl);
+                sessionStorage.setItem('matchmakingPlayerColor', isHost ? 'red' : 'blue');
+            }
+
             console.log('Matchmaking - isHost:', isHost, 'roomCode:', roomCodeFromUrl);
 
             // Rejoin the matchmaking room
@@ -6494,6 +7120,360 @@ function setupMatchmakingGameHandlers() {
             const serializedMapData = serializeMapForServer(data.mapSeed);
             sessionStorage.setItem('matchmakingMapSeed', JSON.stringify(serializedMapData));
         }
+    });
+
+    // Handle start dice phase - ПОКАЗАТИ ВІКНО КУБІКІВ
+    mpClient.socket.on('start-dice-phase', (data) => {
+        console.log('[matchmaking] start-dice-phase received:', data);
+        startDicePhase(data);
+    });
+
+    // Handle player dice rolled - ОНОВИТИ UI КУБІКІВ
+    mpClient.socket.on('player-dice-rolled', (data) => {
+        console.log('[matchmaking] player-dice-rolled:', data);
+        onPlayerDiceRolled(data);
+    });
+
+    // Handle dice tie - ПЕРЕКИДАННЯ ПРИ НИЧІЇ
+    mpClient.socket.on('dice-tie', (data) => {
+        console.log('[matchmaking] dice-tie:', data);
+
+        const tiedPlayers = data.players || [];
+        const isTied = tiedPlayers.includes(myPlayerId);
+
+        if (isTied) {
+            initialPhase.myRoll = null;
+            for (const pid of tiedPlayers) {
+                initialPhase.diceRolls.delete(pid);
+            }
+            const overlay = document.getElementById('dicePhaseOverlay');
+            if (overlay) overlay.style.display = 'flex';
+            const rollBtn = document.getElementById('rollDiceInitialBtn');
+            if (rollBtn) {
+                rollBtn.disabled = false;
+                rollBtn.style.opacity = '1';
+                rollBtn.style.cursor = 'pointer';
+            }
+            const die1El = document.getElementById('initialDie1');
+            const die2El = document.getElementById('initialDie2');
+            if (die1El && die2El) {
+                die1El.textContent = '⚀';
+                die2El.textContent = '⚀';
+            }
+            const results = document.getElementById('dicePhaseResults');
+            if (results) results.innerHTML = '';
+            const status = document.getElementById('dicePhaseStatus');
+            if (status) {
+                status.textContent = '🎲 Нічия! Киньте кубики знову';
+                status.style.color = '#f1c40f';
+            }
+        } else {
+            updateDicePhaseUI();
+        }
+    });
+
+    // Handle initial build start
+    mpClient.socket.on('initial-build-start', (data) => {
+        console.log('[matchmaking] initial-build-start:', data);
+        onInitialBuildStart(data);
+    });
+
+    // Handle initial build your turn
+    mpClient.socket.on('initial-build-your-turn', (data) => {
+        console.log('[matchmaking] initial-build-your-turn:', data);
+        const overlay = document.getElementById('buildPhaseOverlay');
+        if (overlay) overlay.style.display = 'none';
+        initialPhase.canBuild = true;
+        updateTurnOrderPanel();
+    });
+
+    // Handle initial build waiting
+    mpClient.socket.on('initial-build-waiting', (data) => {
+        console.log('[matchmaking] initial-build-waiting:', data);
+        initialPhase.canBuild = false;
+        setBuildMode('none');
+        const playerInfo = data.order ? data.order.find(p => p.playerId === data.currentPlayerId) : null;
+        const name = playerInfo ? 'Гравець ' + playerInfo.playerId.slice(0, 4) : 'Інший гравець';
+        updateTurnOrderPanel();
+    });
+
+    // Handle initial build next player
+    mpClient.socket.on('initial-build-next-player', (data) => {
+        console.log('[matchmaking] initial-build-next-player:', data);
+        initialPhase.currentIndex = data.currentIndex || 0;
+        if (data.order) {
+            initialPhase.buildOrder = data.order;
+        }
+        updateTurnOrderPanel();
+        const playerInfo = data.order ? data.order.find(p => p.playerId === data.currentPlayerId) : null;
+        const name = playerInfo ? 'Гравець ' + playerInfo.playerId.slice(0, 4) : 'Інший гравець';
+    });
+
+    // Handle initial build your done
+    mpClient.socket.on('initial-build-your-done', (data) => {
+        console.log('[matchmaking] initial-build-your-done:', data);
+        updateTurnOrderPanel();
+    });
+
+    // Handle regular game start
+    mpClient.socket.on('regular-game-start', (data) => {
+        console.log('[matchmaking] regular-game-start:', data);
+        const overlay = document.getElementById('buildPhaseOverlay');
+        if (overlay) overlay.style.display = 'none';
+        initialPhase.active = false;
+        initialPhase.phase = 'complete';
+        if (data && Array.isArray(data.turnOrder)) {
+            turnOrder = data.turnOrder;
+        }
+        const rollBtn = document.getElementById('rollBtn');
+        if (rollBtn) rollBtn.disabled = false;
+        updateTurnOrderPanel();
+    });
+
+    // Handle your turn
+    mpClient.socket.on('your-turn', (data) => {
+        console.log('[matchmaking] your-turn:', data);
+        showYourTurn(data);
+    });
+
+    // Handle waiting for turn
+    mpClient.socket.on('waiting-for-turn', (data) => {
+        console.log('[matchmaking] waiting-for-turn:', data);
+        showWaitingForTurn(data);
+    });
+
+    // Handle game state sync
+    mpClient.socket.on('game-state-sync', (data) => {
+        console.log('[matchmaking] game-state-sync:', data);
+        myPlayerId = getMyPlayerId();
+
+        if (data.gamePhase === 'dice-roll') {
+            console.log('[matchmaking][game-state-sync] dice-roll phase detected');
+            startDicePhase({
+                players: data.players || [],
+                diceRolls: data.diceRolls || []
+            });
+        } else if (data.gamePhase === 'regular-turn') {
+            initialPhase.active = false;
+            initialPhase.phase = 'complete';
+            if (data.currentTurnPlayerId === myPlayerId) {
+                showYourTurn({ playerId: data.currentTurnPlayerId });
+            } else {
+                showWaitingForTurn({ currentPlayerId: data.currentTurnPlayerId });
+            }
+        } else if (data.gamePhase === 'initial-build') {
+            initialPhase.active = true;
+            initialPhase.phase = 'initial-build';
+            initialPhase.buildOrder = data.initialBuildOrder || [];
+            initialPhase.currentIndex = data.currentIndex || 0;
+            const overlay = document.getElementById('buildPhaseOverlay');
+            if (overlay) overlay.style.display = 'flex';
+            if (data.currentPlayerId === myPlayerId) {
+                initialPhase.canBuild = true;
+            } else {
+                initialPhase.canBuild = false;
+                setBuildMode('none');
+            }
+        }
+    });
+
+    // Handle sync buildings
+    mpClient.socket.on('sync-buildings', (data) => {
+        console.log('[matchmaking] sync-buildings:', data);
+        handleBuildingSynced({ buildings: data.buildings });
+    });
+
+    // Handle building synced
+    mpClient.socket.on('building-synced', (data) => {
+        console.log('[matchmaking] building-synced:', data);
+        handleBuildingSynced(data);
+    });
+
+    // Handle action error
+    mpClient.socket.on('action-error', (data) => {
+        console.log('[matchmaking] action-error:', data);
+    });
+
+    // Handle regular dice rolled
+    mpClient.socket.on('regular-dice-rolled', (data) => {
+        console.log('[matchmaking] regular-dice-rolled:', data);
+        const d1 = document.getElementById('die1');
+        const d2 = document.getElementById('die2');
+        if (d1 && d2) {
+            audioManager.playDiceSound();
+            d1.classList.add('rolling');
+            d2.classList.add('rolling');
+            setTimeout(() => {
+                d1.classList.remove('rolling');
+                d2.classList.remove('rolling');
+                d1.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[data.die1-1] + '</span>';
+                d2.innerHTML = '<span class="die-value">' + '⚀⚁⚂⚃⚄⚅'[data.die2-1] + '</span>';
+                document.getElementById('total').textContent = 'Сума: ' + data.total;
+                flushPendingResourceCollection();
+            }, 700);
+        } else {
+            flushPendingResourceCollection();
+        }
+    });
+
+    // Handle turn ended
+    mpClient.socket.on('turn-ended', (data) => {
+        console.log('[matchmaking] turn-ended:', data);
+        showWaitingForTurn({ currentPlayerId: data.nextPlayerId });
+    });
+
+    // Handle game over
+    mpClient.socket.on('game-over', (data) => {
+        console.log('[matchmaking] game-over:', data);
+        showGameOverOverlay(data);
+    });
+
+    // «Новий суперник»: суперник пішов шукати іншого — показати ✗ у списку
+    mpClient.socket.on('matchmaking-opponent-left', (data) => {
+        console.log('[matchmaking] Opponent left, searching new opponent:', data);
+        showMatchmakingOpponentLeft(data);
+    });
+
+    // Гравець у черзі на новий матч (після «Новий суперник») — оновлюємо статус
+    mpClient.socket.on('matchmaking-queued', (data) => {
+        console.log('[matchmaking] Requeued for new match:', data);
+        const status = document.getElementById('restartVotesStatus');
+        if (status) status.textContent = (data && data.message) || 'Пошук нового суперника...';
+        // Позначаємо себе ✗ у списку
+        markMyGameOverStatus('✗', '#e74c3c');
+    });
+
+    // Знайдено нового суперника — одразу навігуємо в нову катку
+    mpClient.socket.on('matchmaking-found', (data) => {
+        console.log('[matchmaking] Found new opponent (after requeue):', data);
+        if (data && data.roomCode) {
+            sessionStorage.setItem('matchmakingRoomCode', data.roomCode);
+            sessionStorage.setItem('matchmakingPlayerColor', data.yourColor || 'red');
+            if (data.opponent) sessionStorage.setItem('matchmakingOpponent', JSON.stringify(data.opponent));
+            // Приховати гейм-овер оверлей і перейти в новий матч
+            const overlay = document.getElementById('gameOverOverlay');
+            if (overlay) overlay.style.display = 'none';
+            document.body.classList.remove('is-paused');
+            audioManager.stopVictoryTheme();
+            audioManager.stopDefeatTheme();
+            window.location.href = 'index.html?mode=matchmaking&code=' + encodeURIComponent(data.roomCode);
+        }
+    });
+
+    // Handle collect resources (deferred until dice animation ends)
+    mpClient.socket.on('collect-resources', (data) => {
+        console.log('[matchmaking] collect-resources:', data);
+        pendingResourceCollection = data;
+        if (pendingResourceTimer) clearTimeout(pendingResourceTimer);
+        pendingResourceTimer = setTimeout(flushPendingResourceCollection, 2500);
+    });
+
+    // Handle resource stolen
+    mpClient.socket.on('resource-stolen', (data) => {
+        console.log('[matchmaking] resource-stolen:', data);
+        if (data.success && data.resource) {
+            if (data.toPlayerId === myPlayerId) {
+                gameState.resourceCards[data.resource]++;
+            } else if (data.fromPlayerId === myPlayerId) {
+                gameState.resourceCards[data.resource]--;
+            }
+            updateResourceCardsDisplay();
+        }
+    });
+
+    // Handle robber synced
+    mpClient.socket.on('robber-synced', (data) => {
+        console.log('[matchmaking] robber-synced:', data);
+        if (data && data.robber && data.robber.hexKey) {
+            gameState.robber.hexKey = data.robber.hexKey;
+            gameState.robber.placedBy = data.robber.placedBy;
+            if (data.robber.color) {
+                gameState.robber.color = data.robber.color;
+            }
+            robberMode = false;
+            gameState.cardInProgress = false;
+            renderMap(mapData, canvas, mapHexSize);
+        }
+    });
+
+    // Handle dev card purchased
+    mpClient.socket.on('dev-card-purchased', (data) => {
+        console.log('[matchmaking] dev-card-purchased:', data);
+        if (data.playerId === myPlayerId) {
+            if (data.playerResources) {
+                gameState.resourceCards = { ...data.playerResources };
+            }
+            if (data.card) {
+                gameState.devHand.push(data.card);
+                const info = getDevCardInfo(data.card.type);
+            }
+            if (typeof data.remainingDeckCount === 'number') {
+                devDeckRemaining = data.remainingDeckCount;
+                gameState.devDeck.length = devDeckRemaining;
+                updateDevHandDisplay();
+            }
+            updateResourceCardsDisplay();
+        }
+    });
+
+    // Handle dev card played
+    mpClient.socket.on('dev-card-played', (data) => {
+        console.log('[matchmaking] dev-card-played:', data);
+        if (data.playerId === myPlayerId && data.cardType) {
+            // Remove card from hand
+            const idx = gameState.devHand.findIndex(c => c.type === data.cardType && !c.played);
+            if (idx !== -1) {
+                gameState.devHand.splice(idx, 1);
+                updateDevHandDisplay();
+            }
+        }
+    });
+
+    // Handle medals synced
+    mpClient.socket.on('medals-synced', (data) => {
+        console.log('[matchmaking] medals-synced:', data);
+        if (data && data.largestArmy) {
+            largestArmyHolder = data.largestArmy.holderId;
+            largestArmyLevel = data.largestArmy.level || 0;
+        }
+        if (data && data.longestRoad) {
+            longestRoadHolder = data.longestRoad.holderId;
+            longestRoadLevel = data.longestRoad.level || 0;
+        }
+        if (data && data.knightCards) {
+            gameState.knightCards = new Map(Object.entries(data.knightCards));
+        }
+        if (data && data.roadLengths) {
+            gameState.roadLengths = data.roadLengths;
+        }
+        updateBuildStats();
+    });
+
+    // Handle sync dev cards
+    mpClient.socket.on('sync-dev-cards', (data) => {
+        console.log('[matchmaking] sync-dev-cards:', data);
+        if (data && data.devCardHands) {
+            const myHand = data.devCardHands[myPlayerId] || [];
+            gameState.devHand = myHand;
+            updateDevHandDisplay();
+        }
+    });
+
+    // Handle player disconnected
+    mpClient.socket.on('player-disconnected', (data) => {
+        console.log('[matchmaking] player-disconnected:', data);
+        showMessage('⚠️ Гравець ' + (data.playerName || data.playerId) + ' відключився');
+    });
+
+    // Handle player returned
+    mpClient.socket.on('player-returned', (data) => {
+        console.log('[matchmaking] player-returned:', data);
+        showMessage('✅ Гравець ' + (data.playerName || data.playerId) + ' повернувся');
+    });
+
+    // Handle host disconnected
+    mpClient.socket.on('host-disconnected', (data) => {
+        console.log('[matchmaking] host-disconnected:', data);
     });
 
     // Send ready signal after a short delay to ensure connection is stable
@@ -6591,22 +7571,22 @@ function updatePlayersList(players) {
 }
 
 // ===== TURN ORDER PANEL (черга ходів) =====
-// Повертає { name, color } гравця за його id
+// Повертає { name, color, avatar } гравця за його id
 function getTurnPanelPlayerInfo(playerId) {
     // Соло-режим: єдиний гравець — «Ви» з кольором, обраним у меню
     if (!isMultiplayer && (playerId === myPlayerId || playerId === 'me')) {
-        return { name: 'Ви', color: myPlayerColor || 'red', iconIndex: null };
+        return { name: 'Ви', color: myPlayerColor || 'red', avatar: null };
     }
     const p = multiplayerClient && Array.isArray(multiplayerClient.players)
         ? multiplayerClient.players.find(pl => pl.id === playerId)
         : null;
     if (p) {
-        return { name: p.name || ('Гравець ' + String(playerId).slice(0, 4)), color: p.color || 'red', iconIndex: (p && typeof p.iconIndex === 'number') ? p.iconIndex : null };
+        return { name: p.name || ('Гравець ' + String(playerId).slice(0, 4)), color: p.color || 'red', avatar: (typeof p.avatar === 'number') ? p.avatar : null };
     }
     if (playerId === myPlayerId && myPlayerColor) {
-        return { name: 'Ви', color: myPlayerColor };
+        return { name: 'Ви', color: myPlayerColor, avatar: null };
     }
-    return { name: 'Гравець ' + String(playerId || '?').slice(0, 4), color: 'red' };
+    return { name: 'Гравець ' + String(playerId || '?').slice(0, 4), color: 'red', avatar: null };
 }
 
 // Кількість ПО гравця для панелі: для себе рахуємо локально, для інших — серверна синхронізація
@@ -6673,7 +7653,7 @@ function updateTurnOrderPanel() {
         // Той самий ключ і набір іконок, що й у профілі (splash.html): icon-0..icon-8
         let avIdx = parseInt(localStorage.getItem('avatarIcon'), 10);
         if (!Number.isInteger(avIdx) || avIdx < 0 || avIdx > 8) avIdx = 0;
-        const foreignIdx = (typeof info.iconIndex === 'number' && info.iconIndex >= 0 && info.iconIndex <= 8) ? info.iconIndex : null;
+        const foreignIdx = (typeof info.avatar === 'number' && info.avatar >= 0 && info.avatar <= 8) ? info.avatar : null;
         const useIdx = isMyCard ? avIdx : foreignIdx;
         if (useIdx !== null) {
             // Іконка профілю = сама іконка (без кружка), на весь слот аватара
@@ -6901,7 +7881,16 @@ function updateDicePhaseUI() {
         const isMe = playerId === myPlayerId;
         const div = document.createElement('div');
         div.style.cssText = 'padding: 10px; background: rgba(243,156,18,0.15); border: 2px solid #f39c12; border-radius: 8px; font-size: 1.1em;';
-        div.innerHTML = `<span style="color: ${isMe ? '#f1c40f' : '#fff'}; font-weight: ${isMe ? 'bold' : 'normal'};">${isMe ? 'Ви' : 'Гравець ' + playerId.slice(0, 4)}: ${total}</span>`;
+        // Отримуємо нік гравця
+        let playerName = 'Гравець ' + playerId.slice(0, 4);
+        if (multiplayerClient && multiplayerClient.players) {
+            const player = multiplayerClient.players.find(p => p.id === playerId);
+            if (player && player.name) {
+                playerName = player.name;
+            }
+        }
+        const displayName = isMe ? playerName + ' (ви)' : playerName;
+        div.innerHTML = `<span style="color: ${isMe ? '#f1c40f' : '#fff'}; font-weight: ${isMe ? 'bold' : 'normal'};">${displayName}: ${total}</span>`;
         results.appendChild(div);
     }
     
@@ -6964,7 +7953,16 @@ function onInitialBuildStart(data) {
             const isMe = player.playerId === myPlayerId;
             const div = document.createElement('div');
             div.style.cssText = `padding: 8px; background: ${isMe ? 'rgba(241,196,15,0.15)' : 'rgba(255,255,255,0.05)'}; border: 2px solid ${isMe ? '#f39c12' : 'rgba(255,255,255,0.1)'}; border-radius: 6px; font-size: 1em;`;
-            div.innerHTML = `<span style="color: ${isMe ? '#f1c40f' : '#fff'}; font-weight: ${isMe ? 'bold' : 'normal'};">${index + 1}. ${isMe ? 'Ви' : 'Гравець ' + player.playerId.slice(0, 4)}: ${player.total}</span>`;
+            // Отримуємо нік гравця
+            let playerName = 'Гравець ' + player.playerId.slice(0, 4);
+            if (multiplayerClient && multiplayerClient.players) {
+                const p = multiplayerClient.players.find(pl => pl.id === player.playerId);
+                if (p && p.name) {
+                    playerName = p.name;
+                }
+            }
+            const displayName = isMe ? playerName + ' (ви)' : playerName;
+            div.innerHTML = `<span style="color: ${isMe ? '#f1c40f' : '#fff'}; font-weight: ${isMe ? 'bold' : 'normal'};">${index + 1}. ${displayName}: ${player.total}</span>`;
             orderDiv.appendChild(div);
         });
     }
@@ -7550,7 +8548,7 @@ window.addEventListener('resize', () => {
 // Use event delegation on document so the handlers work even though the
 // game-over overlay HTML is defined AFTER this script block in the page.
 document.addEventListener('click', (e) => {
-    // Vote to restart the game
+    // Vote to restart the game (або «Реванш» у матчмейкінгу)
     if (e.target && e.target.id === 'voteRestartBtn') {
         audioManager.playClickSound();
         if (hasVotedRestart) return;
@@ -7561,8 +8559,10 @@ document.addEventListener('click', (e) => {
             voteBtn.disabled = true;
             voteBtn.style.opacity = '0.5';
             voteBtn.style.cursor = 'not-allowed';
-            voteBtn.textContent = '✅ Ви проголосували';
+            voteBtn.textContent = isMatchmakingMode ? '♻️ Ви підтвердили реванш' : '✅ Ви проголосували';
         }
+        // Позначаємо себе ✓ у списку (реванш)
+        markMyGameOverStatus('✅', '#27ae60');
         
         if (multiplayerClient && isMultiplayer) {
             // ===== NEW MAP GENERATION BY HOST ON RESTART =====
@@ -7614,11 +8614,42 @@ document.addEventListener('click', (e) => {
         return;
     }
     
+    // «Новий суперник» (тільки матчмейкінг): ставимо ✗, повертаємось у пошук
+    if (e.target && e.target.id === 'findNewOpponentBtn') {
+        audioManager.playClickSound();
+        // Позначаємо себе ✗ (шукаємо нового суперника)
+        markMyGameOverStatus('✗', '#e74c3c');
+
+        // Блокуємо всі кнопки цього вікна, показуємо статус пошуку
+        const voteBtn = document.getElementById('voteRestartBtn');
+        if (voteBtn) { voteBtn.disabled = true; voteBtn.style.opacity = '0.5'; voteBtn.style.cursor = 'not-allowed'; }
+        const selfBtn = document.getElementById('findNewOpponentBtn');
+        if (selfBtn) {
+            selfBtn.disabled = true;
+            selfBtn.style.opacity = '0.5';
+            selfBtn.style.cursor = 'not-allowed';
+            selfBtn.textContent = '🔎 Пошук нового суперника...';
+        }
+        const status = document.getElementById('restartVotesStatus');
+        if (status) { status.textContent = 'Пошук нового суперника...'; status.style.color = '#f1c40f'; }
+
+        // Надсилаємо серверу запит: вийти з кімнати і повернутись у чергу матчмейкінгу
+        if (multiplayerClient && multiplayerClient.socket) {
+            multiplayerClient.socket.emit('matchmaking-new-opponent', { roomCode: roomCode });
+        }
+        return;
+    }
+
     // Exit to splash screen - RETURN to the created room window (NOT room list, NOT leaving the room)
     if (e.target && e.target.id === 'gameOverExitBtn') {
         audioManager.playClickSound();
-        // Do NOT leave the room - the player is still connected to it
-        if (isMultiplayer && roomCode) {
+        // У матчмейкінгу «Вийти» = перехід у вікно вибору режиму (не в кімнату!)
+        if (isMatchmakingMode) {
+            if (multiplayerClient && multiplayerClient.socket) {
+                multiplayerClient.socket.emit('matchmaking-exit', { roomCode: roomCode });
+            }
+            window.location.href = 'splash.html';
+        } else if (isMultiplayer && roomCode) {
             window.location.href = 'splash.html?mode=multiplayer&code=' + encodeURIComponent(roomCode) + '&host=' + (isHost ? 'true' : 'false');
         } else {
             window.location.href = 'splash.html';
@@ -7657,10 +8688,13 @@ updateBuildStats = function() {
         
         <!-- Restart voting section -->
         <div id="restartVotingSection" style="margin-bottom: 20px; padding: 15px; background: rgba(243,156,18,0.08); border-radius: 10px; border: 1px solid rgba(243,156,18,0.2);">
-            <div style="color: #f39c12; font-size: 1.1em; margin-bottom: 10px; font-weight: bold;">🔄 ГОЛОСУВАННЯ ЗА РЕСТАРТ</div>
+            <div id="restartVotingTitle" style="color: #f39c12; font-size: 1.1em; margin-bottom: 10px; font-weight: bold;">🔄 ГОЛОСУВАННЯ ЗА РЕСТАРТ</div>
             <div id="restartVotesList" style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; text-align: left;"></div>
             <div id="restartVotesStatus" style="color: #aaa; font-size: 0.9em; margin-bottom: 10px;"></div>
-            <button id="voteRestartBtn" style="padding: 12px 30px; font-size: 1.1em; background: linear-gradient(135deg, #27ae60, #229954); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: all 0.2s;">✅ Зіграти ще раз</button>
+            <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                <button id="voteRestartBtn" style="padding: 12px 30px; font-size: 1.1em; background: linear-gradient(135deg, #27ae60, #229954); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: all 0.2s;">✅ Зіграти ще раз</button>
+                <button id="findNewOpponentBtn" style="display: none; padding: 12px 30px; font-size: 1.1em; background: linear-gradient(135deg, #3498db, #2980b9); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: all 0.2s;">🎲 Новий суперник</button>
+            </div>
         </div>
         
         <div style="display: flex; gap: 10px; justify-content: center;">

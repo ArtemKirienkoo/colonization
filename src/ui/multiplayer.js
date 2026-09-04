@@ -552,6 +552,14 @@ class MultiplayerClient {
         this._safeOn('host-disconnected', callback);
     }
 
+    onPlayerReturned(callback) {
+        this._safeOn('player-returned', callback);
+    }
+
+    // Handle room not found (rejoin failed)
+    onRoomNotFound(callback) {
+        this._safeOn('room-not-found', callback);
+    }
     // Sync victory points to server
     syncVP(vp) {
         this._logEmit('sync-vp', { roomCode: this.roomCode, playerId: this.socket.id, vp });

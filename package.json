@@ -34,12 +34,22 @@
       "artifactName": "${productName} Setup.${ext}",
       "differentialPackage": false
     },
-    "files": [
+        "files": [
       "src/**/*",
       "assets/**/*"
     ],
-    "extraResources": [],
-    "publish": null
+    "extraResources": [
+      {
+        "from": "assets/audio",
+        "to": "assets/audio",
+        "filter": ["**/*"]
+      }
+    ],
+    "publish": null,
+    "asar": true,
+    "asarUnpack": [
+      "assets/audio/**/*"
+    ]
   },
   "keywords": [
     "catan",

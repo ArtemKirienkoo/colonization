@@ -132,7 +132,8 @@ function createMatchmakingGame(player1, player2) {
         playerVP: new Map(),
         playerResources: new Map(),
         isMatchmaking: true, // Flag to identify matchmaking games
-        matchmakingReady: new Set() // Track which players are ready
+        matchmakingReady: new Set(), // Track which players are ready
+        matchmakingHandshakeDone: false // Стає true після того, як обидва гравці успішно підключились (rejoin)
     };
 
     rooms.set(roomCode, room);
@@ -2707,7 +2708,11 @@ io.on('connection', (socket) => {
     socket.on('rejoin-room', ({ roomCode, isHost, oldPlayerId, playerName }) => {
         console.log('[server] rejoin-room', { roomCode, isHost, oldPlayerId, socketId: socket.id });
         const room = rooms.get(roomCode);
-        if (!room) return;
+        if (!room) {
+            // Кімната не існула — повідомляємо клієнту, щоб він почав новий пошук
+            socket.emit('room-not-found', { roomCode });
+            return;
+        }
 
         // ===== Preserve the same player record on reconnect (NO duplicates) =====
         // 1) Основний шлях: прямий ремап за oldPlayerId (навігація splash -> index)
@@ -2757,11 +2762,24 @@ io.on('connection', (socket) => {
         clearDisconnectTimer(roomCode, oldPlayerId);
         clearDisconnectTimer(roomCode, socket.id);
         io.to(roomCode).emit('player-returned', {
-            playerId: socket.id
+            playerId: socket.id,
+            roomCode: roomCode
         });
 
         // Прибираємо "привиди" — ключі зі старих id, що лишились від попередніх підключень
         pruneGhostPlayerEntries(room);
+
+        // У матчмейкінгу: позначаємо, що гравець успішно пройшов handshake
+        // (обидва гравці мають завершити rejoin, перш ніж ми почнемо реагувати на дисконекти)
+        if (room.isMatchmaking && !room.matchmakingHandshakeDone) {
+            room.matchmakingReady.add('__rejoin_done_' + socket.id);
+            const doneKey = (id) => '__rejoin_done_' + id;
+            const allRejoined = room.players.every(p => room.matchmakingReady.has(doneKey(p.id)));
+            if (allRejoined) {
+                room.matchmakingHandshakeDone = true;
+                console.log('[server] Matchmaking handshake complete for room', roomCode);
+            }
+        }
 
         // 4) Останній засіб — створити новий запис (гравця, якого раніше в кімнаті
         //    не було взагалі). Використовуємо передане ім'я, а не дефолтне.
@@ -4321,6 +4339,73 @@ io.on('connection', (socket) => {
         socket.emit('matchmaking-left', { message: 'Пошук скасовано' });
     });
 
+    // «Новий суперник»: гравець виходить з поточної матчмейкінг-кімнати (після закінчення катки)
+    // і знову стає у чергу пошуку. Суперник отримує сповіщення matchmaking-opponent-left.
+    socket.on('matchmaking-new-opponent', ({ roomCode }) => {
+        const room = rooms.get(roomCode);
+        if (!room || !room.isMatchmaking) return;
+
+        const idx = room.players.findIndex(p => p.id === socket.id);
+        if (idx === -1) return;
+        const [leaver] = room.players.splice(idx, 1);
+        socket.leave(roomCode);
+
+        // Повідомляємо суперника, що гравець пішов шукати нового опонента
+        if (room.players.length > 0) {
+            io.to(roomCode).emit('matchmaking-opponent-left', {
+                leftPlayerId: leaver.id,
+                leftPlayerName: leaver.name || 'Гравець ' + leaver.id.slice(0, 4),
+                players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
+            });
+        } else {
+            rooms.delete(roomCode);
+            matchmakingGames.delete(roomCode);
+            clearAllDisconnectTimersForRoom(roomCode);
+        }
+
+        // Знову в чергу пошуку (портрет/нік беремо з запису кімнати, а не з акаунта)
+        removeFromMatchmakingQueue(socket.id);
+        matchmakingQueue.push({
+            socketId: socket.id,
+            playerName: leaver.name || 'Гравець',
+            avatar: (Number.isInteger(leaver.avatar) && leaver.avatar >= 0 && leaver.avatar <= 8) ? leaver.avatar : 0,
+            joinedAt: Date.now()
+        });
+        console.log('[matchmaking] Player requeued for new opponent:', socket.id, leaver.name, 'Queue size:', matchmakingQueue.length);
+        socket.emit('matchmaking-queued', { message: 'Пошук нового суперника...', queueSize: matchmakingQueue.length });
+
+        // Спробувати одразу зіставити з кимось, хто вже очікує
+        if (matchmakingQueue.length >= 2) {
+            const p1 = matchmakingQueue.shift();
+            const p2 = matchmakingQueue.shift();
+            createMatchmakingGame(p1, p2);
+        }
+    });
+
+    // «Вийти» з матчмейкінг-кімнати після катки: просто вихід, назад у чергу не повертається
+    socket.on('matchmaking-exit', ({ roomCode }) => {
+        const room = rooms.get(roomCode);
+        if (!room || !room.isMatchmaking) return;
+
+        const idx = room.players.findIndex(p => p.id === socket.id);
+        if (idx === -1) return;
+        const [leaver] = room.players.splice(idx, 1);
+        socket.leave(roomCode);
+
+        if (room.players.length > 0) {
+            io.to(roomCode).emit('matchmaking-opponent-left', {
+                leftPlayerId: leaver.id,
+                leftPlayerName: leaver.name || 'Гравець ' + leaver.id.slice(0, 4),
+                players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color }))
+            });
+        } else {
+            rooms.delete(roomCode);
+            matchmakingGames.delete(roomCode);
+            clearAllDisconnectTimersForRoom(roomCode);
+        }
+        io.emit('rooms-list', getRoomsList());
+    });
+
     // Handle matchmaking player ready (both players must be ready before host starts)
     socket.on('matchmaking-player-ready', ({ roomCode }) => {
         const room = rooms.get(roomCode);
@@ -4469,6 +4554,13 @@ io.on('connection', (socket) => {
             const playerIndex = room.players.findIndex(p => p.id === socket.id);
             if (playerIndex === -1) return;
             const player = room.players[playerIndex];
+
+            // МАТЧМЕЙКІНГ: доки обидва гравці не завершили початковий handshake (rejoin),
+            // ігноруємо дисконект — це нормальна навігація splash -> index
+            if (room.isMatchmaking && !room.matchmakingHandshakeDone) {
+                console.log('[server] Matchmaking: ignoring disconnect during handshake', { roomCode: code, socketId: socket.id });
+                return;
+            }
 
             // If host disconnects
             if (room.host === socket.id) {
