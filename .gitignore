@@ -7,3 +7,5 @@ release/
 .DS_Store
 Thumbs.db
 accounts.json
+
+_backup_signs_original/

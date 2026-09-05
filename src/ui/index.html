@@ -814,18 +814,28 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 3px;
-            padding: 8px 12px;
+            gap: 6px;
+            padding: 10px 14px;
             border-radius: 8px;
-            border: 2px solid;
-            min-width: 78px;
+            border: 2px solid rgba(243, 156, 18, 0.35);
+            background: rgba(0, 0, 0, 0.35);
+            min-width: 86px;
             transition: opacity 0.2s;
         }
-        .dev-buy-cost-item .res-icon { font-size: 1.4em; }
-        .dev-buy-cost-item .cost-name { font-size: 0.8em; color: #fff; font-weight: 600; }
-        .dev-buy-cost-item.geese-card { background: linear-gradient(135deg, #8fbc6a, #6d9e4a); border-color: #a8d48a; }
-        .dev-buy-cost-item.water-card { background: linear-gradient(135deg, #4a8fc2, #2e6d9e); border-color: #6aa8e0; }
-        .dev-buy-cost-item.stone-card { background: linear-gradient(135deg, #8a8d91, #6b6e72); border-color: #a5a8ac; }
+        .dev-buy-cost-item .res-icon {
+            width: 48px;
+            height: 66px;
+            border-radius: 4px;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+            display: block;
+        }
+        .dev-buy-cost-item.geese-card .res-icon { background-image: url('../../assets/textures/cards/res-geese.png'); }
+        .dev-buy-cost-item.water-card .res-icon { background-image: url('../../assets/textures/cards/res-water.png'); }
+        .dev-buy-cost-item.stone-card .res-icon { background-image: url('../../assets/textures/cards/res-stone.png'); }
+        .dev-buy-cost-item .cost-name { font-size: 0.82em; color: #fff; font-weight: 600; }
         .dev-buy-cost-item.insufficient { opacity: 0.35; filter: grayscale(0.8); }
 
         .yop-overlay {
@@ -1160,7 +1170,29 @@
         text-align: right;
     }
     .build-row.depleted .br-count { color: #e74c3c; }
-    .build-row .br-cost { flex-shrink: 0; font-size: 0.74em; opacity: 0.95; letter-spacing: -1px; white-space: nowrap; }
+    .build-row .br-cost {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        white-space: nowrap;
+    }
+    /* Міні-картки ресурсів у вартості будівництва (нові текстурки) */
+    .cost-card {
+        width: 16px;
+        height: 22px;
+        border-radius: 2px;
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+        display: inline-block;
+        filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+    }
+    .cost-card.res-wood   { background-image: url('../../assets/textures/cards/res-wood.png'); }
+    .cost-card.res-brick  { background-image: url('../../assets/textures/cards/res-brick.png'); }
+    .cost-card.res-geese  { background-image: url('../../assets/textures/cards/res-geese.png'); }
+    .cost-card.res-water  { background-image: url('../../assets/textures/cards/res-water.png'); }
+    .cost-card.res-stone  { background-image: url('../../assets/textures/cards/res-stone.png'); }
     .build-btn {
         flex-shrink: 0;
         width: 46px;
@@ -1178,9 +1210,9 @@
     .build-btn .btn-icon.cancel-icon-s { width: auto; height: auto; font-size: 1.3em; }
 
     /* Кубики: велика зона — тягнеться від НИЖНЬОЇ МЕЖІ вкладки «Будівництво» до кнопок.
-       Панель будівництва: top 278px + ~191px висоти = низ ~469px; колонка починається на 58px,
-       тому margin-top = 469 - 58 + ~27px запасу = 438px. Кубики + сума центровані по обох осях. */
-    .dice-area { flex: 1 1 auto; margin-top: 458px; justify-content: center; gap: 8px; padding: 8px 10px; min-height: 0; }
+       Панель будівництва (завжди відкрита): top 226px + 319px = низ ~545px; колонка починається на 58px,
+       тому margin-top = 545 - 58 + ~18px запасу = 505px. Кубики + сума центровані по обох осях. */
+    .dice-area { flex: 1 1 auto; margin-top: 505px; justify-content: center; gap: 8px; padding: 8px 10px; min-height: 0; }
     .dice-container { gap: 12px; }
     .die { width: 56px; height: 56px; font-size: 1.9em; border-radius: 10px; }
     .total { font-size: 1.1em; }
@@ -1229,77 +1261,60 @@
     .disconnect-box .dc-hint { font-size: 0.85em; color: #aaa; margin-top: 8px; }
     @keyframes dc-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
 
-    /* ===== COLLAPSIBLE SIDE PANELS (ВИВІСКИ) — обидві справа ===== */
-    /* Трекінги — вище, будівництво — нижче; у згорнутому стані панель повністю схована */
+    /* ===== БІЧНІ ВИВІСКИ — ЗАВЖДИ ВІДКРИТІ (без кнопок і висування) ===== */
+    /* Трекінги = МАЛА вивіска (sign-small-*, 440×284), будівництво = ВЕЛИКА (sign-big-*, ~400×540).
+       Вирізані по контуру з атласу a52d5212, тло прибране. Масштаб 0.55. */
     .side-panel-wrap {
         position: fixed;
-        right: 0;
+        right: 6px;
         z-index: 50;
-        transition: transform 0.35s ease;
     }
-    .side-panel-wrap.tracking-panel { top: 74px; }   /* трохи нижче: на рівні верху правої колонки */
-    .side-panel-wrap.building-panel { top: 278px; }  /* нижче, з чітким зазором від трекінгів */
-    .side-panel-wrap.collapsed { transform: translateX(105%); }
-
-    /* Кнопки-перемикачі = залізний наконечник на шості («стрілочка»).
-       Закрито — стирчить справа на краю екрана, вказуючи вліво (напрям висування).
-       Відкрито — кнопка НАКЛАДАЄТЬСЯ на деревяну вивіску в її лівому верхньому
-       куті (24px заходить на панель), а стрілочка повертається вправо = «закрий». */
-    .side-toggle-btn {
-        position: fixed;
-        right: 2px;
-        width: 40px; height: 31px;
-        z-index: 55;
-        background: url('../../assets/textures/menu/rod-tip-right.png') no-repeat center / contain;
-        filter: drop-shadow(0 2px 3px rgba(0,0,0,0.6));
-        cursor: pointer;
-        user-select: none;
-        transition: right 0.35s ease, transform 0.35s ease, filter 0.2s;
-    }
-    .side-toggle-btn:hover { filter: drop-shadow(0 2px 3px rgba(0,0,0,0.6)) brightness(1.35); }
-    #signTabLeft { top: 78px; }   /* на рівні верху вкладки «Трекінги» (панель top:74) */
-    #signTabRight { top: 282px; } /* на рівні верху вкладки «Будівництво» (панель top:278) */
-    .side-toggle-btn.open { right: 254px; transform: scaleX(-1); }
-
-    /* Будівництво: ВЕЛИКА вивіска на залізнім шесті (нарізана з a52d5212, чорний фон прибраний).
-       Фон задається в JS випадково (big-0/1/2); cover + center → деревина заповнює всю вкладку. */
-    .building-panel .side-panel-content {
-        background-image: url('../../assets/textures/menu/signs/big-0.png');
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-        width: 280px;
-        height: 210px;
-        padding: 14px 12px 10px;
-        gap: 5px;
-    }
-    .building-panel .build-panel { gap: 3px; }
-    .building-panel .build-row { padding: 0; gap: 6px; }
-    .building-panel .build-btn { padding: 2px 4px; }
-    .building-panel .build-btn .btn-icon { width: 20px; height: 15px; font-size: 0.9em; }
-    .building-panel .br-name { font-size: 0.82em; }
-    .building-panel .br-count { font-size: 0.76em; min-width: 32px; }
+    .side-panel-wrap.tracking-panel { top: 58px; }
+    .side-panel-wrap.building-panel { top: 226px; }
 
     .side-panel-content {
-        width: 280px; height: 190px;
-        background-size: cover; background-position: center; background-repeat: no-repeat;
-        box-shadow: 0 6px 18px rgba(0,0,0,0.55);
-        padding: 14px 12px 10px;
-        display: flex; flex-direction: column; gap: 5px;
-        overflow: hidden;
-    }
-    /* Трекінги: МАЛА вивіска на залізнім шесті (нарізана з a52d5212). Фон — випадково в JS (small-0/1/2). */
-    .tracking-panel .side-panel-content {
-        background-image: url('../../assets/textures/menu/signs/small-0.png');
-        background-size: cover;
+        position: relative;
+        background-size: 100% 100%;
         background-position: center;
         background-repeat: no-repeat;
-        height: 190px;
-        padding: 14px 12px 10px;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.55);
+        overflow: hidden;
     }
-    .tracking-panel .medal { padding: 3px 8px; gap: 6px; }
-    .tracking-panel .medal-icon { width: 30px; height: 30px; font-size: 1.05em; }
-    .tracking-panel .medal-stats { font-size: 0.8em; }
+    /* Трекінги: мала вивіска 440×284 → 242×156. Шіст зверху ~14% — текст тільки на дошці */
+    .tracking-panel .side-panel-content {
+        width: 242px;
+        height: 156px;
+        background-image: url('../../assets/textures/menu/signs/sign-small-0.png');
+    }
+    .tracking-panel .medals {
+        position: absolute;
+        top: 17%; left: 9%; right: 9%; bottom: 7%;
+        display: flex; flex-direction: column; justify-content: space-evenly; gap: 4px;
+    }
+    .tracking-panel .medal { padding: 2px 6px; gap: 6px; }
+    .tracking-panel .medal-icon { width: 28px; height: 28px; font-size: 1em; }
+    .tracking-panel .medal-title { font-size: 0.88em; }
+    .tracking-panel .medal-stats { font-size: 0.76em; }
+
+    /* Будівництво: велика вивіска ~400×540 → 240×319. Шіст зверху ~9% — текст тільки на дошці */
+    .building-panel .side-panel-content {
+        width: 240px;
+        height: 319px;
+        background-image: url('../../assets/textures/menu/signs/sign-big-0.png');
+    }
+    .building-panel .build-panel {
+        position: absolute;
+        top: 12%; left: 10%; right: 10%; bottom: 5%;
+        display: flex; flex-direction: column; justify-content: space-evenly; gap: 3px;
+    }
+    .building-panel .build-row { padding: 0; gap: 4px; }
+    .building-panel .build-row .br-name { font-size: 0.76em; }
+    .building-panel .build-row .br-count { font-size: 0.7em; min-width: 28px; }
+    .building-panel .build-row .br-cost { gap: 1px; }
+    .building-panel .build-row .cost-card { width: 12px; height: 16px; }
+    .building-panel .build-btn { padding: 2px 3px; }
+    .building-panel .build-btn .btn-icon { width: 18px; height: 14px; font-size: 0.85em; }
+
     .side-panel-content .medal-stats { font-size: 0.8em; }
     .side-panel-content .sp-row {
         display: flex; align-items: center; gap: 6px;
@@ -1508,9 +1523,9 @@
                 <h3>📜 Купівля карти розвитку</h3>
                 <p>Бажаєте купити карту розвитку?</p>
                 <div class="dev-buy-cost">
-                    <div class="dev-buy-cost-item geese-card" data-res="geese"><span class="res-icon">🦆</span><span class="cost-name">Гуси ×1</span></div>
-                    <div class="dev-buy-cost-item water-card" data-res="water"><span class="res-icon">💧</span><span class="cost-name">Вода ×1</span></div>
-                    <div class="dev-buy-cost-item stone-card" data-res="stone"><span class="res-icon">🪨</span><span class="cost-name">Камінь ×1</span></div>
+                    <div class="dev-buy-cost-item geese-card" data-res="geese"><span class="res-icon"></span><span class="cost-name">Гуси ×1</span></div>
+                    <div class="dev-buy-cost-item water-card" data-res="water"><span class="res-icon"></span><span class="cost-name">Вода ×1</span></div>
+                    <div class="dev-buy-cost-item stone-card" data-res="stone"><span class="res-icon"></span><span class="cost-name">Камінь ×1</span></div>
                 </div>
                 <div class="confirm-btns">
                     <button class="btn-yes" id="devBuyYes">✅ Так</button>
@@ -1532,13 +1547,9 @@
     </div>
 </div>
 
-<!-- ===== БОКОВІ ВИВІСКИ (трекінги + будівництво) — обидві справа ===== -->
-<!-- Маленькі кнопки-перемикачі: права збоку, кожна на рівні заголовка своєї вкладки -->
-<div class="side-toggle-btn" id="signTabLeft" data-title="Трекінги" title="Трекінги"></div>
-<div class="side-toggle-btn" id="signTabRight" data-title="Будівництво" title="Будівництво"></div>
-
+<!-- ===== БОКОВІ ВИВІСКИ (трекінги + будівництво) — завжди відкриті, справа ===== -->
 <!-- Вкладка трекінгів (справа, ВИЩЕ) -->
-<div class="side-panel-wrap panel-right tracking-panel collapsed" id="signPanelLeft">
+<div class="side-panel-wrap panel-right tracking-panel" id="signPanelLeft">
     <div class="side-panel-content" id="signContentLeft">
         <div class="medals">
             <div class="medal" id="medal-army">
@@ -1560,14 +1571,14 @@
 </div>
 
 <!-- Вкладка будівництва (справа, НИЖЧЕ) -->
-<div class="side-panel-wrap panel-right building-panel collapsed" id="signPanelRight">
+<div class="side-panel-wrap panel-right building-panel" id="signPanelRight">
     <div class="side-panel-content" id="signContentRight">
         <div class="build-panel">
             <div class="build-row">
                 <span class="btn-icon road-icon-s"></span>
                 <span class="br-name">Дорога</span>
                 <span class="br-count" id="stat-roads">0/15</span>
-                <span class="br-cost">🌲🧱</span>
+                <span class="br-cost"><span class="cost-card res-wood"></span><span class="cost-card res-brick"></span></span>
                 <div class="build-btn" data-mode="road" title="Будувати дорогу (дерево + цегла)"><span class="btn-icon road-icon-s"></span></div>
             </div>
             <div class="build-row">
@@ -1576,14 +1587,14 @@
                 </span>
                 <span class="br-name">Село</span>
                 <span class="br-count" id="stat-settlements">0/5</span>
-                <span class="br-cost">🌲🧱🦆💧</span>
+                <span class="br-cost"><span class="cost-card res-wood"></span><span class="cost-card res-brick"></span><span class="cost-card res-geese"></span><span class="cost-card res-water"></span></span>
                 <div class="build-btn" data-mode="settlement" title="Будувати село"><span class="btn-icon house-icon-s"></span></div>
             </div>
             <div class="build-row">
                 <span class="btn-icon city-icon-s"></span>
                 <span class="br-name">Місто</span>
                 <span class="br-count" id="stat-cities">0/4</span>
-                <span class="br-cost">💧💧🪨🪨🪨</span>
+                <span class="br-cost"><span class="cost-card res-water"></span><span class="cost-card res-water"></span><span class="cost-card res-stone"></span><span class="cost-card res-stone"></span><span class="cost-card res-stone"></span></span>
                 <div class="build-btn" data-mode="city" title="Будувати місто"><span class="btn-icon city-icon-s"></span></div>
             </div>
             <div class="build-row">
@@ -2182,12 +2193,13 @@ let mapData = null,
     vertexGeom = null, 
     allHexes = [];
 
-// Деревяна текстура для фону
+// Деревяна текстура для фону (стіл). Файл лежить у assets/textures/menu/
 let woodTextureImg = null;
 (function loadWoodTexture() {
     const img = new Image();
-    img.src = '../../assets/textures/af585fd8-a823-4e03-8b08-61ac4e772977.png';
+    img.src = '../../assets/textures/menu/af585fd8-a823-4e03-8b08-61ac4e772977.png';
     img.onload = function() { woodTextureImg = img; if (mapData) renderMap(mapData, canvas, mapHexSize); };
+    img.onerror = function() { console.warn('[BG] wooden table texture failed to load:', img.src); };
 })();
 
 // ===== ТЕКСТУРИ ГЕКСІВ =====
@@ -3047,7 +3059,7 @@ function renderMap(data, canvas, hexSize) {
             b = Math.round(b / count);
             ctx.save();
             drawHexPath(ctx, cx, cy, hexSize);
-            ctx.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',0.7)';
+            ctx.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',0.28)';
             ctx.fill();
             ctx.restore();
         }
@@ -3058,7 +3070,6 @@ function renderMap(data, canvas, hexSize) {
         ctx.textAlign='center';
         ctx.textBaseline='middle';
         if(num){
-            ctx.fillText(res.icon,cx,cy-hexSize*0.24);
             const tr=hexSize*0.24,tcx=cx,tcy=cy+hexSize*0.35;
             ctx.beginPath();
             ctx.arc(tcx+1.5,tcy+1.5,tr,0,Math.PI*2);
@@ -3178,7 +3189,9 @@ function renderMap(data, canvas, hexSize) {
             // Текстура дороги — малюється ОСТАННЬОЮ поверх усього
             const dxx=bx-ax, dyy=by-ay, rlen=Math.sqrt(dxx*dxx+dyy*dyy);
             const rang=Math.atan2(dyy,dxx);
-            const rw=rlen*0.55, rh=rw*(roadImg.naturalHeight/roadImg.naturalWidth);
+            // Висота дороги = ширина підкладки (hexSize*0.30), ширина = довжина ребра
+            const rh=hexSize*0.30;
+            const rw=rh*(roadImg.naturalWidth/roadImg.naturalHeight);
             ctx.save();
             ctx.translate((ax+bx)/2,(ay+by)/2);
             ctx.rotate(rang);
@@ -3244,11 +3257,12 @@ function renderMap(data, canvas, hexSize) {
             ctx.fill();
             // маркер по центру вершини, піднятий, щоб база стояла на точці
             ctx.drawImage(markerImg, vx - w / 2, vy - h * 0.82, w, h);
-            // Тонування в колір гравця (source-atop фарбує лише непрозорі пікселі маркера)
+            // Тонування в колір гравця: 'color' зберігає освітлення текстури, змінюючи відтінок
             if (playerColor) {
                 ctx.save();
-                ctx.globalCompositeOperation = 'source-atop';
+                ctx.globalCompositeOperation = 'color';
                 ctx.fillStyle = playerColor.primary;
+                ctx.globalAlpha = 0.65;
                 ctx.fillRect(vx - w / 2, vy - h * 0.82, w, h);
                 ctx.restore();
             }
@@ -6476,53 +6490,20 @@ function clearDisconnectTimer() {
 
 
 
-// ===== ВИВІСКИ НА ЗАЛІЗНИХ ШЕСТАХ (нарізані окремі текстурки, чорний фон прибраний) =====
-// Малі (для трекінгів) і великі (для будівництва) — 3 варіанти кожна, застосовуються ВИПАДКОВО.
+// ===== ВИВІСКИ НА ЗАЛІЗНИХ ШЕСТАХ (вирізані по контуру з атласу a52d5212) =====
+// Малі (трекінги) і великі (будівництво) — 3 варіанти кожна. РАНДОМ — при кожному вході в катку.
 const SIGN_GROUP_FILES = {
-    small: ['small-0.png', 'small-1.png', 'small-2.png'],
-    big:   ['big-0.png', 'big-1.png', 'big-2.png']
+    small: ['sign-small-0.png', 'sign-small-1.png', 'sign-small-2.png'],
+    big:   ['sign-big-0.png', 'sign-big-1.png', 'sign-big-2.png']
 };
-const signGroupUrls = {};
-(function preloadSignGroups() {
-    for (const group of ['small', 'big']) {
-        const base = '../../assets/textures/menu/signs/';
-        signGroupUrls[group] = SIGN_GROUP_FILES[group].map(f => base + f);
-        SIGN_GROUP_FILES[group].forEach(f => {
-            const im = new Image();
-            im.src = base + f;
-        });
-    }
+(function assignRandomSigns() {
+    const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+    const base = '../../assets/textures/menu/signs/';
+    const left = document.getElementById('signContentLeft');
+    const right = document.getElementById('signContentRight');
+    if (left) left.style.backgroundImage = "url('" + base + pick(SIGN_GROUP_FILES.small) + "')";
+    if (right) right.style.backgroundImage = "url('" + base + pick(SIGN_GROUP_FILES.big) + "')";
 })();
-function randomSignBackground(group) {
-    const arr = signGroupUrls[group];
-    const idx = Math.floor(Math.random() * arr.length);
-    return "url('" + arr[idx] + "')";
-}
-// Відкриття/закриття висувної вкладки + випадкова вивіска при відкритті + кнопка-«стрілочка»:
-function toggleSignPanel(panelId, btnId) {
-    const panel = document.getElementById(panelId);
-    const btn = btnId ? document.getElementById(btnId) : null;
-    if (!panel) return;
-    const opening = panel.classList.contains('collapsed');
-    panel.classList.toggle('collapsed');
-    if (opening) {
-        // Трекінги → мала вивіска, будівництво → велика; кожне відкриття — випадкова з 3.
-        const isLeft = panelId === 'signPanelLeft';
-        const group = isLeft ? 'small' : 'big';
-        const contentId = isLeft ? 'signContentLeft' : 'signContentRight';
-        const el = document.getElementById(contentId);
-        if (el) el.style.backgroundImage = randomSignBackground(group);
-    }
-    if (btn) {
-        btn.classList.toggle('open', opening);
-        btn.title = opening ? 'Закрити' : (btn.dataset.title || '');
-    }
-}
-document.getElementById('signTabLeft').addEventListener('click', () => toggleSignPanel('signPanelLeft', 'signTabLeft'));
-document.getElementById('signTabRight').addEventListener('click', () => toggleSignPanel('signPanelRight', 'signTabRight'));
-
-// Фонові текстури вивісок задаються випадково в JS (menu/signs/small-* та big-*),
-// тому окреме CSS-застосування більше не потрібне.
 
 // Текстура колоди карт розвитку (dev-0 = зворот колоди)
 function applyDevDeckTexture() {
@@ -7469,6 +7450,11 @@ function setupMatchmakingGameHandlers() {
     mpClient.socket.on('player-returned', (data) => {
         console.log('[matchmaking] player-returned:', data);
         showMessage('✅ Гравець ' + (data.playerName || data.playerId) + ' повернувся');
+        // Таймер зупиняється ЗРАЗУ при будь-якому поверненні
+        if (data && data.roomCode === roomCode && disconnectActivePlayerId) {
+            clearDisconnectTimer();
+            showMessage('✅ Гравець повернувся! Гра продовжується.');
+        }
     });
 
     // Handle host disconnected
