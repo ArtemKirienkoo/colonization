@@ -2770,14 +2770,17 @@ io.on('connection', (socket) => {
         pruneGhostPlayerEntries(room);
 
         // У матчмейкінгу: позначаємо, що гравець успішно пройшов handshake
-        // (обидва гравці мають завершити rejoin, перш ніж ми почнемо реагувати на дисконекти)
+        // (ВСІ ПІДКЛЮЧЕНІ гравці мають завершити rejoin, перш ніж ми почнемо реагувати на дисконекти.
+        //  Відключені гравці не враховуються — інакше handshake ніколи не завершиться,
+        //  якщо один із гравців ще не повернувся після навігації splash -> index)
         if (room.isMatchmaking && !room.matchmakingHandshakeDone) {
             room.matchmakingReady.add('__rejoin_done_' + socket.id);
             const doneKey = (id) => '__rejoin_done_' + id;
-            const allRejoined = room.players.every(p => room.matchmakingReady.has(doneKey(p.id)));
+            const connectedPlayers = room.players.filter(p => !p.disconnected);
+            const allRejoined = connectedPlayers.length > 0 && connectedPlayers.every(p => room.matchmakingReady.has(doneKey(p.id)));
             if (allRejoined) {
                 room.matchmakingHandshakeDone = true;
-                console.log('[server] Matchmaking handshake complete for room', roomCode);
+                console.log('[server] Matchmaking handshake complete for room', roomCode, 'connected:', connectedPlayers.length, 'total:', room.players.length);
             }
         }
 
