@@ -1278,8 +1278,8 @@
         background-position: center;
         background-repeat: no-repeat;
         overflow: hidden;
-        /* Трохи темніше й приглушеніш за фон, щоб вивіска не зливалася з дерев'яною стіною */
-        filter: brightness(0.84) saturate(0.94);
+        /* Тінь по alpha-контуру текстури (нерівні краї дошки та шіст) + легке затемнення, щоб вивіска не зливалася зі стіною */
+        filter: brightness(0.8) saturate(0.92) drop-shadow(0 3px 5px rgba(0, 0, 0, 0.65));
     }
     /* Трекінги: мала вивіска 440×284 → 242×156. Шіст зверху ~14% — текст тільки на дошці */
     .tracking-panel .side-panel-content {
