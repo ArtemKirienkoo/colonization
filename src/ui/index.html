@@ -91,19 +91,22 @@
         }
         .right-panel {
             position: absolute;
-            right: 14px;
+            /* Ширина й відступ = як у вкладок-вивісок (330px, right 6px) */
+            right: 6px;
             top: 58px;
             bottom: 12px;
-            width: 264px;
+            width: 330px;
             z-index: 6;
         }
         .bottom-left {
             position: absolute;
             left: 14px;
-            bottom: 180px;
+            /* Низ дошки в ~48px над краєм екрана; висота дошки — ПОЛОВИНА екрана,
+               перекладина зі стропами виходить приблизно на рівні центра */
+            bottom: 48px;
             z-index: 6;
             max-width: 330px;
-            max-height: 190px;
+            max-height: 50vh;
             overflow-y: auto;
         }
         .bottom-center {
@@ -277,24 +280,16 @@
             flex-shrink: 0;
         }
         .medal-icon.army-icon {
-            background: linear-gradient(135deg, #c0392b, #e74c3c);
+            /* Текстура карти «Рицар» (dev-1.png); градієнт — fallback, якщо текстура не завантажилась */
+            background: url('../../assets/textures/cards/dev-1.png') center / cover no-repeat,
+                        linear-gradient(135deg, #c0392b, #e74c3c);
             border: 2px solid #f1948a;
         }
         .medal-icon.road-icon {
-            background: linear-gradient(135deg, #d4a017, #f1c40f);
+            /* Текстура карти «Дорога» (dev-2.png); градієнт — fallback */
+            background: url('../../assets/textures/cards/dev-2.png') center / cover no-repeat,
+                        linear-gradient(135deg, #d4a017, #f1c40f);
             border: 2px solid #f7dc6f;
-            position: relative;
-            font-size: 0; /* ховаємо емодзі — дорогу малюємо CSS-брусками */
-        }
-        .medal-icon.road-icon::before {
-            content: ''; position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            width: 24px; height: 10px; background: #6B4226; border-radius: 2px; z-index: 1;
-        }
-        .medal-icon.road-icon::after {
-            content: ''; position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            width: 19px; height: 5px; background: #C4904A; border-radius: 1px; z-index: 2;
         }
         .medal-info { flex: 1; }
         .medal-title { font-size: 1em; color: #999; letter-spacing: 0.5px; }
@@ -465,23 +460,74 @@
             flex-shrink: 0;
             min-width: 0;
         }
+        /* Текстурний режим секції: залізна вивіска на шесті (sign-big-*, 300×506) як тло,
+            заввишки — ПІВ ЕКРАНА (50vh), ширина панелі 330 (текстура тягнеться 100%×100%,
+            як у вивіски трекінгів). Верхній паддінг 7.5vh перекриває перекладину зі стропами
+            (~13.8% висоти текстури), бокові — заклепки. Рука карт займає дошку і скролиться
+            всередині, якщо карт багато. */
+        .dev-section.textured {
+            background-color: transparent;
+            background-size: 100% 100%;
+            background-position: center;
+            background-repeat: no-repeat;
+            border: none;
+            border-radius: 0;
+            padding: 7.5vh 30px 20px;
+            width: 100%;
+            height: 50vh;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            filter: brightness(0.85) saturate(0.95) drop-shadow(0 3px 5px rgba(0, 0, 0, 0.65));
+        }
+        .dev-section.textured .dev-header { margin-bottom: 8px; flex: 0 0 auto; }
+        .dev-section.textured .buy-dev-btn { width: 100%; }
+        .dev-section.textured .dev-hand {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            align-content: flex-start;
+            scrollbar-width: none;
+        }
+        .dev-section.textured .dev-hand::-webkit-scrollbar { display: none; }
+        /* Заглушка, коли карт на руках нема (або всі використані): текст на місці карт */
+        .dev-hand-empty {
+            display: none;
+            flex: 1 1 auto;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: #e8e0d0;
+            font-size: 0.95em;
+            line-height: 1.45;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+            padding: 6px 4px;
+        }
 
         /* ===== DEV DECK (колода карт розвитку) ===== */
-        .dev-deck {
+        /* Обгортка: клік-зона «карта + число під нею», БЕЗ візуального прямокутника */
+        .dev-deck-wrap {
             display: flex;
             flex-direction: column;
             align-items: center;
             gap: 6px;
-            padding: 10px 8px;
-            background: rgba(13, 27, 42, 0.6);
-            border: 1px solid rgba(243, 156, 18, 0.25);
-            border-radius: 12px;
             cursor: pointer;
-            transition: all 0.2s;
             user-select: none;
             width: 100%;
         }
-        .dev-deck:hover { border-color: #f39c12; box-shadow: 0 0 14px rgba(243,156,18,0.3); transform: translateY(-2px); }
+        /* Зона ховеру = ТОЧНО контур карти: без паддінгу, тла й рамок; при наведенні
+            піднімається тільки сама карта */
+        .dev-deck {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0;
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            transition: transform 0.2s, filter 0.2s;
+        }
+        .dev-deck:hover { transform: translateY(-4px); filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.5)); }
         .dev-deck-back {
             width: 92px;
             height: 124px;
@@ -500,9 +546,10 @@
             border: 2px dashed rgba(247, 220, 111, 0.5);
             border-radius: 6px;
         }
+        /* Коли на звороті колоди намальована текстура (dev-0) — пунктирна рамка зайва */
+        .dev-deck-back.textured::before { display: none; }
         .dev-deck-icon { font-size: 2.4em; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.4)); position: relative; z-index: 1; }
-        .dev-deck-count { font-size: 1em; color: #f1c40f; font-weight: bold; }
-        .dev-deck-label { font-size: 0.78em; color: #ccc; text-align: center; line-height: 1.25; }
+        .dev-deck-count { font-size: 1em; color: #f1c40f; font-weight: bold; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75); }
         .dev-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; gap: 3px; flex-wrap: nowrap; }
         .dev-header h4 { font-size: 1em; color: #f39c12; letter-spacing: 0.5px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .buy-dev-btn { padding: 4px 8px !important; font-size: 0.85em !important; background: linear-gradient(135deg, #8e44ad, #7c3aed) !important; flex-shrink: 0; white-space: nowrap; transition: all 0.2s; }
@@ -1005,7 +1052,8 @@
         border-radius: 0 !important;
         padding: 0 !important;
     }
-    .dev-deck, .dev-section, .dice-area, .medal {
+    /* .dev-section прибрано звідси: секція «Мої карти розвитку» живе на текстурній вивісці (sign-dev-*) */
+    .dev-deck, .dice-area, .medal {
         background: transparent !important;
         border: none !important;
         box-shadow: none !important;
@@ -1045,11 +1093,10 @@
     }
 
     /* ===== ЛІВА КОЛОНКА: колода розвитку ===== */
-    .dev-deck { padding: 4px 2px; gap: 6px; width: 100%; }
+    .dev-deck-wrap { gap: 5px; width: 100%; }
+    .dev-deck { padding: 0; }
     .dev-deck-back { width: 110px; height: 148px; }
     .dev-deck-count { font-size: 1.05em; }
-    .dev-deck-label { font-size: 0.85em; color: #f3e9d2; text-shadow: 0 1px 3px rgba(0,0,0,0.75); }
-    .dev-deck-hint { font-size: 0.8em; color: #c9bda6; }
     .dev-section { padding: 2px 0; }
     .dev-hand { gap: 5px; }
     .dev-card-item { min-width: 66px; }
@@ -1209,10 +1256,10 @@
     .build-btn .btn-icon { width: 26px; height: 22px; }
     .build-btn .btn-icon.cancel-icon-s { width: auto; height: auto; font-size: 1.3em; }
 
-    /* Кубики: велика зона — тягнеться від НИЖНЬОЇ МЕЖІ вкладки «Будівництво» до кнопок.
-       Панель будівництва (завжди відкрита): top 226px + 319px = низ ~545px; колонка починається на 58px,
-       тому margin-top = 545 - 58 + ~18px запасу = 505px. Кубики + сума центровані по обох осях. */
-    .dice-area { flex: 1 1 auto; margin-top: 505px; justify-content: center; gap: 8px; padding: 8px 10px; min-height: 0; }
+    /* Кубики: велика зона — тягнеться від НИЖНЬОЇ МЕЖІ вкладки «Будівництво» до кнопок (на 60px нижча за попередню).
+       Панель будівництва (завжди відкрита): top 286px + 240px = низ ~526px; колонка починається на 58px,
+       тому margin-top = 526 - 58 + ~18px запасу = 486px. Кубики + сума центровані по обох осях. */
+    .dice-area { flex: 1 1 auto; margin-top: 486px; justify-content: center; gap: 8px; padding: 8px 10px; min-height: 0; }
     .dice-container { gap: 12px; }
     .die { width: 56px; height: 56px; font-size: 1.9em; border-radius: 10px; }
     .total { font-size: 1.1em; }
@@ -1262,15 +1309,15 @@
     @keyframes dc-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
 
     /* ===== БІЧНІ ВИВІСКИ — ЗАВЖДИ ВІДКРИТІ (без кнопок і висування) ===== */
-    /* Трекінги = МАЛА вивіска (sign-small-*, 440×284), будівництво = ВЕЛИКА (sign-big-*, ~400×540).
-       Вирізані по контуру з атласу a52d5212, тло прибране. Масштаб 0.55. */
+    /* Трекінги = МАЛА вивіска (sign-small-*, ~401×281), будівництво = ВЕЛИКА (sign-big-*, ~300×506).
+       Вирізані по контуру з атласу a52d5212, тло прибране. Ширина панелей 330px (текстура тягнеться 100%×100%). */
     .side-panel-wrap {
         position: fixed;
         right: 6px;
         z-index: 50;
     }
     .side-panel-wrap.tracking-panel { top: 58px; }
-    .side-panel-wrap.building-panel { top: 226px; }
+    .side-panel-wrap.building-panel { top: 286px; }
 
     .side-panel-content {
         position: relative;
@@ -1281,42 +1328,44 @@
         /* Тінь по alpha-контуру текстури (нерівні краї дошки та шіст) + легке затемнення, щоб вивіска не зливалася зі стіною */
         filter: brightness(0.8) saturate(0.92) drop-shadow(0 3px 5px rgba(0, 0, 0, 0.65));
     }
-    /* Трекінги: мала вивіска 440×284 → 242×156. Шіст зверху ~14% — текст тільки на дошці */
+    /* Трекінги: мала вивіска 401×281 → 330×216 (вища на 60px — рядкам більше повітря). Дошка починається з ~27.5% висоти — текст нижче, тільки на дошці */
     .tracking-panel .side-panel-content {
-        width: 254px;
-        height: 156px;
+        width: 330px;
+        height: 216px;
         background-image: url('../../assets/textures/menu/signs/sign-small-0.png');
     }
     .tracking-panel .medals {
         position: absolute;
-        top: 17%; left: 9%; right: 9%; bottom: 7%;
+        top: 31%; left: 9%; right: 9%; bottom: 7%;
         display: flex; flex-direction: column; justify-content: space-evenly; gap: 4px;
     }
-    .tracking-panel .medal { padding: 2px 6px; gap: 6px; }
-    .tracking-panel .medal-icon { width: 28px; height: 28px; font-size: 1em; }
-    .tracking-panel .medal-title { font-size: 0.88em; }
-    .tracking-panel .medal-stats { font-size: 0.76em; }
+    .tracking-panel .medal { padding: 2px 6px; gap: 8px; }
+    .tracking-panel .medal-icon { width: 34px; height: 34px; font-size: 1em; }
+    .tracking-panel .medal-title { font-size: 1.05em; }
+    .tracking-panel .medal-stats { font-size: 0.95em; }
 
-    /* Будівництво: велика вивіска ~400×540 → 240×319. Шіст зверху ~9% — текст тільки на дошці */
+    /* Будівництво: велика вивіска 300×506 → 330×240 (нижча вкладка). Дошка починається з ~14% висоти — текст нижче, тільки на дошці */
     .building-panel .side-panel-content {
-        width: 252px;
-        height: 319px;
+        width: 330px;
+        height: 240px;
         background-image: url('../../assets/textures/menu/signs/sign-big-0.png');
     }
     .building-panel .build-panel {
         position: absolute;
-        top: 12%; left: 10%; right: 10%; bottom: 5%;
-        display: flex; flex-direction: column; justify-content: space-evenly; gap: 3px;
+        top: 19%; left: 10%; right: 10%; bottom: 5%;
+        display: flex; flex-direction: column;
+        /* Рядки — компактною групою по центру дошки: фіксований проміжок 10px замість розтягування на всю дошку */
+        justify-content: center; gap: 10px;
     }
     .building-panel .build-row { padding: 0; gap: 4px; }
-    .building-panel .build-row .br-name { font-size: 0.76em; }
-    .building-panel .build-row .br-count { font-size: 0.7em; min-width: 28px; }
+    .building-panel .build-row .br-name { font-size: 0.88em; }
+    .building-panel .build-row .br-count { font-size: 0.82em; min-width: 32px; }
     .building-panel .build-row .br-cost { gap: 1px; }
     .building-panel .build-row .cost-card { width: 12px; height: 16px; }
     .building-panel .build-btn { padding: 2px 3px; }
     .building-panel .build-btn .btn-icon { width: 18px; height: 14px; font-size: 0.85em; }
 
-    .side-panel-content .medal-stats { font-size: 0.8em; }
+    /* .medal-stats тут НЕ обмежуємо: він є тільки в трекінгах, розмір задає .tracking-panel .medal-stats (0.95em) */
     .side-panel-content .sp-row {
         display: flex; align-items: center; gap: 6px;
         color: #eee; font-size: 0.85em; text-shadow: 0 1px 2px rgba(0,0,0,0.8);
@@ -1447,14 +1496,16 @@
             <div id="turnOrderList"></div>
         </div>
 
-        <!-- Зліва (після списку гравців): колода карт розвитку -->
+        <!-- Зліва (після списку гравців): колода карт розвитку.
+             Клік-зона — обгортка (карта + число); візуально «піднімається» тільки карта. -->
         <div class="left-panel">
-            <div class="dev-deck" id="devDeckBtn" title="Купити карту розвитку (гуси + вода + камінь)">
-                <div class="dev-deck-back">
-                    <span class="dev-deck-icon">📜</span>
+            <div class="dev-deck-wrap" id="devDeckBtn" title="Купити карту розвитку (гуси + вода + камінь)">
+                <div class="dev-deck">
+                    <div class="dev-deck-back">
+                        <span class="dev-deck-icon">📜</span>
+                    </div>
                 </div>
                 <div class="dev-deck-count" id="devDeckCount">25</div>
-                <div class="dev-deck-label">карти розвитку<br><span class="dev-deck-hint">(натисніть, щоб купити)</span></div>
             </div>
         </div>
 
@@ -1507,13 +1558,13 @@
             </div>
         </div>
 
-        <!-- Зліва знизу: всі карти на руках у гравця -->
+        <!-- Зліва знизу: всі карти на руках у гравця (без заголовка; заглушка, коли рука порожня) -->
         <div class="bottom-left">
-            <div class="dev-section">
+            <div class="dev-section" id="devSignSection">
                 <div class="dev-header">
-                    <h4>🃏 Мої карти розвитку <span id="dev-count" style="color:#aaa;font-weight:400;">(0)</span></h4>
                     <button class="buy-dev-btn" id="buyDevBtn">📜 Купити карту</button>
                 </div>
+                <div class="dev-hand-empty" id="devHandEmpty">Зараз у вас нема на руках карт розвитку</div>
                 <div class="dev-hand" id="devHand"></div>
             </div>
         </div>
@@ -1534,7 +1585,6 @@
                 </div>
             </div>
         </div>
-
     </div>
 </div>
 
@@ -1554,14 +1604,16 @@
     <div class="side-panel-content" id="signContentLeft">
         <div class="medals">
             <div class="medal" id="medal-army">
-                <div class="medal-icon army-icon">⚔️</div>
+                <!-- Іконка = текстура карти розвитку «Рицар» (dev-1) замість емодзі -->
+                <div class="medal-icon army-icon"></div>
                 <div class="medal-info">
                     <div class="medal-title">Військо</div>
                     <div class="medal-stats">Рицарів: <span class="medal-count" id="army-count">0</span>/<span id="army-threshold">3</span></div>
                 </div>
             </div>
             <div class="medal" id="medal-road">
-                <div class="medal-icon road-icon">🛤️</div>
+                <!-- Іконка = текстура карти розвитку «Дорога» (dev-2) замість емодзі -->
+                <div class="medal-icon road-icon"></div>
                 <div class="medal-info">
                     <div class="medal-title">Дорога</div>
                     <div class="medal-stats">Довжина: <span class="medal-count" id="road-count">0</span>/<span id="road-threshold">5</span></div>
@@ -1586,21 +1638,17 @@
                 <span class="btn-icon house-icon-s">
                     <span class="btn-icon house-icon-s-details"></span>
                 </span>
-                <span class="br-name">Село</span>
+                <span class="br-name">Поселення</span>
                 <span class="br-count" id="stat-settlements">0/5</span>
                 <span class="br-cost"><span class="cost-card res-wood"></span><span class="cost-card res-brick"></span><span class="cost-card res-geese"></span><span class="cost-card res-water"></span></span>
                 <div class="build-btn" data-mode="settlement" title="Будувати село"><span class="btn-icon house-icon-s"></span></div>
             </div>
             <div class="build-row">
                 <span class="btn-icon city-icon-s"></span>
-                <span class="br-name">Місто</span>
+                <span class="br-name">Замок</span>
                 <span class="br-count" id="stat-cities">0/4</span>
                 <span class="br-cost"><span class="cost-card res-water"></span><span class="cost-card res-water"></span><span class="cost-card res-stone"></span><span class="cost-card res-stone"></span><span class="cost-card res-stone"></span></span>
                 <div class="build-btn" data-mode="city" title="Будувати місто"><span class="btn-icon city-icon-s"></span></div>
-            </div>
-            <div class="build-row">
-                <span class="br-name" style="opacity:0.65;">Скасувати</span>
-                <div class="build-btn" data-mode="none" title="Скасувати режим будівництва"><span class="btn-icon cancel-icon-s">✕</span></div>
             </div>
         </div>
     </div>
@@ -2225,6 +2273,17 @@ let hexTextures = [];
     });
 })();
 
+// ===== ТЕКСТУРА ОКЕАНУ =====
+// Чистий океан (гекс-тайл pointy-top, як ігрові гекси) для морських гексів БЕЗ портів.
+// Чорний фон тайла прибрано і обріжано по контуру гекса (скрипт _clean_ocean.ps1).
+let oceanTexture = null;
+(function loadOceanTexture() {
+    const img = new Image();
+    img.src = '../../assets/textures/hexs/ocean-0.png';
+    img.onload = function() { oceanTexture = img; if (mapData) renderMap(mapData, canvas, mapHexSize); };
+    img.onerror = function() { console.warn('ocean texture failed: ' + img.src); };
+})();
+
 // ===== МАРКЕРИ ДОРОГИ / СЕЛА / ЗАМКУ (вирізані з ddf8e862, чорний фон прибраний) =====
 let markerTextures = {};
 (function loadMarkerTextures() {
@@ -2236,11 +2295,10 @@ let markerTextures = {};
     });
 })();
 
-// ===== ТЕКСТУРИ КАРТ РОЗВИТКУ (6: колода, рицар, достаток, монополія, дороги, ПО) =====
+// ===== ТЕКСТУРИ КАРТ РОЗВИТКУ (10: зворот колоди, рицар, дороги, достаток, ринок, універ, бібліотека, ратуша, собор, монополія) =====
 let devCardTextures = [];
 (function loadDevCardTextures() {
-    let loaded = 0;
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 10; i++) {
         const img = new Image();
         img.src = '../../assets/textures/cards/dev-' + i + '.png';
         img.onload = function() { devCardTextures[i] = img; };
@@ -2528,22 +2586,27 @@ function updateResourceCardsDisplay() {
     e('res-stone').textContent = gameState.resourceCards.stone; 
     updateDevHandDisplay(); 
 }
-// Маппінг типу карти розвитку на індекс текстури (dev-1..dev-5; dev-0 = колода)
-const DEV_CARD_TEX_MAP = { knight:1, plenty:2, monopoly:3, roads:4, vp:5 };
+// Маппінг типу карти розвитку на індекс текстури (dev-0 = зворот колоди, dev-1..dev-9 — лиця:
+// рицар, дороги, рік достатку, ринок, універ, бібліотека, ратуша, собор, монополія)
+const DEV_CARD_TEX_MAP = { knight:1, roads:2, plenty:3, vp_market:4, vp_university:5, vp_library:6, vp_townhall:7, vp_cathedral:8, monopoly:9 };
 function updateDevHandDisplay() {
     const hand = document.getElementById('devHand'); hand.innerHTML = '';
     const deckCount = isMultiplayer ? devDeckRemaining : gameState.devDeck.length;
-    document.getElementById('dev-count').textContent = '(' + deckCount + ')';
     const deckCountEl = document.getElementById('devDeckCount');
     if (deckCountEl) deckCountEl.textContent = deckCount;
     const buyBtn = document.getElementById('buyDevBtn'), cards = gameState.resourceCards;
     const canBuy = cards.stone>=1 && cards.geese>=1 && cards.water>=1 && gameState.devDeck.length>0;
     buyBtn.classList.toggle('disabled', !canBuy);
     buyBtn.classList.toggle('enabled', canBuy);
+    let visibleCards = 0;
     for (let i = 0; i < gameState.devHand.length; i++) {
-        const card = gameState.devHand[i], info = getDevCardInfo(card.type);
+        const card = gameState.devHand[i];
+        // Використана карта повністю ЗНИКАЄ з панелі (не сіріє)
+        if (card.used) continue;
+        visibleCards++;
+        const info = getDevCardInfo(card.type);
         const div = document.createElement('div');
-        div.className = 'dev-card-item dev-card-textured '+info.cls+(card.used?' used':'');
+        div.className = 'dev-card-item dev-card-textured '+info.cls;
         const texIdx = DEV_CARD_TEX_MAP[card.type];
         const tex = (texIdx != null) ? devCardTextures[texIdx] : null;
         if (tex && tex.complete && tex.naturalWidth > 0) {
@@ -2552,9 +2615,14 @@ function updateDevHandDisplay() {
             div.style.backgroundPosition = 'center';
         }
         div.innerHTML = '<span class="dc-icon">'+info.icon+'</span><span class="dc-name">'+info.name+'</span>';
-        if (!card.used) div.addEventListener('click', () => confirmActivateDevCard(i));
+        div.addEventListener('click', () => confirmActivateDevCard(i));
         hand.appendChild(div);
     }
+    // Заглушка «нема карт» — показуємо, коли рука порожня або всі карти використані
+    const hasCards = visibleCards > 0;
+    const emptyEl = document.getElementById('devHandEmpty');
+    if (emptyEl) emptyEl.style.display = hasCards ? 'none' : 'flex';
+    hand.style.display = hasCards ? 'flex' : 'none';
 }
 function updateAllUI() { updateResourceCardsDisplay(); updateBuildStats(); updateDevHandDisplay(); }
 
@@ -2912,6 +2980,23 @@ function hexBoundingBox(cx, cy, s) {
     for (const p of corners) { if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; }
     return { x:minX, y:minY, w:maxX-minX, h:maxY-minY };
 }
+// Малює текстуру чистого океану на гексі. Тайл обріжаний точно по гексу, фон прибрано
+// (_clean_ocean.ps1), тому тягнемо його РІВНО в бокс ігрового гекса: золота рамка тайла
+// лягає точно на контур плитки і стикується із сусідами. Clip лишаємо як страховку.
+function drawOcean(ctx,cx,cy,s) {
+    ctx.save();
+    drawHexPath(ctx,cx,cy,s);
+    ctx.clip();
+    if (oceanTexture && oceanTexture.complete && oceanTexture.naturalWidth > 0) {
+        const bbox = hexBoundingBox(cx, cy, s);
+        ctx.drawImage(oceanTexture, bbox.x, bbox.y, bbox.w, bbox.h);
+    } else {
+        // Fallback — стара плоска заливка, якщо текстура не завантажилась
+        ctx.fillStyle = '#152a40';
+        ctx.fillRect(cx - s, cy - s, s * 2, s * 2);
+    }
+    ctx.restore();
+}
 function markPortCorners(ctx,cx,cy,hs,pc,pc2){
     const c=hexCorners(cx,cy,hs),r=hs*0.12;
     if(!pc)return;
@@ -2958,20 +3043,12 @@ function renderMap(data, canvas, hexSize) {
     
     for(const h of data.ring3){
         const p=hexToPixel(h,hexSize),cx=p.x+ox,cy=p.y+oy,info=data.ocean.get(hexKey(h));
-        drawHexPath(ctx,cx,cy,hexSize);
         if(info.type==='ocean'){
-            ctx.fillStyle='#152a40';
-            ctx.fill();
-            ctx.strokeStyle='#0d1b2a';
-            ctx.lineWidth=2;
-            ctx.stroke();
-            ctx.fillStyle='rgba(255,255,255,0.04)';
-            for(let w=0;w<3;w++){
-                ctx.beginPath();
-                ctx.arc(cx+(w-1)*9,cy+5,5,0,Math.PI*2);
-                ctx.fill();
-            }
+            // Чистий океан (без портів) — текстурна плитка з золотою рамкою, як у ленд-гексів
+            drawOcean(ctx,cx,cy,hexSize);
         }else{
+            // Під портами — плоска морська заливка (рамка/написи портів малюються поверх нижче)
+            drawHexPath(ctx,cx,cy,hexSize);
             ctx.fillStyle='#152a40';
             ctx.fill();
         }
@@ -3985,7 +4062,13 @@ function setBuildMode(mode){
 }
 document.querySelectorAll('.build-btn').forEach(b=>{
     b.addEventListener('click',()=>{
-        audioManager.playBuildSound();setBuildMode(b.dataset.mode);
+        audioManager.playBuildSound();
+        // Повторний клік по активній кнопці знімає вибір (toggle-режим)
+        if(b.classList.contains('active')){
+            setBuildMode('none');
+        }else{
+            setBuildMode(b.dataset.mode);
+        }
     });
 });
 function isInitialPhaseComplete() {
@@ -6417,6 +6500,8 @@ function registerMultiplayerHandlers(client) {
     // Кімната не знайдена (не існує більше) — повертаємось у меню для нового пошуку
     client.onRoomNotFound((data) => {
         console.log('Room not found:', data);
+        // Кімната мертва — забуваємо її код, інакше splash знову кинє нас у неї
+        clearMatchmakingSession();
         showMessage('🚫 Кімнату не знайдено. Повертаємось у меню...');
         setTimeout(() => {
             window.location.href = 'splash.html';
@@ -6436,6 +6521,8 @@ function registerMultiplayerHandlers(client) {
     client.onRoomClosed((data) => {
         console.log('Room closed:', data);
         clearDisconnectTimer();
+        // Кімната закрита — забуваємо її код (автоповернення вже неможливе)
+        clearMatchmakingSession();
         showMessage('🚪 ' + ((data && data.message) || 'Кімнату закрито') + '. Повертаємось у меню...');
         // Прибираємо оверлей завершення гри, якщо він відкритий
         const gameOverOverlay = document.getElementById('gameOverOverlay');
@@ -6489,13 +6576,25 @@ function clearDisconnectTimer() {
     if (overlay) overlay.style.display = 'none';
 }
 
+// Підчищує sessionStorage від ключів завершеної/мертвої матчмейкінг-катки.
+// Без цього splash при кожному кліку «Грати з людиною» кидав гравця назад
+// у стару (уже неіснуючу) кімнату — петля room-not-found замість пошуку.
+function clearMatchmakingSession() {
+    try {
+        ['matchmakingRoomCode', 'matchmakingPlayerColor', 'matchmakingOpponent',
+         'matchmakingPlayers', 'matchmakingMapSeed'].forEach(k => sessionStorage.removeItem(k));
+    } catch (e) { /* ігноруємо */ }
+}
+
 
 
 // ===== ВИВІСКИ НА ЗАЛІЗНИХ ШЕСТАХ (вирізані по контуру з атласу a52d5212) =====
-// Малі (трекінги) і великі (будівництво) — 3 варіанти кожна. РАНДОМ — при кожному вході в катку.
+// Малі (трекінги) і великі (будівництво + «Мої карти розвитку» — ті самі 3 ГОТОВІ великі вивіски).
+// РАНДОМ — при кожному вході в катку.
 const SIGN_GROUP_FILES = {
     small: ['sign-small-0.png', 'sign-small-1.png', 'sign-small-2.png'],
-    big:   ['sign-big-0.png', 'sign-big-1.png', 'sign-big-2.png']
+    big:   ['sign-big-0.png', 'sign-big-1.png', 'sign-big-2.png'],
+    dev:   ['sign-big-0.png', 'sign-big-1.png', 'sign-big-2.png']
 };
 (function assignRandomSigns() {
     const pick = arr => arr[Math.floor(Math.random() * arr.length)];
@@ -6504,12 +6603,18 @@ const SIGN_GROUP_FILES = {
     const right = document.getElementById('signContentRight');
     if (left) left.style.backgroundImage = "url('" + base + pick(SIGN_GROUP_FILES.small) + "')";
     if (right) right.style.backgroundImage = "url('" + base + pick(SIGN_GROUP_FILES.big) + "')";
+    const devSec = document.getElementById('devSignSection');
+    if (devSec) {
+        devSec.classList.add('textured');
+        devSec.style.backgroundImage = "url('" + base + pick(SIGN_GROUP_FILES.dev) + "')";
+    }
 })();
 
 // Текстура колоди карт розвитку (dev-0 = зворот колоди)
 function applyDevDeckTexture() {
     const back = document.querySelector('.dev-deck-back');
     if (back && devCardTextures[0] && devCardTextures[0].complete && devCardTextures[0].naturalWidth > 0) {
+        back.classList.add('textured');
         back.style.backgroundImage = "url('../../assets/textures/cards/dev-0.png')";
         back.style.backgroundSize = 'cover';
         back.style.backgroundPosition = 'center';
@@ -6893,6 +6998,83 @@ function showMatchmakingOpponentLeft(data) {
         status.textContent = (data.leftPlayerName || 'Суперник') + ' пішов шукати нового суперника';
         status.style.color = '#e74c3c';
     }
+}
+
+// ===== ВІКНО ПОШУКУ НОВОГО СУПЕРНИКА (після «Новий суперник») =====
+// Гравець має СПОЧАТКУ побачити вікно підбору (як на splash-екрані), потім
+// «Суперника знайдено!» пару секунд — і лише тоді обох кидає в нову катку.
+let mmSearchShownAt = 0;
+let mmFoundNavTimer = null;
+const MM_MIN_SEARCH_MS = 1500; // мін. час показу вікна пошуку (навіть якщо матч знайдено миттєво)
+const MM_FOUND_SHOW_MS = 2000; // скільки показувати «Суперника знайдено!» перед переходом
+
+function showMmSearchOverlay() {
+    mmSearchShownAt = Date.now();
+    if (mmFoundNavTimer) { clearTimeout(mmFoundNavTimer); mmFoundNavTimer = null; }
+    const overlay = document.getElementById('mmSearchOverlay');
+    if (!overlay) return;
+    const searchState = document.getElementById('mmSearchState');
+    const foundState = document.getElementById('mmFoundState');
+    if (searchState) searchState.style.display = 'block';
+    if (foundState) foundState.style.display = 'none';
+    const statusEl = document.getElementById('mmSearchStatus');
+    if (statusEl) statusEl.textContent = 'Пошук суперника...';
+    const queueEl = document.getElementById('mmSearchQueue');
+    if (queueEl) queueEl.textContent = 'Гравців у черзі: 1';
+    // Приховуємо вікно завершення гри — пошук тепер у власному вікні
+    const goOverlay = document.getElementById('gameOverOverlay');
+    if (goOverlay) goOverlay.style.display = 'none';
+    overlay.style.display = 'flex';
+}
+
+function hideMmSearchOverlay() {
+    const overlay = document.getElementById('mmSearchOverlay');
+    if (overlay) overlay.style.display = 'none';
+    if (mmFoundNavTimer) { clearTimeout(mmFoundNavTimer); mmFoundNavTimer = null; }
+}
+
+function onMmMatchFound(data) {
+    // Заповнюємо дані суперника у стані «знайдено»
+    const colorMap = { red: '#e74c3c', blue: '#3498db', yellow: '#f1c40f', green: '#27ae60' };
+    const colorNames = { red: 'Червоний', blue: 'Синій', yellow: 'Жовтий', green: 'Зелений' };
+    const myColorEl = document.getElementById('mmFoundMyColor');
+    const oppNameEl = document.getElementById('mmFoundOppName');
+    const oppColorEl = document.getElementById('mmFoundOppColor');
+    const oppBoxEl = document.getElementById('mmFoundOppColorBox');
+    if (myColorEl) myColorEl.textContent = colorNames[data.yourColor] || '';
+    if (oppNameEl) oppNameEl.textContent = (data.opponent && data.opponent.name) || 'Суперник';
+    if (oppColorEl) oppColorEl.textContent = colorNames[data.opponent && data.opponent.color] || '';
+    if (oppBoxEl) oppBoxEl.style.background = colorMap[data.opponent && data.opponent.color] || '#888';
+
+    const overlay = document.getElementById('mmSearchOverlay');
+    const searchVisible = overlay && overlay.style.display !== 'none';
+    if (!searchVisible) {
+        // Вікно пошуку не відкрите (наприклад, подія прилетіла раніше) — йдемо одразу
+        navigateToNewMatch(data.roomCode);
+        return;
+    }
+    // Мін. час у стані «Пошук...», потім «Знайдено» на 2 с — і тільки тоді навігація
+    const searchingFor = Date.now() - mmSearchShownAt;
+    const remainSearch = Math.max(0, MM_MIN_SEARCH_MS - searchingFor);
+    if (mmFoundNavTimer) clearTimeout(mmFoundNavTimer);
+    mmFoundNavTimer = setTimeout(() => {
+        const searchState = document.getElementById('mmSearchState');
+        const foundState = document.getElementById('mmFoundState');
+        if (searchState) searchState.style.display = 'none';
+        if (foundState) foundState.style.display = 'block';
+        mmFoundNavTimer = setTimeout(() => navigateToNewMatch(data.roomCode), MM_FOUND_SHOW_MS);
+    }, remainSearch);
+}
+
+function navigateToNewMatch(roomCode) {
+    if (!roomCode) return;
+    hideMmSearchOverlay();
+    const overlay = document.getElementById('gameOverOverlay');
+    if (overlay) overlay.style.display = 'none';
+    document.body.classList.remove('is-paused');
+    try { audioManager.stopVictoryTheme(); } catch (e) {}
+    try { audioManager.stopDefeatTheme(); } catch (e) {}
+    window.location.href = 'index.html?mode=matchmaking&code=' + encodeURIComponent(roomCode);
 }
 
 // ===== SINGLE PLAYER INITIAL PHASE =====
@@ -7321,24 +7503,24 @@ function setupMatchmakingGameHandlers() {
         console.log('[matchmaking] Requeued for new match:', data);
         const status = document.getElementById('restartVotesStatus');
         if (status) status.textContent = (data && data.message) || 'Пошук нового суперника...';
+        // Оновлюємо і окреме вікно пошуку (якщо воно відкрите)
+        const mmStatus = document.getElementById('mmSearchStatus');
+        if (mmStatus) mmStatus.textContent = (data && data.message) || 'Пошук суперника...';
+        const mmQueue = document.getElementById('mmSearchQueue');
+        if (mmQueue) mmQueue.textContent = 'Гравців у черзі: ' + ((data && data.queueSize) || 1);
         // Позначаємо себе ✗ у списку
         markMyGameOverStatus('✗', '#e74c3c');
     });
 
-    // Знайдено нового суперника — одразу навігуємо в нову катку
+    // Знайдено нового суперника — показуємо «знайдено» у вікні пошуку,
+    // тримаємо пару секунд і ЛИШЕ ТОДІ навігуємось у нову катку
     mpClient.socket.on('matchmaking-found', (data) => {
         console.log('[matchmaking] Found new opponent (after requeue):', data);
         if (data && data.roomCode) {
             sessionStorage.setItem('matchmakingRoomCode', data.roomCode);
             sessionStorage.setItem('matchmakingPlayerColor', data.yourColor || 'red');
             if (data.opponent) sessionStorage.setItem('matchmakingOpponent', JSON.stringify(data.opponent));
-            // Приховати гейм-овер оверлей і перейти в новий матч
-            const overlay = document.getElementById('gameOverOverlay');
-            if (overlay) overlay.style.display = 'none';
-            document.body.classList.remove('is-paused');
-            audioManager.stopVictoryTheme();
-            audioManager.stopDefeatTheme();
-            window.location.href = 'index.html?mode=matchmaking&code=' + encodeURIComponent(data.roomCode);
+            onMmMatchFound(data);
         }
     });
 
@@ -7468,28 +7650,12 @@ function setupMatchmakingGameHandlers() {
         mpClient.socket.emit('matchmaking-player-ready', { roomCode: roomCode });
     }, 1000);
 
-    // Fallback: if game hasn't started after 15 seconds, try to start anyway
-    setTimeout(() => {
-        if (!matchmakingStarted && isHost) {
-            console.log('[matchmaking] Fallback: forcing game start');
-            matchmakingStarted = true;
-
-            const mapData = generateMap();
-            const topology = window.gameState?.topology || null;
-            const serializedMapData = serializeMapForServer(mapData);
-
-            mpClient.socket.emit('matchmaking-start-game', {
-                roomCode: roomCode,
-                mapData: serializedMapData,
-                topology: topology ? {
-                    edges: Array.from(topology.edges.entries()),
-                    vertices: Array.from(topology.vertices.entries())
-                } : null
-            });
-
-            sessionStorage.setItem('matchmakingMapSeed', JSON.stringify(serializedMapData));
-        }
-    }, 15000);
+    // ВАЖЛИВО: жодних «fallback через 15 с» — гра стартує ЛИШЕ коли ОБИДВА
+    // гравці надіслали matchmaking-player-ready (сервер тоді шле can-start хосту).
+    // Старий 15-секундний fallback запускав гру без суперника, який ще
+    // підключався: в одного вже була фаза кубиків, а інший стояв у вікні
+    // «Підключення». Завислі кімнати (суперник так і не підключився) закриває
+    // серверний watchdog handshake через 2 хвилини (room-closed -> у меню).
 }
 
 // Handle multiplayer actions
@@ -8624,6 +8790,22 @@ document.addEventListener('click', (e) => {
         if (multiplayerClient && multiplayerClient.socket) {
             multiplayerClient.socket.emit('matchmaking-new-opponent', { roomCode: roomCode });
         }
+        // Відкриваємо окреме вікно пошуку (як у splash): «Пошук...» →
+        // «Суперника знайдено!» (2 с) → і лише ТОДІ перехід у нову катку.
+        // Без цього миттєвий матч «промтом» перекидав обох у гру без вікна підбору.
+        showMmSearchOverlay();
+        return;
+    }
+
+    // Скасування пошуку нового суперника: лишаємо чергу, повертаємось у вікно завершення
+    if (e.target && e.target.id === 'mmSearchCancelBtn') {
+        audioManager.playClickSound();
+        if (multiplayerClient && multiplayerClient.socket) {
+            multiplayerClient.socket.emit('leave-matchmaking');
+        }
+        hideMmSearchOverlay();
+        const goOverlay = document.getElementById('gameOverOverlay');
+        if (goOverlay) goOverlay.style.display = 'flex';
         return;
     }
 
@@ -8635,6 +8817,9 @@ document.addEventListener('click', (e) => {
             if (multiplayerClient && multiplayerClient.socket) {
                 multiplayerClient.socket.emit('matchmaking-exit', { roomCode: roomCode });
             }
+            // Гра завершена і ми свідомо виходимо — забуваємо код кімнати, щоб
+            // splash не кидав нас назад у цю катку при наступному вході
+            clearMatchmakingSession();
             window.location.href = 'splash.html';
         } else if (isMultiplayer && roomCode) {
             window.location.href = 'splash.html?mode=multiplayer&code=' + encodeURIComponent(roomCode) + '&host=' + (isHost ? 'true' : 'false');
@@ -8686,6 +8871,39 @@ updateBuildStats = function() {
         
         <div style="display: flex; gap: 10px; justify-content: center;">
             <button id="gameOverExitBtn" style="padding: 12px 30px; font-size: 1.1em; background: linear-gradient(135deg, #e74c3c, #c0392b); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: all 0.2s;">🚪 Вийти</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MATCHMAKING SEARCH OVERLAY (пошук нового суперника після катки) ===== -->
+<div id="mmSearchOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 4100; justify-content: center; align-items: center;">
+    <div style="background: rgba(26,26,46,0.98); border: 3px solid #3498db; border-radius: 20px; padding: 40px; text-align: center; max-width: 500px; box-shadow: 0 0 50px rgba(52,152,219,0.5);">
+        <!-- Стан: пошук -->
+        <div id="mmSearchState">
+            <div style="font-size: 3em; margin-bottom: 10px;">🔎</div>
+            <h2 style="color: #3498db; margin-bottom: 15px; font-size: 1.8em;">ПОШУК НОВОГО СУПЕРНИКА</h2>
+            <div id="mmSearchStatus" style="color: #ccc; font-size: 1.1em; margin-bottom: 10px;">Пошук суперника...</div>
+            <div id="mmSearchQueue" style="color: #888; font-size: 0.9em; margin-bottom: 25px;">Гравців у черзі: 1</div>
+            <button id="mmSearchCancelBtn" style="padding: 10px 26px; font-size: 1em; background: linear-gradient(135deg, #e74c3c, #c0392b); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: all 0.2s;">Скасувати</button>
+        </div>
+        <!-- Стан: суперника знайдено -->
+        <div id="mmFoundState" style="display: none;">
+            <div style="font-size: 3em; margin-bottom: 10px;">🎲</div>
+            <h2 style="color: #27ae60; margin-bottom: 20px; font-size: 1.8em;">СУПЕРНИКА ЗНАЙДЕНО!</h2>
+            <div style="display: flex; justify-content: center; align-items: center; gap: 30px; margin-bottom: 20px;">
+                <div style="text-align: center;">
+                    <div style="width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 10px; background: #f1c40f;"></div>
+                    <div style="color: #f1c40f; font-weight: bold;">Ви</div>
+                    <div id="mmFoundMyColor" style="color: #888; font-size: 0.9em;"></div>
+                </div>
+                <div style="font-size: 2em; color: #f39c12;">VS</div>
+                <div style="text-align: center;">
+                    <div id="mmFoundOppColorBox" style="width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 10px; background: #888;"></div>
+                    <div id="mmFoundOppName" style="color: #f1c40f; font-weight: bold;">Суперник</div>
+                    <div id="mmFoundOppColor" style="color: #888; font-size: 0.9em;"></div>
+                </div>
+            </div>
+            <div style="color: #27ae60; font-size: 1.1em;">Запуск гри...</div>
         </div>
     </div>
 </div>

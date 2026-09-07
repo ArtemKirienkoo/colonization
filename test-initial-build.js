@@ -112,13 +112,17 @@ async function runScenario(name, opts) {
     console.log('  matched, room=' + roomCode + ' A color=' + fa.yourColor);
 
     // --- 2. "Навігація": splash-сокети гинуть, гра-сторінка відкриває НОВІ сокети + rejoin ---
+    // ВАЖЛИВО: id знімаємо ДО disconnect — після disconnect() socket.id у
+    // socket.io-client стає undefined (реальний клієнт так само зберігає
+    // multiplayerPlayerId заздалегідь, поки сокет ще живий).
+    const a1Id = a1.id, b1Id = b1.id;
     a1.disconnect(); b1.disconnect();
     await sleep(100);
     const errors = [];
     const a2 = await connect(); attach(a2, 'A', errors);
     const b2 = await connect(); attach(b2, 'B', errors);
-    a2.emit('rejoin-room', { roomCode, isHost: true, oldPlayerId: fa.yourColor === 'red' ? a1.id : b1.id, playerName: 'Alice' });
-    b2.emit('rejoin-room', { roomCode, isHost: false, oldPlayerId: fa.yourColor === 'red' ? b1.id : a1.id, playerName: 'Bob' });
+    a2.emit('rejoin-room', { roomCode, isHost: true, oldPlayerId: fa.yourColor === 'red' ? a1Id : b1Id, playerName: 'Alice' });
+    b2.emit('rejoin-room', { roomCode, isHost: false, oldPlayerId: fa.yourColor === 'red' ? b1Id : a1Id, playerName: 'Bob' });
     await sleep(300);
 
     // --- 3. Гравці готові (гра-сторінка шле ready через 1с після setup) ---

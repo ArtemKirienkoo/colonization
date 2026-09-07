@@ -45,6 +45,33 @@ function removeFromMatchmakingQueue(socketId) {
     }
 }
 
+// Знайти незавершену катку, прив'язану до цього гравця:
+//   1) точний збіг за сокетом (гравець досі у кімнаті);
+//   2) збіг за іменем серед ВІДКЛЮЧЕНИХ гравців (новий сокет після
+//      перезапуску гри/вкладки — sessionStorage втратив код кімнати).
+// ВАЖЛИВО: пошук за іменем вмикається ЛИШЕ для явного find-active-room
+// (свідома перевірка у splash перед пошуком). У join-matchmaking він
+// ВИМКНЕНИЙ: інакше застаріла кімната з таким самим ніком назавжди
+// блокувала б новий пошук (гравця кидало в мертву катку замість черги).
+function findActiveRoomForPlayer(socketId, playerName, allowNameLookup) {
+    for (const room of rooms.values()) {
+        if (room.status === 'game-over') continue;
+        // Матчмейкінг-кімната ще у handshake (гра не стартувала) — теж АКТИВНА:
+        // без цього гравець із «вислої» навігації ставав у чергу вдруге, а перша
+        // кімната залишалася висіти до страхувального таймера handshake.
+        if (!room.gamePhase && !room.isMatchmaking) continue;
+        if (room.players.some(p => p.id === socketId)) return room;
+    }
+    if (allowNameLookup && playerName) {
+        for (const room of rooms.values()) {
+            if (room.status === 'game-over' || !room.gamePhase) continue;
+            const mine = room.players.find(p => p.id !== socketId && p.disconnected === true && p.name === playerName);
+            if (mine) return room;
+        }
+    }
+    return null;
+}
+
 // Try to match a player with another waiting player
 function tryMatchmaking(socketId) {
     // Remove current player from queue if already there
@@ -150,6 +177,20 @@ function createMatchmakingGame(player1, player2) {
         player1Id: player1.socketId,
         player2Id: player2.socketId
     });
+
+    // Страхувальний таймер handshake: якщо за 2 хвилини жоден із гравців так і
+    // не підключився до кімнати (rejoin) — закриваємо її. Раніше клієнт-хост мав
+    // 15-секундний fallback, який стартував гру БЕЗ суперника, що ще підключався:
+    // в одного вже була фаза кубиків, а інший стояв у вікні «Підключення».
+    // Тепер гра стартує ЛИШЕ коли обидва ready, а «завислу» кімнату прибирає
+    // цей серверний таймер (клієнти отримають room-closed і повернуться у меню).
+    room.handshakeTimer = setTimeout(() => {
+        const current = rooms.get(roomCode);
+        if (!current || current.matchmakingHandshakeDone || current.status === 'game-over') return;
+        console.log('[matchmaking] Handshake timeout, closing room', roomCode);
+        closeRoomAutomatically(roomCode, 'Суперник не підключився до гри');
+        matchmakingGames.delete(roomCode);
+    }, 2 * 60 * 1000);
 
     console.log('[matchmaking] Game created:', roomCode, 'Players:', player1.playerName, '(red)', 'vs', player2.playerName, '(blue)');
 
@@ -2758,6 +2799,18 @@ io.on('connection', (socket) => {
             }
         }
 
+        // 4) ЗАХИСТ ВІД «ПРИМАРА»: поки гра триває (gamePhase встановлено) нових
+        //    учасників у кімнаті не буває — rejoin-room емітять лише ті, хто
+        //    повертається. Якщо запис не знайдено, це застарілий ідентифікатор
+        //    (перезапуск гри), а НЕ новий гравець. Раніше тут створювався новий
+        //    запис — саме звідси третій «неіснуючий» гравець (вікно
+        //    «Очікування гравців... (2/3)», кидки кубика від примари тощо).
+        if (!existingPlayer && (room.gamePhase || room.players.length >= (room.maxPlayers || 4))) {
+            console.log('[server] rejoin-room: game in progress, no matching entry — rejecting (ghost guard)', { roomCode, socketId: socket.id, oldPlayerId });
+            socket.emit('room-not-found', { roomCode, reason: 'no-player-entry' });
+            return;
+        }
+
         // Гравець повернувся — скасовуємо таймери очікування повернення
         clearDisconnectTimer(roomCode, oldPlayerId);
         clearDisconnectTimer(roomCode, socket.id);
@@ -2780,8 +2833,24 @@ io.on('connection', (socket) => {
             const allRejoined = connectedPlayers.length > 0 && connectedPlayers.every(p => room.matchmakingReady.has(doneKey(p.id)));
             if (allRejoined) {
                 room.matchmakingHandshakeDone = true;
+                // Обидва успішно у кімнаті — страховий таймер handshake більше не потрібен
+                if (room.handshakeTimer) { clearTimeout(room.handshakeTimer); room.handshakeTimer = null; }
                 console.log('[server] Matchmaking handshake complete for room', roomCode, 'connected:', connectedPlayers.length, 'total:', room.players.length);
             }
+        }
+
+        // Синхронізація дисконнекту суперника: broadcast 'player-disconnected'
+        // міг прилетіти ДО того, як цей сокет взагалі з'явився у кімнаті
+        // (навігація splash -> index), і гравець його не побачив — через це
+        // таймер очікування суперника не запускався одразу. Якщо суперник
+        // зараз відключений — повідомляємо щойно підключеного гравця особисто.
+        const goneOpponent = room.players.find(p => p.id !== socket.id && p.disconnected === true);
+        if (goneOpponent && room.status !== 'game-over') {
+            socket.emit('player-disconnected', {
+                playerId: goneOpponent.id,
+                playerName: goneOpponent.name,
+                graceSeconds: Math.round(DISCONNECT_GRACE_MS / 1000)
+            });
         }
 
         // 4) Останній засіб — створити новий запис (гравця, якого раніше в кімнаті
@@ -3173,6 +3242,12 @@ io.on('connection', (socket) => {
         const room = rooms.get(roomCode);
         if (!room || room.gamePhase !== 'dice-roll') return;
         
+        // Кидати може лише РЕАЛЬНИЙ учасник кімнати і лише від свого імені:
+        // кидок «примари» ламав лічильник («Очікування гравців... (2/3)»),
+        // порядок початкового будівництва і блокував старт катки.
+        if (playerId !== socket.id) return;
+        if (!room.players.some(p => p.id === socket.id)) return;
+        
         // Validate dice values (1-6 each)
         if (die1 < 1 || die1 > 6 || die2 < 1 || die2 > 6) return;
         
@@ -3313,6 +3388,10 @@ io.on('connection', (socket) => {
     socket.on('regular-dice-roll', ({ roomCode, playerId, die1, die2 }) => {
         const room = rooms.get(roomCode);
         if (!room || room.gamePhase !== 'regular-turn') return;
+        
+        // Лише реальний учасник кімнати і лише від свого імені (захист від «примар»)
+        if (playerId !== socket.id) return;
+        if (!room.players.some(p => p.id === socket.id)) return;
         
         // Verify it's this player's turn
         const currentPlayerId = room.turnOrder[room.currentTurnIndex];
@@ -4241,16 +4320,19 @@ io.on('connection', (socket) => {
             const playerIndex = room.players.findIndex(p => p.id === socket.id);
             if (playerIndex !== -1) {
                 const wasHost = room.host === socket.id;
+                const gameInProgress = !!room.gamePhase && room.status !== 'game-over';
 
-                // If host left, delete room and notify all players.
-                // Хозяїн вийшов з кімнати — кімната зникає автоматично.
-                if (wasHost) {
+                // Хозяїн вийшов з кімнати ДО початку гри (лобі) — кімната зникає автоматично.
+                // У матчмейкінгу ПІД ЧАС катки хозяїн рівноцінний звичайному гравцю:
+                // у нього є 1 хвилина на повернення, а таймер у суперника запускається
+                // ЗРАЗУ (а не після якоїсь дії або миттєвого закриття кімнати).
+                if (wasHost && !(room.isMatchmaking && gameInProgress)) {
                     io.to(roomCode).emit('room-closed', {
                         message: 'Хозяїн вийшов з кімнати'
                     });
                     rooms.delete(roomCode);
                     clearAllDisconnectTimersForRoom(roomCode);
-                } else if (room.gamePhase && room.status !== 'game-over') {
+                } else if (gameInProgress) {
                     // Гра триває: гравець, що вийшов, має 1 хвилину, щоб повернутися
                     // через rejoin-room. Якщо не повернеться — катку буде завершено
                     // автоматично (кімната закриється).
@@ -4258,6 +4340,7 @@ io.on('connection', (socket) => {
                     leaver.disconnected = true;
                     io.to(roomCode).emit('player-disconnected', {
                         playerId: socket.id,
+                        playerName: leaver.name,
                         graceSeconds: Math.round(DISCONNECT_GRACE_MS / 1000)
                     });
                     scheduleDisconnectTimeout(room, leaver, socket.id);
@@ -4308,6 +4391,24 @@ io.on('connection', (socket) => {
     socket.on('join-matchmaking', ({ playerName, avatar }) => {
         console.log('[matchmaking] Player joining queue:', socket.id, playerName);
 
+        // Гравець уже сидить у незавершеній катці САМЕ ЦИМ сокетом (двійний
+        // клік тощо) — не ставимо його у чергу, а повертаємо прямо у катку.
+        // Пошук за іменем тут СВІДОМО вимкнений (3-й аргумент false):
+        // застаріла кімната з таким самим ніком не повинна блокувати новий пошук.
+        const activeRoom = findActiveRoomForPlayer(socket.id, playerName, false);
+        if (activeRoom) {
+            const me = activeRoom.players.find(p => p.id === socket.id);
+            console.log('[matchmaking] Player has an active room, returning:', activeRoom.code);
+            socket.emit('active-room-found', {
+                roomCode: activeRoom.code,
+                isMatchmaking: !!activeRoom.isMatchmaking,
+                isHost: activeRoom.host === socket.id || !!(me && me.isHost === true),
+                color: (me && me.color) || null,
+                gamePhase: activeRoom.gamePhase || null
+            });
+            return;
+        }
+
         // Remove from queue if already there
         removeFromMatchmakingQueue(socket.id);
 
@@ -4340,6 +4441,29 @@ io.on('connection', (socket) => {
         console.log('[matchmaking] Player leaving queue:', socket.id);
         removeFromMatchmakingQueue(socket.id);
         socket.emit('matchmaking-left', { message: 'Пошук скасовано' });
+    });
+
+    // Перевірка «чи є у мене незавершена катка» перед стартом нового пошуку.
+    // Splash викликає це при вході в режим: якщо гравець був підключений у катку,
+    // яка ще не завершилась — клієнт одразу кидає його назад у неї (rejoin).
+    socket.on('find-active-room', ({ playerName }) => {
+        // allowNameLookup = true: явна перевірка у splash — шукаємо і за сокетом,
+        // і за іменем серед відключених (повернення після перезапуску гри)
+        const room = findActiveRoomForPlayer(socket.id, playerName, true);
+        if (room) {
+            const me = room.players.find(p => p.id === socket.id)
+                || room.players.find(p => p.disconnected === true && p.name === playerName);
+            console.log('[matchmaking] Active room found for player:', room.code, 'player:', playerName);
+            socket.emit('active-room-found', {
+                roomCode: room.code,
+                isMatchmaking: !!room.isMatchmaking,
+                isHost: room.host === socket.id || !!(me && me.isHost === true),
+                color: (me && me.color) || null,
+                gamePhase: room.gamePhase || null
+            });
+        } else {
+            socket.emit('no-active-room', { playerName: playerName || null });
+        }
     });
 
     // «Новий суперник»: гравець виходить з поточної матчмейкінг-кімнати (після закінчення катки)
@@ -4623,6 +4747,7 @@ io.on('connection', (socket) => {
                 if (!wasAlreadyMarked) {
                     socket.to(code).emit('player-disconnected', {
                         playerId: socket.id,
+                        playerName: player.name,
                         graceSeconds: Math.round(DISCONNECT_GRACE_MS / 1000)
                     });
                 }

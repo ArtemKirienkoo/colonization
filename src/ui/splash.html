@@ -2063,6 +2063,13 @@
         let matchmakingPlayerColor = null;
 
         function setupMatchmakingHandlers() {
+            // Хендлери прив'язуються до ПОТОЧНОГО сокета. Повторний клік по кнопці
+            // створює нове з'єднання (новий сокет) — тоді прив'язуємо заново;
+            // якщо сокет той самий — НЕ дублюємо обробники (інакше подвійна навігація).
+            if (!mpClient || !mpClient.socket) return;
+            if (mpClient.socket.__mmHandlersBound) return;
+            mpClient.socket.__mmHandlersBound = true;
+
             // Handle matchmaking queued
             mpClient.socket.on('matchmaking-queued', (data) => {
                 console.log('[matchmaking] Queued:', data);
@@ -2122,6 +2129,18 @@
             mpClient.socket.on('matchmaking-left', (data) => {
                 console.log('[matchmaking] Left queue:', data);
                 document.getElementById('matchmakingModal').style.display = 'none';
+            });
+
+            // Сервер знайшов незавершену катку гравця замість постановки у чергу
+            // (відповідь на find-active-room / join-matchmaking) — повертаємось у неї
+            mpClient.socket.on('active-room-found', (data) => {
+                console.log('[matchmaking] Active room found, returning to game:', data);
+                if (!data || !data.roomCode) return;
+                sessionStorage.setItem('matchmakingRoomCode', data.roomCode);
+                if (data.color) sessionStorage.setItem('matchmakingPlayerColor', data.color);
+                document.getElementById('matchmakingModal').style.display = 'none';
+                document.getElementById('loading').classList.add('active');
+                window.location.href = 'index.html?mode=matchmaking&code=' + encodeURIComponent(data.roomCode);
             });
         }
 
@@ -2214,7 +2233,7 @@
         document.getElementById('singlePlayerBtn').addEventListener('click', async () => {
             audioManager.playClickSound();
 
-            // Перевіряємо, чи є у гравця активна матчмейкінг-гра (повторний вхід)
+            // (1) Швидкий шлях: у поточній сесії є активна матчмейкінг-катка — одразу у неї
             const activeMatchCode = sessionStorage.getItem('matchmakingRoomCode');
             if (activeMatchCode) {
                 // Гра активна — повертаємось в неї замість нового пошуку
@@ -2223,8 +2242,10 @@
                 return;
             }
 
-            // Show matchmaking modal
+            // Вікно пошуку показуємо одразу — у ньому ж видно статус перевірки
             document.getElementById('matchmakingModal').style.display = 'flex';
+            const matchmakingMessage = document.getElementById('matchmakingMessage');
+            if (matchmakingMessage) matchmakingMessage.textContent = 'Перевірка активної гри...';
 
             try {
                 // Get cloud server URL
@@ -2234,10 +2255,7 @@
                 // Connect to server
                 await initMultiplayer(serverUrl);
 
-                // Setup matchmaking event handlers
-                setupMatchmakingHandlers();
-
-                // Join matchmaking queue
+                // Нік/аватар: акаунтний, інакше гостьовий
                 let profileNick = 'Гравець';
                 let avatar = 0;
                 try {
@@ -2246,6 +2264,55 @@
                     avatar = (acc && Number.isInteger(acc.avatar)) ? acc.avatar : 0;
                 } catch (e) {}
 
+                // (2) Серверний шлях: катка ще триває, але сесія нова (перезапуск
+                // гри/вкладки) — питаємо сервер, чи є незавершена катка цього гравця.
+                // Якщо є — сервер шле active-room-found і ми кидаємо гравця прямо у неї.
+                const resumed = await new Promise((resolve) => {
+                    let settled = false;
+                    let guard = null;
+                    const finish = (val) => {
+                        if (settled) return;
+                        settled = true;
+                        clearTimeout(guard);
+                        try { mpClient.socket.off('active-room-found', onFound); } catch (e) {}
+                        try { mpClient.socket.off('no-active-room', onNone); } catch (e) {}
+                        resolve(val);
+                    };
+                    const onFound = (data) => {
+                        if (data && data.roomCode) {
+                            sessionStorage.setItem('matchmakingRoomCode', data.roomCode);
+                            if (data.color) sessionStorage.setItem('matchmakingPlayerColor', data.color);
+                            finish(true);
+                        } else {
+                            finish(false);
+                        }
+                    };
+                    const onNone = () => finish(false);
+                    mpClient.socket.on('active-room-found', onFound);
+                    mpClient.socket.on('no-active-room', onNone);
+                    // Страхування: старий сервер без події find-active-room не відповість —
+                    // через 8 с просто йдемо у звичайний пошук, щоб гравець не виснував
+                    guard = setTimeout(() => finish(false), 8000);
+                    mpClient.socket.emit('find-active-room', { playerName: profileNick });
+                });
+
+                if (resumed) {
+                    console.log('[matchmaking] Resuming unfinished game');
+                    if (matchmakingMessage) matchmakingMessage.textContent = 'Активну гру знайдено — повертаємось у катку...';
+                    document.getElementById('loading').classList.add('active');
+                    window.location.href = 'index.html?mode=matchmaking&code=' + encodeURIComponent(sessionStorage.getItem('matchmakingRoomCode'));
+                    return;
+                }
+
+                // (3) Активної катки немає — звичайний пошук суперника
+                // Setup matchmaking event handlers
+                setupMatchmakingHandlers();
+
+                if (matchmakingMessage) matchmakingMessage.textContent = 'Пошук противника...';
+                const queueCountEl = document.getElementById('queueCount');
+                if (queueCountEl) queueCountEl.textContent = '1';
+
+                // Join matchmaking queue
                 mpClient.socket.emit('join-matchmaking', {
                     playerName: profileNick,
                     avatar: avatar
