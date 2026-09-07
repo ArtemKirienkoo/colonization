@@ -2295,6 +2295,20 @@ let markerTextures = {};
     });
 })();
 
+// ===== ВІДТІНКОВІ ТЕКСТУРИ ДОРІГ / СЕЛ / ЗАМКІВ (скачані спрайти, 4 кольори гравців) =====
+// buildingTextures[kind][color] -> Image; kind ∈ road/house/castle
+let buildingTextures = { road: {}, house: {}, castle: {} };
+(function loadBuildingTextures() {
+    ['red', 'blue', 'yellow', 'green'].forEach(color => {
+        ['road', 'house', 'castle'].forEach(kind => {
+            const img = new Image();
+            img.src = '../../assets/textures/markers/tex-' + kind + '-' + color + '.png';
+            img.onload = function() { buildingTextures[kind][color] = img; if (mapData) renderMap(mapData, canvas, mapHexSize); };
+            img.onerror = function() { console.warn('building texture failed: ' + kind + '-' + color); };
+        });
+    });
+})();
+
 // ===== ТЕКСТУРИ КАРТ РОЗВИТКУ (10: зворот колоди, рицар, дороги, достаток, ринок, універ, бібліотека, ратуша, собор, монополія) =====
 let devCardTextures = [];
 (function loadDevCardTextures() {
@@ -3252,16 +3266,21 @@ function renderMap(data, canvas, hexSize) {
         const ax=edge.va.x+ox,ay=edge.va.y+oy,bx=edge.vb.x+ox,by=edge.vb.y+oy;
         const playerColor = roadData.color ? getPlayerColor(roadData.color) : null;
         const baseColor = playerColor || {primary:'#6B4226',secondary:'#C4904A',dark:'#3c1e0a',light:'#8B6914'};
-        const roadImg = markerTextures.road;
+        // Відтінкова текстура дороги (скачані спрайти) — вищий пріоритет, без кольорової підкладки (підсвітки)
+        const tintedRoad = (roadData.color && buildingTextures.road && buildingTextures.road[roadData.color]) ? buildingTextures.road[roadData.color] : null;
+        const roadImg = (tintedRoad && tintedRoad.complete && tintedRoad.naturalWidth > 0) ? tintedRoad : markerTextures.road;
         const hasRoadTex = roadImg && roadImg.complete && roadImg.naturalWidth > 0;
+        const useTinted = hasRoadTex && (roadImg === tintedRoad);
 
-        // Підкладка кольором гравця (видно, чия дорога) — малюється ЗАВЖДИ
-        ctx.lineWidth=hexSize*0.30;
-        ctx.beginPath();
-        ctx.moveTo(ax,ay);
-        ctx.lineTo(bx,by);
-        ctx.strokeStyle=baseColor.primary;
-        ctx.stroke();
+        // Підкладка кольором гравця — малюється ЗАВЖДИ (крім відтінкової текстури, вона вже пофарбована)
+        if (!useTinted) {
+            ctx.lineWidth=hexSize*0.30;
+            ctx.beginPath();
+            ctx.moveTo(ax,ay);
+            ctx.lineTo(bx,by);
+            ctx.strokeStyle=baseColor.primary;
+            ctx.stroke();
+        }
 
         if (hasRoadTex) {
             // Текстура дороги — малюється ОСТАННЬОЮ поверх усього
@@ -3321,8 +3340,12 @@ function renderMap(data, canvas, hexSize) {
         if(!vert)continue;
         const vx=vert.pos.x+ox,vy=vert.pos.y+oy;
         const playerColor = bld.color ? getPlayerColor(bld.color) : null;
+        const kindKey = (bld.type === 'city') ? 'castle' : 'house';
         const markerKey = (bld.type === 'settlement') ? 'settlement' : (bld.type === 'city' ? 'castle' : null);
-        const markerImg = markerKey ? markerTextures[markerKey] : null;
+        // Відтінкова текстура (скачані спрайти) — вищий пріоритет, без кольорового томування (підсвітки)
+        const tintedBld = (bld.color && buildingTextures[kindKey] && buildingTextures[kindKey][bld.color]) ? buildingTextures[kindKey][bld.color] : null;
+        const markerImg = (tintedBld && tintedBld.complete && tintedBld.naturalWidth > 0) ? tintedBld : (markerKey ? markerTextures[markerKey] : null);
+        const useTintedBld = markerImg && (markerImg === tintedBld);
         if (markerImg && markerImg.complete && markerImg.naturalWidth > 0) {
             const s = (bld.type === 'city') ? hexSize * 0.66 : hexSize * 0.56;
             const ar = markerImg.naturalHeight / markerImg.naturalWidth;
@@ -3335,8 +3358,8 @@ function renderMap(data, canvas, hexSize) {
             ctx.fill();
             // маркер по центру вершини, піднятий, щоб база стояла на точці
             ctx.drawImage(markerImg, vx - w / 2, vy - h * 0.82, w, h);
-            // Тонування в колір гравця: 'color' зберігає освітлення текстури, змінюючи відтінок
-            if (playerColor) {
+            // Тонування в колір гравця лише для старого fallback-маркера (без відтінкової текстури)
+            if (playerColor && !useTintedBld) {
                 ctx.save();
                 ctx.globalCompositeOperation = 'color';
                 ctx.fillStyle = playerColor.primary;
