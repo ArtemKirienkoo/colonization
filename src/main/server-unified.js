@@ -390,6 +390,16 @@ function remapPlayerIdEverywhere(room, oldPlayerId, newPlayerId) {
         room.playerVP.delete(oldPlayerId);
         room.playerVP.set(newPlayerId, vp);
     }
+
+    // Розбійник: placedBy бере участь у виробництві — ресурси пограбованого
+    // гекса йдуть саме тому, хто поставив розбійника. Без ремапу після rejoin
+    // placedBy залишався на СТАРОМУ socket-id, якого вже немає серед актуальних
+    // гравців => у циклі виробництва resourceGains.has(placedBy) = false, і
+    // ресурс пограбованого гекса тихо зникав («розбійник не працює: хто поставив
+    // фігурку — ресурс не отримав»).
+    if (room.robber && room.robber.placedBy === oldPlayerId) {
+        room.robber.placedBy = newPlayerId;
+    }
 }
 
 // Прибрати записи "привидів" — ключі, що не відповідають жодному гравцю кімнати
@@ -3492,6 +3502,13 @@ io.on('connection', (socket) => {
                     const robberPlacerId = room.robber?.placedBy;
                     if (robberPlacerId && resourceGains.has(robberPlacerId)) {
                         resourceGains.get(robberPlacerId)[hexResource] = (resourceGains.get(robberPlacerId)[hexResource] || 0) + multiplier;
+                    } else {
+                        // Страховка: placer невідомий (застарілий id із катки, де
+                        // rejoin стався ще до ремапу robber.placedBy) — ресурс не
+                        // зникає «в нікуду», а отримує власник будівлі біля гекса.
+                        if (resourceGains.has(building.playerId)) {
+                            resourceGains.get(building.playerId)[hexResource] = (resourceGains.get(building.playerId)[hexResource] || 0) + multiplier;
+                        }
                     }
                 } else {
                     // Normal resource collection
@@ -3830,7 +3847,8 @@ io.on('connection', (socket) => {
                 const totalResources = fromResources.wood + fromResources.brick + fromResources.geese + 
                                       fromResources.water + fromResources.stone;
                 
-                // Only steal if target has 7 or more resources
+                // Only steal if target has 7 or more resources (правило гри:
+                // крадіжка при постановці розбійника — тільки якщо у жертви 7+ карт)
                 let stolenResource = null;
                 if (totalResources >= 7) {
                     // Find resources that the target player has
