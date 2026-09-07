@@ -5709,10 +5709,14 @@ function registerMultiplayerHandlers(client) {
     client.onPlayerJoined((data) => {
         console.log('Player joined:', data);
         updatePlayersList(data.players);
+        // Після rejoin список гравців оновлюється (новий socket-id + аватар) —
+        // панель черги ходів має перерендеритись ОДРАЗУ, а не після наступного ходу
+        updateTurnOrderPanel();
     });
     client.onPlayerLeft((data) => {
         console.log('Player left:', data);
         updatePlayersList(data.players);
+        updateTurnOrderPanel();
     });
     client.onGameStarted((data) => {
         console.log('Game started with map seed:', data);
@@ -6510,10 +6514,18 @@ function registerMultiplayerHandlers(client) {
 
     client.onPlayerReturned((data) => {
         console.log('Player returned:', data);
-        // Таймер зупиняється ЗРАЗУ при будь-якому поверненні (не чекаємо закінчення 60с)
-        if (data && data.roomCode === roomCode && disconnectActivePlayerId) {
+        // Таймер зупиняється ЗРАЗУ при будь-якому поверненні (не чекаємо закінчення 60с).
+        // Без прив'язки до disconnectActivePlayerId: оверлей міг бути запущений
+        // подією без playerId ('host-disconnected'), тоді умова не спрацьовувала
+        // і відлік тикав до самого кінця, хоч гра вже продовжилась.
+        if (data && data.roomCode === roomCode) {
             clearDisconnectTimer();
-            showMessage('✅ Гравець повернувся! Гра продовжується.');
+            // Повернутий гравець отримав НОВИЙ socket-id — оновлюємо локальні
+            // структури (turnOrder/buildOrder/PO), інакше панель показує фолбек
+            // «Гравець xxxx» із сірою іконкою до наступного ходу цього гравця
+            remapLocalPlayerId(data.previousId, data.playerId);
+            updateTurnOrderPanel();
+            showMessage('✅ ' + (data.playerName || 'Гравець') + ' повернувся! Гра продовжується.');
         }
     });
     
@@ -6574,6 +6586,43 @@ function clearDisconnectTimer() {
     disconnectActivePlayerId = null;
     const overlay = document.getElementById('disconnectOverlay');
     if (overlay) overlay.style.display = 'none';
+}
+
+// Після rejoin гравець має НОВИЙ socket-id, а інші клієнти досі тримають його
+// СТАРИЙ id у локальних структурах (turnOrder, buildOrder, кидки кубиків, ПО,
+// лицарі). Без ремапу панель черги ходів показує фолбек «Гравець xxxx» із сірою
+// іконкою, доки хід знову не дійде до цього гравця. oldId -> newId надходять
+// з сервера в payload 'player-returned' (previousId).
+function remapLocalPlayerId(oldId, newId) {
+    if (!oldId || !newId || oldId === newId) return;
+    if (Array.isArray(turnOrder)) {
+        for (let i = 0; i < turnOrder.length; i++) {
+            if (turnOrder[i] === oldId) turnOrder[i] = newId;
+        }
+    }
+    if (currentTurnPlayerId === oldId) {
+        currentTurnPlayerId = newId;
+    }
+    if (Array.isArray(initialPhase.buildOrder)) {
+        initialPhase.buildOrder.forEach(b => { if (b && b.playerId === oldId) b.playerId = newId; });
+    }
+    if (initialPhase.diceRolls instanceof Map && initialPhase.diceRolls.has(oldId)) {
+        initialPhase.diceRolls.set(newId, initialPhase.diceRolls.get(oldId));
+        initialPhase.diceRolls.delete(oldId);
+    }
+    if (playerVPs instanceof Map && playerVPs.has(oldId)) {
+        playerVPs.set(newId, playerVPs.get(oldId));
+        playerVPs.delete(oldId);
+    }
+    if (typeof gameState !== 'undefined' && gameState && gameState.knightCards instanceof Map && gameState.knightCards.has(oldId)) {
+        gameState.knightCards.set(newId, gameState.knightCards.get(oldId));
+        gameState.knightCards.delete(oldId);
+    }
+    // Страхівка: якщо повний список гравців ще не долетів ('player-joined'),
+    // хоча б ремапнемо id у наявному, щоб пошук за новим id одразу знаходив запис
+    if (multiplayerClient && Array.isArray(multiplayerClient.players)) {
+        multiplayerClient.players.forEach(pl => { if (pl && pl.id === oldId) pl.id = newId; });
+    }
 }
 
 // Підчищує sessionStorage від ключів завершеної/мертвої матчмейкінг-катки.
@@ -7632,11 +7681,13 @@ function setupMatchmakingGameHandlers() {
     // Handle player returned
     mpClient.socket.on('player-returned', (data) => {
         console.log('[matchmaking] player-returned:', data);
-        showMessage('✅ Гравець ' + (data.playerName || data.playerId) + ' повернувся');
-        // Таймер зупиняється ЗРАЗУ при будь-якому поверненні
-        if (data && data.roomCode === roomCode && disconnectActivePlayerId) {
+        // Таймер зупиняється ЗРАЗУ при будь-якому поверненні (без прив'язки до
+        // disconnectActivePlayerId — оверлей міг стартувати без playerId)
+        if (data && data.roomCode === roomCode) {
             clearDisconnectTimer();
-            showMessage('✅ Гравець повернувся! Гра продовжується.');
+            remapLocalPlayerId(data.previousId, data.playerId);
+            updateTurnOrderPanel();
+            showMessage('✅ ' + (data.playerName || 'Гравець') + ' повернувся! Гра продовжується.');
         }
     });
 

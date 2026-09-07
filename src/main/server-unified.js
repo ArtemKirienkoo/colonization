@@ -2756,7 +2756,16 @@ io.on('connection', (socket) => {
         }
 
         // ===== Preserve the same player record on reconnect (NO duplicates) =====
+        // id запису ДО ремапу — саме його інші клієнти тримають у локальних
+        // turnOrder/buildOrder/PO. Передається в 'player-returned', щоб ті
+        // одразу оновили свої структури (інакше панель черги ходів показує
+        // фолбек «Гравець xxxx» із сірою іконкою, доки не дійде черга).
+        let previousId = null;
+
         // 1) Основний шлях: прямий ремап за oldPlayerId (навігація splash -> index)
+        if (oldPlayerId && room.players.some(p => p.id === oldPlayerId)) {
+            previousId = oldPlayerId;
+        }
         remapPlayerIdEverywhere(room, oldPlayerId, socket.id);
 
         if (isHost) room.host = socket.id;
@@ -2773,6 +2782,7 @@ io.on('connection', (socket) => {
                 p.name === playerName
             );
             if (nameMatch) {
+                previousId = nameMatch.id;
                 remapPlayerIdEverywhere(room, nameMatch.id, socket.id);
                 existingPlayer = room.players.find(p => p.id === socket.id);
                 console.log('[server] rejoin-room: reused disconnected player by name (no duplicate)', { playerName, socketId: socket.id });
@@ -2793,6 +2803,7 @@ io.on('connection', (socket) => {
                 reattach = byRole[0] || disconnectedPlayers[0];
             }
             if (reattach) {
+                previousId = reattach.id;
                 remapPlayerIdEverywhere(room, reattach.id, socket.id);
                 existingPlayer = room.players.find(p => p.id === socket.id);
                 console.log('[server] rejoin-room: reattached to disconnected player entry (no duplicate)', { reattachedName: reattach.name, socketId: socket.id });
@@ -2811,11 +2822,17 @@ io.on('connection', (socket) => {
             return;
         }
 
-        // Гравець повернувся — скасовуємо таймери очікування повернення
+        // Гравець повернувся — скасовуємо таймери очікування повернення.
+        // Ключ таймера — server-side id запису НА МОМЕНТ відключення, тому
+        // чистимо і за previousId (id, з яким планували таймер), і за клієнтським
+        // oldPlayerId, і за новим socket.id — щоб таймер гарантовано помер.
         clearDisconnectTimer(roomCode, oldPlayerId);
+        if (previousId) clearDisconnectTimer(roomCode, previousId);
         clearDisconnectTimer(roomCode, socket.id);
         io.to(roomCode).emit('player-returned', {
             playerId: socket.id,
+            previousId: previousId,
+            playerName: (existingPlayer && existingPlayer.name) || playerName || null,
             roomCode: roomCode
         });
 
@@ -4694,11 +4711,21 @@ io.on('connection', (socket) => {
                 if (room.gamePhase) {
                     // Гра вже почалась: хозяїн має 1 хвилину, щоб повернутися
                     // через rejoin-room. Якщо не повернеться — кімната зникне автоматично.
+                    // Якщо хазяїн щойно вийшов кнопкою (leave-room вже позначив його
+                    // відключеним і запустив таймер) — НЕ дублюємо сповіщення:
+                    // повторний 'host-disconnected' перезапускав оверлей у суперника
+                    // з нуля і (без playerId у payload) ламав очищення таймера при
+                    // поверненні — суперник дивився на відлік до самого кінця.
+                    const hostAlreadyMarked = !!player.disconnected;
                     player.disconnected = true;
-                    socket.to(code).emit('host-disconnected', {
-                        message: 'Хозяїн тимчасово відключився. Якщо не повернеться за 1 хвилину — кімнату буде закрито.',
-                        graceSeconds: Math.round(DISCONNECT_GRACE_MS / 1000)
-                    });
+                    if (!hostAlreadyMarked) {
+                        socket.to(code).emit('host-disconnected', {
+                            playerId: socket.id,
+                            playerName: player.name,
+                            message: 'Хозяїн тимчасово відключився. Якщо не повернеться за 1 хвилину — кімнату буде закрито.',
+                            graceSeconds: Math.round(DISCONNECT_GRACE_MS / 1000)
+                        });
+                    }
                     scheduleDisconnectTimeout(room, player, socket.id);
                 } else {
                     // Гра не почалась — закриваємо кімнату одразу

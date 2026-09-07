@@ -1,12 +1,16 @@
 // ===== Смоук-тест правок логіки мультиплеєра =====
-// Перевіряє три виправлення:
+// Перевіряє виправлення:
 //   (1) Хост, що вийшов із матчмейкінг-катки (leave-room), НЕ закриває кімнату
-//       миттєво: суперник ЗРАЗУ отримує player-disconnected (таймер повернення).
+//       миттєво: суперник ЗРАЗУ отримує player-disconnected (таймер повернення),
+//       а повторний host-disconnected (від закриття сокета) НЕ дублюється.
 //   (2) find-active-room повертає гравця в незавершену катку (за сокетом
 //       або за іменем серед відключених), а join-matchmaking НЕ блокується
 //       застарілою кімнатою з таким самим ніком.
 //   (3) rejoin-room синхронізує «суперник зараз відключений» для того,
 //       хто підключається пізніше (таймер з'являється одразу).
+//   (4) rejoin-room шле player-returned з previousId/playerName — клієнт
+//       ремапить локальні id й одразу показує правильний нік/аватар у панелі.
+//   (5) Реальний обрив хоста шле host-disconnected З playerId/playerName.
 const { spawn } = require('child_process');
 const io = require('socket.io-client');
 
@@ -64,8 +68,17 @@ function once(s, ev, timeout = 3000) {
         const r1 = await connect();
         const r2 = await connect();
         r1.emit('rejoin-room', { roomCode, isHost: true, oldPlayerId: s1.id, playerName: 'Alice' });
+        await sleep(200);
+        // Коли Bob повертається, Alice (уже в кімнаті) має отримати player-returned
+        // з previousId (старий id, який у неї в turnOrder) і playerName —
+        // за ними клієнт ремапить локальні структури й одразу малює нік/аватар
+        const prP = once(r1, 'player-returned', 3000);
         r2.emit('rejoin-room', { roomCode, isHost: false, oldPlayerId: s2.id, playerName: 'Bob' });
-        await sleep(400);
+        const pr = await prP;
+        check('rejoin шле player-returned у кімнату', !!pr);
+        check('player-returned.previousId = старий id (ремап панелі черги ходів)', !!pr && pr.previousId === s2.id, pr ? ('prev=' + String(pr.previousId).slice(0, 8)) : 'немає');
+        check('player-returned.playerName = нік повернутого', !!pr && pr.playerName === 'Bob');
+        await sleep(200);
 
         // Splash-сокети «навігурували» — гинуть (їх id уже перемаплені)
         s1.disconnect(); s2.disconnect();
@@ -79,6 +92,13 @@ function once(s, ev, timeout = 3000) {
         const rc = await rcP;
         check('Суперник отримав player-disconnected ОДРАЗУ', !!pd && pd.playerName === 'Alice', pd ? ('grace=' + pd.graceSeconds + 's') : 'не прийшов');
         check('Кімнату НЕ закрито миттєво (немає room-closed)', rc === null);
+
+        // Вихід кнопкою зазвичай закриває й сокет — сервер НЕ має дублювати
+        // host-disconnected (раніше він перезапускав оверлей у суперника з нуля)
+        const hdP = once(r2, 'host-disconnected', 1500);
+        r1.disconnect();
+        const hd = await hdP;
+        check('Меню-вихід хоста НЕ дублює host-disconnected', hd === null);
 
         // === Bob теж «втрачає з'єднання» — тепер обидва відключені ===
         const r2id = r2.id;
@@ -129,6 +149,38 @@ function once(s, ev, timeout = 3000) {
         check('Пізній rejoin синхронізує «суперник відключений»', !!pdB && pdB.playerName === 'Alice', pdB ? ('grace=' + pdB.graceSeconds + 's') : 'не прийшов');
 
         r1.disconnect(); r3.disconnect();
+
+        // === (4) Реальний обрив хоста (БЕЗ leave-room): host-disconnected приходить
+        //     З playerId і playerName, щоб клієнт міг прив'язати оверлей до гравця
+        //     і показати його нік, а не безлике «Хазяїн» ===
+        const s3 = await connect();
+        const s4 = await connect();
+        const f3 = once(s3, 'matchmaking-found');
+        const f4 = once(s4, 'matchmaking-found');
+        s3.emit('join-matchmaking', { playerName: 'Carol', avatar: 2 });
+        await sleep(200);
+        s4.emit('join-matchmaking', { playerName: 'Dave', avatar: 3 });
+        const [m3, m4] = [await f3, await f4];
+        check('Другий матч створено (Carol vs Dave)', !!(m3 && m4 && m3.roomCode === m4.roomCode));
+        const room2 = m3.roomCode;
+
+        const r4 = await connect();
+        const r5 = await connect();
+        r4.emit('rejoin-room', { roomCode: room2, isHost: true, oldPlayerId: s3.id, playerName: 'Carol' });
+        await sleep(200);
+        r5.emit('rejoin-room', { roomCode: room2, isHost: false, oldPlayerId: s4.id, playerName: 'Dave' });
+        await sleep(300);
+        s3.disconnect(); s4.disconnect();
+        await sleep(200);
+
+        const hd2P = once(r5, 'host-disconnected', 3000);
+        const hd2Id = r4.id;
+        r4.disconnect(); // обрив з'єднання: жодного leave-room
+        const hd2 = await hd2P;
+        check('Обрив хоста шле host-disconnected', !!hd2);
+        check('host-disconnected містить playerId', !!hd2 && hd2.playerId === hd2Id, hd2 ? ('playerId=' + String(hd2.playerId).slice(0, 8)) : 'немає');
+        check('host-disconnected містить playerName', !!hd2 && hd2.playerName === 'Carol');
+        r5.disconnect();
     } catch (e) {
         failed++;
         console.error('  ❌ Виняток у тесті:', e.message);
