@@ -5586,8 +5586,13 @@ function flushPendingResourceCollection() {
 
     let collected = [];
 
-    // Use server-calculated resource updates if available (multiplayer)
-    if (data.resourceUpdates && Object.keys(data.resourceUpdates).length > 0) {
+    // Сервер у мультиплеєрі ЗАВЖДИ надсилає resourceUpdates (може бути порожнім
+    // {} = «ніхто нічого не отримав», наприклад усі сусідні гекси під розбійником
+    // без placer'а). Порожній {} — це НЕ привід рахувати ресурси локально:
+    // локальна колекція в мультиплеєрі давала фантомні попапи й нарахування,
+    // які розсинхронізовували лічильники із серверною правдою.
+    const hasServerUpdates = data.resourceUpdates != null;
+    if (hasServerUpdates && Object.keys(data.resourceUpdates).length > 0) {
         for (const [playerId, resources] of Object.entries(data.resourceUpdates)) {
             if (playerId === myPlayerId) {
                 // Calculate what I gained
@@ -5603,10 +5608,12 @@ function flushPendingResourceCollection() {
                 }
             }
         }
-    } else {
-        // Single player - use local collection
+    } else if (!hasServerUpdates) {
+        // Немає серверних даних взагалі (одинока гра) — локальна колекція
         collected = collectResources(data.diceTotal);
     }
+    // hasServerUpdates && порожній {} → сервер каже «ніхто не отримав» —
+    // нічого не нараховуємо і не показуємо.
 
     if (collected.length > 0) {
         showResourceNotification(collected);
@@ -6064,9 +6071,15 @@ function registerMultiplayerHandlers(client) {
         }
     });
     
-    // Handle full resource sync from server (monopoly, trade, etc.)
+    // Handle full resource sync from server (monopoly, trade, production sync)
     client.onResourcesSynced((data) => {
         console.log('Resources synced:', data);
+        if (pendingResourceCollection) {
+            // Виробництво ще не програне (flush після анімації кубиків) —
+            // не перезаписуємо лічильники, інакше flush не знайде дельту і
+            // попап «Отримано ресурси!» не покажеться.
+            return;
+        }
         if (data && data.resources && data.resources[myPlayerId]) {
             gameState.resourceCards = { ...data.resources[myPlayerId] };
             updateResourceCardsDisplay();
@@ -7579,6 +7592,19 @@ function setupMatchmakingGameHandlers() {
         pendingResourceCollection = data;
         if (pendingResourceTimer) clearTimeout(pendingResourceTimer);
         pendingResourceTimer = setTimeout(flushPendingResourceCollection, 2500);
+    });
+
+    // Авторитетний синк ресурсів із сервера (після виробництва, монополії тощо).
+    // Жорстко виставляємо лічильники за серверною правдою. Guard: якщо виробництво
+    // ще чекає flush (анімація кубиків) — не чіпаємо лічильники, інакше flush не
+    // знайде дельту і попап «Отримано ресурси!» не покажеться.
+    mpClient.socket.on('resources-synced', (data) => {
+        console.log('[matchmaking] resources-synced:', data);
+        if (pendingResourceCollection) return;
+        if (data && data.resources && data.resources[myPlayerId]) {
+            gameState.resourceCards = { ...data.resources[myPlayerId] };
+            updateResourceCardsDisplay();
+        }
     });
 
     // Handle resource stolen

@@ -3543,6 +3543,17 @@ io.on('connection', (socket) => {
             resourceUpdates: resourceUpdates,
             robberHexKey: robberHexKey
         });
+
+        // Авторитетний ПОВНИЙ синк ресурсів після виробництва. Клієнт жорстко
+        // виставляє лічильники за серверною правдою — це лікує десинк
+        // «попап «Отримано ресурси!» показується, а лічильники не змінюються»,
+        // який виникав, коли локальна модель розходилась із server truth
+        // (phantom-нарахування, rejoin, застарілі sync-resources від клієнта).
+        const syncedResources = {};
+        for (const [pid, res] of room.playerResources) {
+            syncedResources[pid] = res;
+        }
+        io.to(roomCode).emit('resources-synced', { resources: syncedResources });
         
         // Check for victory (player reached 10 VP) after resource collection
         checkVictory(roomCode, room);
