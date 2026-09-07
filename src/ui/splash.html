@@ -523,6 +523,16 @@
             mask-image: none;
             border-radius: 50%;
             box-shadow: none;
+            /* База .settings-box button дає кнопкам padding:16px 38px і флекс-розтягування,
+               через що круги виглядають еліпсами. Жорстко фіксуємо круг 60×60. */
+            flex: 0 0 auto;
+            padding: 0 !important;
+            margin: 0;
+            width: 60px;
+            height: 60px;
+            box-sizing: border-box;
+            aspect-ratio: 1 / 1;
+            display: inline-block;
         }
 
         /* ===== ВІКНО ВІДНОВЛЕННЯ ПАРОЛЯ ===== */
