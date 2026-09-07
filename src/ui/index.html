@@ -3286,9 +3286,10 @@ function renderMap(data, canvas, hexSize) {
             // Текстура дороги — малюється ОСТАННЬОЮ поверх усього
             const dxx=bx-ax, dyy=by-ay, rlen=Math.sqrt(dxx*dxx+dyy*dyy);
             const rang=Math.atan2(dyy,dxx);
-            // Висота дороги = ширина підкладки (hexSize*0.30), ширина = довжина ребра
+            // Висота дороги = ширина підкладки (hexSize*0.30), ширина = повна довжина ребра
+            // (щоб дорога тянулась від угла до угла, а не обрізалась по aspect-пропорції текстури)
             const rh=hexSize*0.30;
-            const rw=rh*(roadImg.naturalWidth/roadImg.naturalHeight);
+            const rw=rlen;
             ctx.save();
             ctx.translate((ax+bx)/2,(ay+by)/2);
             ctx.rotate(rang);
