@@ -65,7 +65,14 @@ function findActiveRoomForPlayer(socketId, playerName, allowNameLookup) {
     if (allowNameLookup && playerName) {
         for (const room of rooms.values()) {
             if (room.status === 'game-over' || !room.gamePhase) continue;
-            const mine = room.players.find(p => p.id !== socketId && p.disconnected === true && p.name === playerName);
+            const mine = room.players.find(p =>
+                p.id !== socketId &&
+                // відключений (помічений при дисконекті) АБО мертвий сокет
+                // (навігація/перезапуск клієнта, коли disconnect було проігноровано
+                //  у матчмейкінг-handshake і мітка не ставилась)
+                (p.disconnected === true || !io.sockets.sockets.has(p.id)) &&
+                p.name === playerName
+            );
             if (mine) return room;
         }
     }
@@ -2820,6 +2827,29 @@ io.on('connection', (socket) => {
             }
         }
 
+        // 3.5) Матчмейкінг: reattach до запису з МЕРТВИМ сокетом. Під час навігації
+        //      splash -> index дисконнект splash-сокета ігнорується (handshake), тому
+        //      запис гравця НЕ помічений disconnected — і гілка 3 його не знаходить.
+        //      Якщо старий oldPlayerId уже втрачено (перезапуск гри/рематч залишив
+        //      у sessionStorage id попередньої катки), ghost-guard нижче кидав
+        //      room-not-found живому гравцю. Надійна ознака «свого мертвого запису»:
+        //      сокет цього id більше не існує на сервері.
+        if (!existingPlayer && room.isMatchmaking) {
+            const deadEntries = room.players.filter(p => p.id !== socket.id && !io.sockets.sockets.has(p.id));
+            let deadCandidate = null;
+            if (deadEntries.length === 1) {
+                deadCandidate = deadEntries[0];
+            } else if (deadEntries.length > 1 && playerName) {
+                deadCandidate = deadEntries.find(p => p.name === playerName) || null;
+            }
+            if (deadCandidate) {
+                previousId = deadCandidate.id;
+                remapPlayerIdEverywhere(room, deadCandidate.id, socket.id);
+                existingPlayer = room.players.find(p => p.id === socket.id);
+                console.log('[server] rejoin-room: reattached to dead-socket player entry (navigation/stale id)', { reattachedName: deadCandidate.name, oldEntryId: deadCandidate.id, socketId: socket.id });
+            }
+        }
+
         // 4) ЗАХИСТ ВІД «ПРИМАРА»: поки гра триває (gamePhase встановлено) нових
         //    учасників у кімнаті не буває — rejoin-room емітять лише ті, хто
         //    повертається. Якщо запис не знайдено, це застарілий ідентифікатор
@@ -2831,6 +2861,12 @@ io.on('connection', (socket) => {
             socket.emit('room-not-found', { roomCode, reason: 'no-player-entry' });
             return;
         }
+
+        // Приєднуємо сокет до socket-кімнати ЯКМОГА РАНІШЕ: всі далі йдуть
+        // broadcast'и (player-returned, game-state-sync тощо) шлються через
+        // io.to(roomCode), і без раннього join сам rejoiner не отримував
+        // ВЛАСНІ події (клієнт лишався без підтвердження повернення).
+        socket.join(roomCode);
 
         // Гравець повернувся — скасовуємо таймери очікування повернення.
         // Ключ таймера — server-side id запису НА МОМЕНТ відключення, тому
@@ -2904,8 +2940,6 @@ io.on('connection', (socket) => {
         if (!room.players.some(p => p.disconnected)) {
             room.restartBlocked = false;
         }
-
-        socket.join(roomCode);
 
         // Страховка: той самий сокет не повинен мати більше одного запису в кімнаті
 
