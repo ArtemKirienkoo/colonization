@@ -2986,6 +2986,23 @@ io.on('connection', (socket) => {
             return;
         }
 
+        // Ресурси и ПО гравця (Issue #6): без цього після rejoin клієнт знову
+        // стартував з порожніми лічильниками, хоч сервер тримав актуальні значення.
+        if (room.playerResources instanceof Map) {
+            const resData = {};
+            for (const [pid, res] of room.playerResources) {
+                if (pid) resData[pid] = res;
+            }
+            socket.emit('resources-synced', { resources: resData, source: 'rejoin' });
+        }
+        if (room.playerVP instanceof Map && room.playerVP.size > 0) {
+            socket.emit('vp-synced', {
+                playerId: socket.id,
+                vp: room.playerVP.get(socket.id) || 0,
+                playerVP: Object.fromEntries(room.playerVP)
+            });
+        }
+
         // Send game state based on current phase
         if (room.gamePhase === 'dice-roll') {
             const diceRolls = Array.from(room.diceRolls.entries()).map(([playerId, total]) => ({ playerId, total }));
