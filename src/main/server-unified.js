@@ -3296,6 +3296,9 @@ io.on('connection', (socket) => {
             // (старі splash-сокети при цьому помруть). Без цього вікна сервер
             // трактував їх як справжні дисконнекти і розсиляв фальшиві
             // «Гравець X відключився» на фазі кубиків.
+            // Вікно зникне і раніше 20 с: у rejoin-room grace обнуляється,
+            // щойно ВСІ гравці повернулись в катку (інакше реальний вихід
+            // на фазі кубиків лишався без сповіщення).
             room.navigationGraceUntil = Date.now() + 20000;
 
             
@@ -4781,9 +4784,11 @@ io.on('connection', (socket) => {
 
         console.log('[matchmaking] Game starting:', roomCode);
 
-        // Навігаційне вікно (симетрично до 'start-game'): страховка від фальшивих
-        // «відключився», якщо якийсь splash-сокет помре вже після handshake.
-        room.navigationGraceUntil = Date.now() + 20000;
+        // Навігаційне вікно в МАТЧМЕЙКІНЗІ НЕ потрібне: усі вже реджойнулись
+        // (matchmakingHandshakeDone) ДО старту катки, ніхто не переїжджає
+        // splash -> index. Grace=0, інакше справжній вихід в перші 20 с фази
+        // кубиків залишався БЕЗ сповіщення «Гравець відключився» + відліку.
+        room.navigationGraceUntil = 0;
 
         // Send game-started event first (for map deserialization)
         io.to(roomCode).emit('game-started', { mapSeed: room.gameState || {} });
