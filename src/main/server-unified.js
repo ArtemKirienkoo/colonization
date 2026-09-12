@@ -2905,6 +2905,12 @@ io.on('connection', (socket) => {
             }
         }
 
+        // Навігаційний grace закінчується, щойно ВСІ гравці повернулись у катку:
+        // якщо ніхто не позначений disconnected, «відключення» далі — лише справжні.
+        if (room.navigationGraceUntil && !room.players.some(p => p.disconnected)) {
+            room.navigationGraceUntil = 0;
+        }
+
         // Синхронізація дисконнекту суперника: broadcast 'player-disconnected'
         // міг прилетіти ДО того, як цей сокет взагалі з'явився у кімнаті
         // (навігація splash -> index), і гравець його не побачив — через це

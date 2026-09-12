@@ -996,7 +996,7 @@
     .turn-order-name {
         color: #fff;
         font-weight: 600;
-        max-width: 110px;
+        max-width: 170px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -1012,29 +1012,29 @@
     /* ===== ФЛАЖКИ В ПОРЯДКУ ХОДІВ ===== */
     .turn-order-flag {
         position: absolute;
-        width: 18px;
-        height: 18px;
+        width: 30px;
+        height: 30px;
         object-fit: contain;
         filter: drop-shadow(0 2px 3px rgba(0,0,0,0.4));
         pointer-events: none;
         z-index: 2;
     }
     .turn-order-flag.flag-left {
-        left: 6px;
-        bottom: 2px;
+        left: 10px;
+        bottom: 5px;
     }
     .turn-order-flag.flag-right {
-        right: 6px;
-        bottom: 2px;
+        right: 10px;
+        bottom: 5px;
     }
 
     .turn-order-avatar-sign {
         position: absolute;
-        top: 2px;
-        left: 18px;
+        top: 4px;
+        left: 26px;
         transform: translateX(-50%);
-        width: 28px;
-        height: 28px;
+        width: 40px;
+        height: 40px;
         border-radius: 50%;
         box-shadow: inset 0 -2px 4px rgba(0,0,0,0.25), 0 2px 4px rgba(0,0,0,0.35);
         border: 2px solid rgba(255,255,255,0.5);
@@ -1167,7 +1167,8 @@
     .turn-order-item {
         flex: 0 0 auto !important;
         min-width: 0 !important;
-        padding: 6px 10px 6px 8px !important;
+        padding: 10px 14px 10px 12px !important;
+        min-height: 66px !important;
         border: 2px solid rgba(0, 0, 0, 0.45) !important;
         border-radius: 10px !important;
         justify-content: flex-start;
@@ -1178,8 +1179,8 @@
         border-color: #f1c40f !important;
         box-shadow: 0 0 16px rgba(241, 196, 15, 0.65), 0 3px 10px rgba(0,0,0,0.35) !important;
     }
-    .turn-order-label { text-shadow: 0 1px 3px rgba(0,0,0,0.65); font-size: 0.95em; }
-    .turn-order-name { max-width: 120px; color: #fff !important; }
+    .turn-order-label { text-shadow: 0 1px 3px rgba(0,0,0,0.65); font-size: 1.05em; }
+    .turn-order-name { max-width: 170px; color: #fff !important; }
     .turn-order-sep { color: rgba(255,255,255,0.8) !important; }
     .turn-order-vp { color: #fff !important; }
     .turn-order-item.active-turn .turn-order-name,
@@ -1188,8 +1189,12 @@
         color: #fff !important;
         text-shadow: 0 0 8px rgba(241,196,15,0.95), 0 1px 3px rgba(0,0,0,0.6);
     }
-    .turn-order-avatar { width: 32px !important; height: 32px !important; }
-    .turn-order-avatar svg { width: 20px !important; height: 20px !important; }
+    .turn-order-avatar { width: 42px !important; height: 42px !important; }
+    .turn-order-avatar svg { width: 26px !important; height: 26px !important; }
+    .turn-order-flag { width: 30px !important; height: 30px !important; }
+    .turn-order-flag.flag-left { left: 10px !important; bottom: 5px !important; }
+    .turn-order-flag.flag-right { right: 10px !important; bottom: 5px !important; }
+    .turn-order-avatar-sign { width: 40px !important; height: 40px !important; top: 4px !important; left: 26px !important; }
     /* Іконка профілю = САМА ІКОНКА (без кружка й підсвітки), розміром як слот аватара */
     .turn-order-avatar.has-icon {
         border-radius: 0 !important;
@@ -5667,6 +5672,8 @@ let serverRoadThreshold = null; // Server-authoritative road threshold for visua
 let playerVPs = new Map(); // playerId -> victory points (synced from server) for the turn order panel
 let pendingResourceCollection = null; // Дані collect-resources, що чекають завершення анімації кубиків
 let pendingResourceTimer = null;      // Страхувальний таймер, щоб ресурси не загубилися
+let pendingServerResources = null;    // Повний синк ресурсів, що чекає застосування у flush
+let diceCloseTimer = null;            // Відкладене закриття вікна результатів кидків
 
 // Обробляє відкладені ресурси ПІСЛЯ завершення анімації кубиків.
 // Викликається з onRegularDiceRolled (коли кубики «впали»), а також
@@ -5710,6 +5717,13 @@ function flushPendingResourceCollection() {
     }
     // hasServerUpdates && порожній {} → сервер каже «ніхто не отримав» —
     // нічого не нараховуємо і не показуємо.
+
+    // Серверна картина завжди накладається зверху (навіть якщо дельт не було):
+    // лічильники = АБСОЛЮТНЕ серверне значення — ресурси гарантовано з'являться.
+    if (pendingServerResources && pendingServerResources[myPlayerId]) {
+        gameState.resourceCards = { ...pendingServerResources[myPlayerId] };
+    }
+    pendingServerResources = null;
 
     if (collected.length > 0) {
         showResourceNotification(collected);
@@ -5844,10 +5858,33 @@ function registerMultiplayerHandlers(client) {
     client.onInitialBuildStart((data) => {
         console.log('Initial build started:', data, ' myPlayerId=', myPlayerId);
         
-        // Close the dice phase overlay - dice phase is over, build phase is starting
+        // Вікно результатів кидків лишаємо видимим ~3.5 с — раніше воно закривалось
+        // МИТТЄВО (переможець фази не встигав побачити список). Тимчасово піднімаємо
+        // вікно кубиків вище build-overlay, щоб вікно будівництва його не перекрило.
         const diceOverlay = document.getElementById('dicePhaseOverlay');
-        if (diceOverlay) diceOverlay.style.display = 'none';
-        
+        if (diceOverlay && diceOverlay.style.display !== 'none') {
+            const rollStatus = document.getElementById('dicePhaseStatus');
+            const orderArr = Array.isArray(data.order) ? data.order : (Array.isArray(data.initialBuildOrder) ? data.initialBuildOrder : null);
+            const winner = orderArr ? orderArr[0] : null;
+            if (rollStatus && winner) {
+                rollStatus.textContent = '🎲 Усі кинули! Першим будує: ' + (winner.playerId === myPlayerId ? 'Ви' : 'Гравець ' + String(winner.playerId).slice(0, 4));
+                rollStatus.style.color = '#27ae60';
+            }
+            if (diceCloseTimer) { clearTimeout(diceCloseTimer); diceCloseTimer = null; }
+            diceOverlay.style.zIndex = '3000';
+            diceCloseTimer = setTimeout(() => {
+                diceCloseTimer = null;
+                const ov = document.getElementById('dicePhaseOverlay');
+                if (ov) { ov.style.display = 'none'; ov.style.zIndex = '2500'; }
+                finishInitialBuildStart(data);
+            }, 3500);
+        } else {
+            finishInitialBuildStart(data);
+        }
+    });
+
+    // Перехід до початкового будівництва ПІСЛЯ показу результатів кидків
+    function finishInitialBuildStart(data) {
         onInitialBuildStart(data);
         updateTurnOrderPanel();
         
@@ -5856,7 +5893,7 @@ function registerMultiplayerHandlers(client) {
             const overlay = document.getElementById('buildPhaseOverlay');
             if (overlay) overlay.style.display = 'none';
         }
-    });
+    }
     client.onInitialBuildNextPlayer((data) => {
         console.log('Next player:', data, ' myPlayerId=', myPlayerId, ' initialPhase.canBuild=', initialPhase.canBuild);
         initialPhase.currentIndex = data.currentIndex || 0;
@@ -6181,12 +6218,17 @@ function registerMultiplayerHandlers(client) {
                 pendingResourceTimer = null;
             }
             pendingResourceCollection = null;
+            pendingServerResources = null;
         } else if (pendingResourceCollection) {
-            // Виробництво ще не програне (flush після анімації кубиків) —
-            // не перезаписуємо лічильники, інакше flush не знайде дельту і
-            // попап «Отримано ресурси!» не покажеться.
+            // Виробництво ще не відбулось (flush після анімації кубиків) —
+            // лічильники ЗАРАЗ не чіпаємо (щоб flush порахував дельту і показав
+            // попап), але запам'ятовуємо серверну картину: flush гарантовано
+            // перезапише лічильники на АБСОЛЮТНЕ серверне значення, щоб ресурси
+            // не «застрягали» на старому числі.
+            pendingServerResources = (data && data.resources) || null;
             return;
         }
+        pendingServerResources = null;
         if (data && data.resources && data.resources[myPlayerId]) {
             gameState.resourceCards = { ...data.resources[myPlayerId] };
             updateResourceCardsDisplay();
@@ -7549,11 +7591,10 @@ function setupMatchmakingGameHandlers() {
         }
     });
 
-    // Handle initial build start
-    mpClient.socket.on('initial-build-start', (data) => {
-        console.log('[matchmaking] initial-build-start:', data);
-        onInitialBuildStart(data);
-    });
+    // 'initial-build-start' тут НЕ слухаєм: registerMultiplayerHandlers (для того ж
+    // mpClient) вже обробляє його з плавним переходом вікна кубиків у будівництво
+    // (~3.5 с показ результатів). Дубльований слухач викликав onInitialBuildStart
+    // ПОВТОРНО і закривав вікно результатів миттєво.
 
     // Handle initial build your turn
     mpClient.socket.on('initial-build-your-turn', (data) => {
@@ -7777,7 +7818,12 @@ function setupMatchmakingGameHandlers() {
                 pendingResourceTimer = null;
             }
             pendingResourceCollection = null;
-        } else if (pendingResourceCollection) return;
+            pendingServerResources = null;
+        } else if (pendingResourceCollection) {
+            pendingServerResources = (data && data.resources) || null;
+            return;
+        }
+        pendingServerResources = null;
         if (data && data.resources && data.resources[myPlayerId]) {
             gameState.resourceCards = { ...data.resources[myPlayerId] };
             updateResourceCardsDisplay();
