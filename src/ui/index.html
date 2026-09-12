@@ -1009,6 +1009,42 @@
         color: #f1c40f;
     }
 
+    /* ===== ФЛАЖКИ В ПОРЯДКУ ХОДІВ ===== */
+    .turn-order-flag {
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        object-fit: contain;
+        filter: drop-shadow(0 2px 3px rgba(0,0,0,0.4));
+        pointer-events: none;
+        z-index: 2;
+    }
+    .turn-order-flag.flag-left {
+        left: 6px;
+        bottom: 2px;
+    }
+    .turn-order-flag.flag-right {
+        right: 6px;
+        bottom: 2px;
+    }
+
+    .turn-order-avatar-sign {
+        position: absolute;
+        top: 2px;
+        left: 18px;
+        transform: translateX(-50%);
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        box-shadow: inset 0 -2px 4px rgba(0,0,0,0.25), 0 2px 4px rgba(0,0,0,0.35);
+        border: 2px solid rgba(255,255,255,0.5);
+        background-size: 100% 100% !important;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+        pointer-events: none;
+        z-index: 3;
+    }
+
     /* ===== FLOATING GAME MESSAGES (повідомлення по центру екрана) ===== */
     #messageContainer {
         position: fixed;
@@ -1441,7 +1477,7 @@
         </div>
         <div id="dicePhaseStatus" style="color: #f1c40f; margin-bottom: 20px; font-size: 1.2em; font-weight: bold;"></div>
         <div id="dicePhaseResults" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;"></div>
-        <button id="rollDiceInitialBtn" style="padding: 15px 40px; font-size: 1.2em; background: linear-gradient(135deg, #9b59b6, #8e44ad); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold;">🎲 Кинути кубики</button>
+        <button id="rollDiceInitialBtn" style="padding: 15px 40px; font-size: 1.2em; background: linear-gradient(135deg, #9b59b6, #8e44ad); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold;">Продовжити</button>
     </div>
 </div>
 
@@ -3029,7 +3065,7 @@ function renderMap(data, canvas, hexSize) {
     scaleCanvasContext();
     mapData = data; 
     mapHexSize = hexSize;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const ctx = canvas.getContext('2d');
     const all = [data.center,...data.ring1,...data.ring2,...data.ring3]; 
     allHexes = all;
     let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
@@ -3565,8 +3601,39 @@ function renderMap(data, canvas, hexSize) {
     }
     cacheCanvas(ctx);
 }
-let cachedCanvasData = null;
+// Знімок карти для швидкого відновлення під час hover зберігається в offscreen-канвас
+// (копіювання через drawImage), а не через getImageData/putImageData.
+// getImageData кидає SecurityError "canvas is tainted", якщо на канвас намальовано
+// cross-origin/file:// зображення — через це консоль заспамлювалась помилками.
+// drawImage не читає пікселі, тому tainted-канвас йому не заважає.
+let cachedCanvasData = null; // тепер тут лежить offscreen-канвас зі знімком
+let hoverCacheCtx = null;
 
+function ensureHoverCacheCtx() {
+    if (!cachedCanvasData) {
+        cachedCanvasData = document.createElement('canvas');
+        hoverCacheCtx = cachedCanvasData.getContext('2d');
+    }
+    if (cachedCanvasData.width !== canvas.width || cachedCanvasData.height !== canvas.height) {
+        cachedCanvasData.width = canvas.width;
+        cachedCanvasData.height = canvas.height;
+    }
+    return hoverCacheCtx;
+}
+
+function cacheCanvas(ctx) {
+    try {
+        const src = ctx.canvas || canvas;
+        const c = ensureHoverCacheCtx();
+        c.setTransform(1, 0, 0, 1, 0, 0);
+        c.clearRect(0, 0, src.width, src.height);
+        c.drawImage(src, 0, 0);
+    } catch (e) {
+        // drawImage не має кидати винятків; на всяк випадок — тихо пропускаємо,
+        // карта і так перемалюється з нуля в clearHoverAndRedraw.
+        cachedCanvasData = null;
+    }
+}
 function drawHoverOnly(ctx, ox, oy, hs) {
     const m = buildMode!=='none'?buildMode:(gameState.roadBuildingMode>0?'road':'none');
     if (m === 'none' && !robberMode) return;
@@ -3616,15 +3683,6 @@ function drawHoverOnly(ctx, ox, oy, hs) {
     }
 }
 
-function cacheCanvas(ctx) {
-    try {
-        cachedCanvasData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    } catch (e) {
-        console.warn('cacheCanvas: getImageData failed:', e);
-        // Don't update cachedCanvasData - keep the old one
-    }
-}
-
 function clearHoverAndRedraw(ctx, ox, oy, hs) {
     const inInteractiveMode = buildMode !== 'none' || gameState.roadBuildingMode > 0 || robberMode;
     // У режимах будівництва/розбійника — завжди перемальовуємо карту з нуля,
@@ -3632,7 +3690,13 @@ function clearHoverAndRedraw(ctx, ox, oy, hs) {
     if (inInteractiveMode && mapData) {
         renderMap(mapData, canvas, mapHexSize);
     } else if (cachedCanvasData && cachedCanvasData.width === canvas.width && cachedCanvasData.height === canvas.height) {
-        ctx.putImageData(cachedCanvasData, 0, 0);
+        // Відновлюємо зі знімка (offscreen-канвас). Трансформацію скидаємо,
+        // щоб drawImage наклав знімок 1:1 у піксельних координатах.
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalAlpha = 1;
+        ctx.drawImage(cachedCanvasData, 0, 0);
+        ctx.restore();
     } else if (mapData) {
         renderMap(mapData, canvas, mapHexSize);
     }
@@ -5139,6 +5203,14 @@ document.getElementById('menuExit').addEventListener('click', () => {
 window.__exitMultiplayer = () => {
     try {
         if (isMultiplayer && multiplayerClient && roomCode) {
+            // Сповістити присутність: акаунт більше не в катці, інакше в списку
+            // «новий суперник» гравець залишався з позначкою inGame після виходу
+            try {
+                const acc = JSON.parse(localStorage.getItem('playerAccount'));
+                if (acc && acc.playerId && multiplayerClient.socket) {
+                    multiplayerClient.socket.emit('presence-online', { playerId: acc.playerId, inGame: false });
+                }
+            } catch (e) { /* presence — не критично для виходу */ }
             multiplayerClient.leaveRoom();
         }
     } catch (e) {
@@ -5826,8 +5898,6 @@ function registerMultiplayerHandlers(client) {
             if (endBtn) endBtn.style.display = 'inline-block';
             const okBtn = document.getElementById('initialBuildOkBtn');
             if (okBtn) okBtn.style.display = 'none';
-            const reopenBtn = document.getElementById('showBuildPhaseBtn');
-            if (reopenBtn) reopenBtn.style.display = 'none';
             // Розблокуємо будівництво
             // Якщо гравець раніше вже побудував щось, перевірка це врахує
         } else {
@@ -6098,7 +6168,20 @@ function registerMultiplayerHandlers(client) {
     // Handle full resource sync from server (monopoly, trade, production sync)
     client.onResourcesSynced((data) => {
         console.log('Resources synced:', data);
-        if (pendingResourceCollection) {
+        // Авторитетний повний синк (rejoin / request-game-state) має проходити
+        // ЗАВЖДИ: він містить серверну правду, яку клієнт втратив при виході.
+        // Старий guard (pendingResourceCollection) «проковтував» такий синк, якщо
+        // в момент rejoin у черзі висіла collect-resources — і гравець повертався
+        // з нульовими лічильниками («пропали всі ресурси»).
+        if (data && (data.source === 'rejoin' || data.source === 'request-game-state')) {
+            // Повне полотно вже включає результати виробництва — прибираємо
+            // pending-дельту, інакше flush задвоїть нарахування.
+            if (pendingResourceTimer) {
+                clearTimeout(pendingResourceTimer);
+                pendingResourceTimer = null;
+            }
+            pendingResourceCollection = null;
+        } else if (pendingResourceCollection) {
             // Виробництво ще не програне (flush після анімації кубиків) —
             // не перезаписуємо лічильники, інакше flush не знайде дельту і
             // попап «Отримано ресурси!» не покажеться.
@@ -6312,6 +6395,13 @@ function registerMultiplayerHandlers(client) {
         } else if (data.gamePhase === 'regular-turn') {
             initialPhase.active = false;
             initialPhase.phase = 'complete';
+            // Rejoin: сервер надсилає актуальний порядок звичайних ходів —
+            // без збереження панель черги ходів (список гравців) залишалась
+            // прихованою після перепідключення в катку.
+            if (Array.isArray(data.turnOrder) && data.turnOrder.length > 0) {
+                turnOrder = data.turnOrder;
+            }
+            updateTurnOrderPanel();
             if (data.currentTurnPlayerId === myPlayerId) {
                 showYourTurn({ playerId: data.currentTurnPlayerId });
             } else {
@@ -6322,7 +6412,17 @@ function registerMultiplayerHandlers(client) {
             initialPhase.phase = 'initial-build';
             initialPhase.buildOrder = data.initialBuildOrder || [];
             initialPhase.currentIndex = data.currentIndex || 0;
-            
+
+            // Rejoin у фазі initial-build: панель черги ходів має намалюватись
+            // ОДРАЗУ (player-joined міг прилетіти раніше, ніж сервер заповнив
+            // initialPhase, і панель лишалась прихованою). Якщо в синку є список
+            // гравців — спершу оновлюємо його, щоб панель показала реальні
+            // ніки/кольори, а не фолбек «Гравець xxxx».
+            if (Array.isArray(data.players) && data.players.length > 0) {
+                updatePlayersList(data.players);
+            }
+            updateTurnOrderPanel();
+
             const overlay = document.getElementById('buildPhaseOverlay');
             const info = document.getElementById('buildPhaseInfo');
             const orderDiv = document.getElementById('buildPhaseOrder');
@@ -6520,6 +6620,13 @@ function registerMultiplayerHandlers(client) {
     client.onPlayerDisconnected((data) => {
         console.log('Player disconnected:', data);
         if (data && data.playerId) {
+            // Дедуплікація: про ТОГО САМОГО гравця подія могла прилетіти двічі
+            // (дублікат слухача / broadcast + re-sync) — другий тост і перезапуск
+            // оверлея з нуля не потрібні.
+            if (disconnectActivePlayerId === data.playerId) {
+                console.log('[disconnect] duplicate notice for', data.playerId, '- skipped');
+                return;
+            }
             const player = multiplayerClient?.players?.find(p => p.id === data.playerId);
             const name = player ? player.name : 'Гравець ' + String(data.playerId).slice(0, 4);
             const graceSeconds = (data && data.graceSeconds) ? data.graceSeconds : 60;
@@ -6531,6 +6638,12 @@ function registerMultiplayerHandlers(client) {
     // Handle host disconnected (during game)
     client.onHostDisconnected((data) => {
         console.log('Host disconnected:', data);
+        // Дедуплікація (лише коли відомий playerId — подія без playerId
+        // повторно запускати оверлей не повинна, але й дедуплікувати не вміє)
+        if (data?.playerId && disconnectActivePlayerId === data.playerId) {
+            console.log('[disconnect] duplicate host notice for', data.playerId, '- skipped');
+            return;
+        }
         const hostGrace = (data && data.graceSeconds) ? data.graceSeconds : 60;
         const hostPlayer = multiplayerClient?.players?.find(p => p.id === data?.playerId);
         const hostName = hostPlayer ? hostPlayer.name : 'Хазяїн';
@@ -7124,10 +7237,14 @@ function onMmMatchFound(data) {
     const colorMap = { red: '#e74c3c', blue: '#3498db', yellow: '#f1c40f', green: '#27ae60' };
     const colorNames = { red: 'Червоний', blue: 'Синій', yellow: 'Жовтий', green: 'Зелений' };
     const myColorEl = document.getElementById('mmFoundMyColor');
+    const myBoxEl = document.getElementById('mmFoundMyColorBox');
     const oppNameEl = document.getElementById('mmFoundOppName');
     const oppColorEl = document.getElementById('mmFoundOppColor');
     const oppBoxEl = document.getElementById('mmFoundOppColorBox');
     if (myColorEl) myColorEl.textContent = colorNames[data.yourColor] || '';
+    // Кружок «Ви» раніше був жорстко зашитий ЖОВТИМ — у матчмейкінгу (red/blue)
+    // після «Новий суперник» він показував не той колір, який дістався в новій грі.
+    if (myBoxEl) myBoxEl.style.background = colorMap[data.yourColor] || '#888';
     if (oppNameEl) oppNameEl.textContent = (data.opponent && data.opponent.name) || 'Суперник';
     if (oppColorEl) oppColorEl.textContent = colorNames[data.opponent && data.opponent.color] || '';
     if (oppBoxEl) oppBoxEl.style.background = colorMap[data.opponent && data.opponent.color] || '#888';
@@ -7285,6 +7402,16 @@ function initMatchmakingGame(urlParams) {
             isHost = sessionStorage.getItem('matchmakingPlayerColor') === 'red'; // First player (red) is host
             roomCode = roomCodeFromUrl;
             myPlayerId = mySocketId;
+
+            // Колір у матчмейкінгу фіксований (red/blue). Беремо його зі СВІЖОГО
+            // matchmakingPlayerColor (виставляється подією matchmaking-found), а не
+            // зі старого 'myPlayerColor' попередньої катки — інакше після «Новий
+            // суперник» гравець бачив у грі колір попереднього матчу.
+            const storedMmColor = sessionStorage.getItem('matchmakingPlayerColor');
+            if (storedMmColor) {
+                myPlayerColor = storedMmColor;
+                sessionStorage.setItem('myPlayerColor', myPlayerColor);
+            }
 
             // Запам'ятаємо код кімнати, щоб повернутись в неї при повторному вході в режим
             if (roomCodeFromUrl) {
@@ -7506,6 +7633,12 @@ function setupMatchmakingGameHandlers() {
         } else if (data.gamePhase === 'regular-turn') {
             initialPhase.active = false;
             initialPhase.phase = 'complete';
+            // Rejoin: зберігаємо порядок ходів, інакше панель черги ходів
+            // (список гравців) не відображалась після перепідключення.
+            if (Array.isArray(data.turnOrder) && data.turnOrder.length > 0) {
+                turnOrder = data.turnOrder;
+            }
+            updateTurnOrderPanel();
             if (data.currentTurnPlayerId === myPlayerId) {
                 showYourTurn({ playerId: data.currentTurnPlayerId });
             } else {
@@ -7516,6 +7649,14 @@ function setupMatchmakingGameHandlers() {
             initialPhase.phase = 'initial-build';
             initialPhase.buildOrder = data.initialBuildOrder || [];
             initialPhase.currentIndex = data.currentIndex || 0;
+
+            // Rejoin у фазі initial-build: панель черги ходів має намалюватись
+            // ОДРАЗУ (та сама причина, що й у registerMultiplayerHandlers).
+            if (Array.isArray(data.players) && data.players.length > 0) {
+                updatePlayersList(data.players);
+            }
+            updateTurnOrderPanel();
+
             const overlay = document.getElementById('buildPhaseOverlay');
             if (overlay) overlay.style.display = 'flex';
             if (data.currentPlayerId === myPlayerId) {
@@ -7605,6 +7746,9 @@ function setupMatchmakingGameHandlers() {
         if (data && data.roomCode) {
             sessionStorage.setItem('matchmakingRoomCode', data.roomCode);
             sessionStorage.setItem('matchmakingPlayerColor', data.yourColor || 'red');
+            // Колір потрібен одразу після навігації у нову катку (index.html читає
+            // 'myPlayerColor') — без цього новий матч стартував зі СТАРИМ кольором.
+            sessionStorage.setItem('myPlayerColor', data.yourColor || 'red');
             if (data.opponent) sessionStorage.setItem('matchmakingOpponent', JSON.stringify(data.opponent));
             onMmMatchFound(data);
         }
@@ -7624,7 +7768,16 @@ function setupMatchmakingGameHandlers() {
     // знайде дельту і попап «Отримано ресурси!» не покажеться.
     mpClient.socket.on('resources-synced', (data) => {
         console.log('[matchmaking] resources-synced:', data);
-        if (pendingResourceCollection) return;
+        // Авторитетний повний синк (rejoin / request-game-state) проходить завжди
+        // (див. коментар у registerMultiplayerHandlers): rejoin-синк — це серверна
+        // правда, яку клієнт втратив, а pending-дельта в ньому вже врахована.
+        if (data && (data.source === 'rejoin' || data.source === 'request-game-state')) {
+            if (pendingResourceTimer) {
+                clearTimeout(pendingResourceTimer);
+                pendingResourceTimer = null;
+            }
+            pendingResourceCollection = null;
+        } else if (pendingResourceCollection) return;
         if (data && data.resources && data.resources[myPlayerId]) {
             gameState.resourceCards = { ...data.resources[myPlayerId] };
             updateResourceCardsDisplay();
@@ -7722,24 +7875,11 @@ function setupMatchmakingGameHandlers() {
         }
     });
 
-    // Handle player disconnected
-    mpClient.socket.on('player-disconnected', (data) => {
-        console.log('[matchmaking] player-disconnected:', data);
-        showMessage('⚠️ Гравець ' + (data.playerName || data.playerId) + ' відключився');
-    });
-
-    // Handle player returned
-    mpClient.socket.on('player-returned', (data) => {
-        console.log('[matchmaking] player-returned:', data);
-        // Таймер зупиняється ЗРАЗУ при будь-якому поверненні (без прив'язки до
-        // disconnectActivePlayerId — оверлей міг стартувати без playerId)
-        if (data && data.roomCode === roomCode) {
-            clearDisconnectTimer();
-            remapLocalPlayerId(data.previousId, data.playerId);
-            updateTurnOrderPanel();
-            showMessage('✅ ' + (data.playerName || 'Гравець') + ' повернувся! Гра продовжується.');
-        }
-    });
+    // 'player-disconnected' і 'player-returned' ТУТ НЕ реєструємо:
+    // registerMultiplayerHandlers (викликано вище для того самого mpClient)
+    // вже вішає повноцінні обробники (тост + disconnect-таймер / remap id +
+    // перерендер панелі черги). Дублювання слухачів призводило до того, що
+    // КОЖНЕ сповіщення «Гравець X відключився»/«повернувся» показувалось ДВІЧІ.
 
     // Handle host disconnected
     mpClient.socket.on('host-disconnected', (data) => {
@@ -7824,6 +7964,19 @@ function updatePlayersList(players) {
     }
 }
 
+// Індекс текстури знака гравця (assets/textures/menu/player-signs/sign-player-N.png):
+// 0 = червоний, 1 = синій, 2 = жовтий, 3 = зелений
+function signIndexForColor(color) {
+    switch (String(color || '').toLowerCase()) {
+        case 'red': return 0;
+        case 'blue': return 1;
+        case 'yellow': return 2;
+        case 'green': return 3;
+        default: return 0;
+    }
+}
+
+// ===== TURN ORDER PANEL (черга ходів) =====
 // ===== TURN ORDER PANEL (черга ходів) =====
 // Повертає { name, color, avatar } гравця за його id
 function getTurnPanelPlayerInfo(playerId) {
@@ -7894,14 +8047,18 @@ function updateTurnOrderPanel() {
         const pc = getPlayerColor(info.color);
         const isActive = pid === activeId;
 
-        // Картка гравця, залита кольором гравця (як на скріні)
+        // Картка гравця — фон із знаком гравця (player-signs)
         const item = document.createElement('div');
         item.className = 'turn-order-item' + (isActive ? ' active-turn' : '');
-        item.style.background = 'linear-gradient(135deg, ' + pc.primary + ', ' + pc.secondary + ')';
+        item.style.backgroundImage = 'url(\"../../assets/textures/menu/player-signs/sign-player-' + signIndexForColor(info.color) + '.png\")';
+        item.style.backgroundSize = '100% 100%';
+        item.style.backgroundPosition = 'center';
+        item.style.backgroundRepeat = 'no-repeat';
+        item.style.position = 'relative';
 
-        // Аватар: круг кольору гравця; на СВОЇЙ карточці — іконка, вибрана у профілі
+        // Аватар: круг над флажком (зліва). Якщо є іконка профілю — на весь слот.
         const avatar = document.createElement('div');
-        avatar.className = 'turn-order-avatar';
+        avatar.className = 'turn-order-avatar-sign';
         const _myId = (typeof myPlayerId !== 'undefined' && myPlayerId) ? myPlayerId : null;
         const isMyCard = (pid === 'me') || (_myId && pid === _myId);
         // Той самий ключ і набір іконок, що й у профілі (splash.html): icon-0..icon-8
@@ -7926,6 +8083,16 @@ function updateTurnOrderPanel() {
                 '</svg>';
         }
 
+        // Іконки збоку (флажки) — беремо з текстур ресурсів-гексів (land-0=дерево, land-1=кирпич)
+        const flagL = document.createElement('img');
+        flagL.className = 'turn-order-flag flag-left';
+        flagL.src = '../../assets/textures/hexs/land-0.png';
+        flagL.alt = '';
+        const flagR = document.createElement('img');
+        flagR.className = 'turn-order-flag flag-right';
+        flagR.src = '../../assets/textures/hexs/land-1.png';
+        flagR.alt = '';
+
         // Підпис: нік : X ПО (textContent — безпечно для будь-яких нікнеймів)
         const label = document.createElement('div');
         label.className = 'turn-order-label';
@@ -7947,6 +8114,8 @@ function updateTurnOrderPanel() {
         label.appendChild(vpSpan);
 
         item.appendChild(avatar);
+        item.appendChild(flagL);
+        item.appendChild(flagR);
         item.appendChild(label);
         list.appendChild(item);
     });
@@ -7998,10 +8167,20 @@ function startDicePhase(data) {
                 }
             }
         }
+        // Загальна кількість гравців може прийти свіжою (rejoin/рестарт) —
+        // без цього лічильник «Кинуто X / Y» міг залишатися застарілим.
+        const playersIn = Array.isArray(data) ? data : (data?.players || null);
+        if (Array.isArray(playersIn) && playersIn.length > 0) {
+            initialPhase.totalPlayers = playersIn.length;
+        }
         myPlayerId = getMyPlayerId() || myPlayerId;
         if (initialPhase.myRoll === null && myPlayerId && initialPhase.diceRolls.has(myPlayerId)) {
             initialPhase.myRoll = initialPhase.diceRolls.get(myPlayerId);
         }
+        // ВАЖЛИВО (rejoin): гілка раніше виходила, НЕ показуючи оверлей —
+        // вікно кубиків «зникало», поки не приходив наступний кидок суперника.
+        const _overlayAgain = document.getElementById('dicePhaseOverlay');
+        if (_overlayAgain) _overlayAgain.style.display = 'flex';
         updateDicePhaseUI();
         return;
     }
@@ -8060,6 +8239,12 @@ function startDicePhase(data) {
         initialPhase.myRoll = total;
         console.log('Кидок:', die1, die2, 'сума:', total);
 
+        // Свій кидок у списку результатів — ОДРАЗУ, без очікування серверного
+        // ехо (player-dice-rolled може прилетіти із затримкою на повільному
+        // сервері, і вікно «звіту» виглядало порожнім).
+        if (myPlayerId) initialPhase.diceRolls.set(myPlayerId, total);
+        updateDicePhaseUI();
+
         // Анімація
         const die1El = document.getElementById('initialDie1');
         const die2El = document.getElementById('initialDie2');
@@ -8095,9 +8280,19 @@ function startDicePhase(data) {
         }, 900);
     });
 
-    if (data.diceRolls) {
-        updateDicePhaseUI();
+    // Rejoin у середині фази: кидок цього гравця вже є на сервері —
+    // показуємо вікно зі списком/результатами ОДРАЗУ і блокуємо кнопку,
+    // інакше після повернення в катку вікно виглядало «порожнім»
+    // або закривалось після першого кліку.
+    if (initialPhase.myRoll !== null) {
+        newBtn.disabled = true;
+        newBtn.style.opacity = '0.5';
+        newBtn.style.cursor = 'not-allowed';
     }
+
+    // Оновлюємо список кидків завжди (а не лише коли data.diceRolls є):
+    // без цього список гравців/результатів у вікні кубиків не малювався.
+    updateDicePhaseUI();
 
     // Переконуємося, що оверлей видимий
     overlay.style.display = 'flex';
@@ -8193,10 +8388,8 @@ function onInitialBuildStart(data) {
     const orderDiv = document.getElementById('buildPhaseOrder');
     const status = document.getElementById('buildPhaseStatus');
     const endBtn = document.getElementById('initialBuildEndTurnBtn');
-    const reopenBtn = document.getElementById('showBuildPhaseBtn');
-    
+
     overlay.style.display = 'flex';
-    if (reopenBtn) reopenBtn.style.display = 'none';
     
     info.textContent = '🏗️ Початкове будівництво: потрібно 1 село + 2 дороги';
     
@@ -8723,42 +8916,6 @@ document.getElementById('initialBuildOkBtn').addEventListener('click', () => {
     document.getElementById('buildPhaseOverlay').style.display = 'none';
 });
 
-const closeBuildPhaseBtn = document.getElementById('closeBuildPhaseBtn');
-if (closeBuildPhaseBtn) {
-closeBuildPhaseBtn.addEventListener('click', () => {
-    audioManager.playClickSound();
-    const overlay = document.getElementById('buildPhaseOverlay');
-    if (overlay) overlay.style.display = 'none';
-
-    const myBuildings = initialPhaseBuildings.get(myPlayerId) || { settlements: 0, roads: 0 };
-    if (isMultiplayer && initialPhase.active && initialPhase.phase === 'initial-build' && myBuildings.settlements >= INITIAL_SETTLEMENT_LIMIT && myBuildings.roads >= INITIAL_ROAD_LIMIT) {
-        if (multiplayerClient && isMultiplayer) {
-            multiplayerClient.endInitialBuildTurn();
-        }
-        initialPhase.canBuild = false;
-        const status = document.getElementById('buildPhaseStatus');
-        if (status) {
-            status.textContent = '⏳ Очікування наступного гравця...';
-            status.style.color = '#f1c40f';
-        }
-    }
-
-    const reopenBtn = document.getElementById('showBuildPhaseBtn');
-    if (reopenBtn) reopenBtn.style.display = 'inline-block';
-});
-}
-
-const showBuildPhaseBtn = document.getElementById('showBuildPhaseBtn');
-if (showBuildPhaseBtn) {
-showBuildPhaseBtn.addEventListener('click', () => {
-    audioManager.playClickSound();
-    const overlay = document.getElementById('buildPhaseOverlay');
-    if (overlay) overlay.style.display = 'flex';
-    const reopenBtn = document.getElementById('showBuildPhaseBtn');
-    if (reopenBtn) reopenBtn.style.display = 'none';
-});
-}
-
 // End Turn button - універсальний обробник
 document.getElementById('endTurnBtn').addEventListener('click', () => {
     audioManager.playClickSound();
@@ -8993,7 +9150,7 @@ updateBuildStats = function() {
             <h2 style="color: #27ae60; margin-bottom: 20px; font-size: 1.8em;">СУПЕРНИКА ЗНАЙДЕНО!</h2>
             <div style="display: flex; justify-content: center; align-items: center; gap: 30px; margin-bottom: 20px;">
                 <div style="text-align: center;">
-                    <div style="width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 10px; background: #f1c40f;"></div>
+                    <div id="mmFoundMyColorBox" style="width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 10px; background: #f1c40f;"></div>
                     <div style="color: #f1c40f; font-weight: bold;">Ви</div>
                     <div id="mmFoundMyColor" style="color: #888; font-size: 0.9em;"></div>
                 </div>

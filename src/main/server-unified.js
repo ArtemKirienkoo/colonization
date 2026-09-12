@@ -231,11 +231,14 @@ function createMatchmakingGame(player1, player2) {
 //   - звичайний гравець -> катка автоматично завершується (кімната закривається);
 //   - хозяїн -> кімната автоматично зникає.
 // Явний вихід хозяїна кнопкою "Вийти" (leave-room) закриває кімнату миттєво.
-// Тривалість таймера на повернення: 1 хвилина за замовчуванням.
+// Тривалість таймера на повернення: 3 хвилини за замовчуванням. Раніше було 1 хвилину:
+// повний вихід із гри (закриття застосунку) = перезапуск застосунку + меню — гравець
+// фізично не встигав повернутися за 60 с, і незавершена катка закривалась
+// («просто подбор замість запуску в ще не завершену катку»).
 // Можна перевизначити через env (наприклад, для тестів: DISCONNECT_GRACE_MS=3000).
 const DISCONNECT_GRACE_MS = parseInt(process.env.DISCONNECT_GRACE_MS, 10) > 0
     ? parseInt(process.env.DISCONNECT_GRACE_MS, 10)
-    : 60 * 1000;
+    : 3 * 60 * 1000;
 const disconnectTimers = new Map(); // `${roomCode}:${socketId}` -> { timer, player }
 
 function clearDisconnectTimer(roomCode, socketId) {
@@ -2907,8 +2910,13 @@ io.on('connection', (socket) => {
         // (навігація splash -> index), і гравець його не побачив — через це
         // таймер очікування суперника не запускався одразу. Якщо суперник
         // зараз відключений — повідомляємо щойно підключеного гравця особисто.
+        // У навігаційному вікні (перші ~20 с після старту) «відключений»
+        // суперник найімовірніше просто ще переїжджає splash -> index, тож
+        // фальшиве сповіщення не шлемо (при справжньому зникненні кімнату
+        // закриє 1-хвилинний grace-таймер).
+        const inNavigationGrace = !!(room.navigationGraceUntil && Date.now() < room.navigationGraceUntil);
         const goneOpponent = room.players.find(p => p.id !== socket.id && p.disconnected === true);
-        if (goneOpponent && room.status !== 'game-over') {
+        if (goneOpponent && room.status !== 'game-over' && !inNavigationGrace) {
             socket.emit('player-disconnected', {
                 playerId: goneOpponent.id,
                 playerName: goneOpponent.name,
@@ -3027,6 +3035,8 @@ io.on('connection', (socket) => {
                 currentPlayerId: currentPlayerId,
                 initialBuildOrder: room.initialBuildOrder,
                 currentIndex: room.currentInitialBuildIndex,
+                // Список гравців для панелі черги ходів після rejoin (ніки/кольори)
+                players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color, avatar: p.avatar })),
                 buildings: getBuildingsArray(room)
             });
 
@@ -3128,6 +3138,26 @@ io.on('connection', (socket) => {
         }
         socket.emit('sync-dev-cards', { devCardHands: devCardHandsData });
 
+        // Ресурси и ПО (Issue #6): клієнт надсилає request-game-state ДВІЧІ при кожному
+        // rejoin (одразу + через 2 с). Якщо resources-synced/vp-synced з rejoin-room
+        // було втрачено (race, рання гілка return, перезапуск сокета) — повернення
+        // лишалось з НУЛЬОВИМИ лічильниками («у гравця пропали всі ресурси»).
+        // Повторюємо повний синк тут: події ідемпотентні (повна серверна правда).
+        if (room.playerResources instanceof Map && room.playerResources.size > 0) {
+            const resSyncData = {};
+            for (const [pid, res] of room.playerResources) {
+                if (pid) resSyncData[pid] = res;
+            }
+            socket.emit('resources-synced', { resources: resSyncData, source: 'request-game-state' });
+        }
+        if (room.playerVP instanceof Map && room.playerVP.size > 0) {
+            socket.emit('vp-synced', {
+                playerId: socket.id,
+                vp: room.playerVP.get(socket.id) || 0,
+                playerVP: Object.fromEntries(room.playerVP)
+            });
+        }
+
         if (room.gamePhase === 'dice-roll') {
             const diceRolls = Array.from(room.diceRolls.entries()).map(([playerId, total]) => ({ playerId, total }));
             const playersList = room.players.map(p => ({ id: p.id, name: p.name }));
@@ -3149,6 +3179,8 @@ io.on('connection', (socket) => {
                 currentPlayerId: currentPlayerId,
                 initialBuildOrder: room.initialBuildOrder,
                 currentIndex: room.currentInitialBuildIndex,
+                // Список гравців для панелі черги ходів після rejoin (ніки/кольори)
+                players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color, avatar: p.avatar })),
                 buildings: getBuildingsArray(room)
             });
 
@@ -3253,6 +3285,13 @@ io.on('connection', (socket) => {
             room.currentInitialBuildIndex = 0;
             room.initialBuildRoundComplete = false;
             room.buildings = new Map();
+
+            // Навігаційне вікно: клієнти ЗАРАЗ переїдуть зі splash на index
+            // (старі splash-сокети при цьому помруть). Без цього вікна сервер
+            // трактував їх як справжні дисконнекти і розсиляв фальшиві
+            // «Гравець X відключився» на фазі кубиків.
+            room.navigationGraceUntil = Date.now() + 20000;
+
             
             // Reset leftover per-game state from a previous game
             // (e.g., when a new game is started from the room lobby after game-over)
@@ -4736,6 +4775,10 @@ io.on('connection', (socket) => {
 
         console.log('[matchmaking] Game starting:', roomCode);
 
+        // Навігаційне вікно (симетрично до 'start-game'): страховка від фальшивих
+        // «відключився», якщо якийсь splash-сокет помре вже після handshake.
+        room.navigationGraceUntil = Date.now() + 20000;
+
         // Send game-started event first (for map deserialization)
         io.to(roomCode).emit('game-started', { mapSeed: room.gameState || {} });
 
@@ -4786,6 +4829,14 @@ io.on('connection', (socket) => {
                 return;
             }
 
+            // НАВІГАЦІЙНЕ ВІКНО (кімнатні ігри): у перші ~20 с після старту катки
+            // splash-сокети помирають при переході splash -> index. Це НЕ
+            // дисконнект — гравець повернеться через rejoin-room за секунди.
+            // Фальшиві «Гравець X відключився»/«Хазяїн відключився» не шлемо,
+            // але позначку disconnected і таймер повернення лишаємо: якщо гравець
+            // справді зник — кімната закриється звичайним 1-хвилинним grace.
+            const inNavigationGrace = !!(room.navigationGraceUntil && Date.now() < room.navigationGraceUntil);
+
             // If host disconnects
             if (room.host === socket.id) {
                 if (room.gamePhase) {
@@ -4798,7 +4849,7 @@ io.on('connection', (socket) => {
                     // поверненні — суперник дивився на відлік до самого кінця.
                     const hostAlreadyMarked = !!player.disconnected;
                     player.disconnected = true;
-                    if (!hostAlreadyMarked) {
+                    if (!hostAlreadyMarked && !inNavigationGrace) {
                         socket.to(code).emit('host-disconnected', {
                             playerId: socket.id,
                             playerName: player.name,
@@ -4851,7 +4902,7 @@ io.on('connection', (socket) => {
                 // автоматично (кімната закриється, всі повернуться в лобі).
                 const wasAlreadyMarked = !!player.disconnected;
                 player.disconnected = true;
-                if (!wasAlreadyMarked) {
+                if (!wasAlreadyMarked && !inNavigationGrace) {
                     socket.to(code).emit('player-disconnected', {
                         playerId: socket.id,
                         playerName: player.name,
