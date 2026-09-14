@@ -2484,6 +2484,45 @@ let buildingTextures = { road: {}, house: {}, castle: {} };
     });
 })();
 
+// ===== ТЕКСТУРИ РОЗБІЙНИКА (вирізані з атласу aa2aea42, 5 кольорових фішок) =====
+// robberTextures[color] -> Image; color ∈ purple/red/blue/yellow/green.
+// purple — фішка «за замовчуванням» (розбійник на пустині / колір ще не призначено).
+let robberTextures = {};
+(function loadRobberTextures() {
+    ['purple', 'red', 'blue', 'yellow', 'green'].forEach(color => {
+        const img = new Image();
+        img.src = '../../assets/textures/markers/robber-' + color + '.png';
+        img.onload = function() { robberTextures[color] = img; if (mapData) renderMap(mapData, canvas, mapHexSize); };
+        img.onerror = function() { console.warn('robber texture failed: ' + color); };
+    });
+})();
+
+// Малює спрайт-фішку розбійника в центрі (cx, cy). Колір фішки береться з
+// gameState.robber.color ('red'/'blue'/'yellow'/'green' — колір гравця, що
+// поставив розбійника); невідомий колір / відсутній -> purple.
+// Якщо спрайт ще не завантажився — малює fallbackDraw (старий канвас-токен).
+function drawRobberMarker(ctx, cx, cy, hexSize, fallbackDraw) {
+    let colorKey = 'purple';
+    if (gameState.robber.color && robberTextures[gameState.robber.color]) {
+        colorKey = gameState.robber.color;
+    }
+    const img = robberTextures[colorKey];
+    if (img && img.complete && img.naturalWidth > 0) {
+        const h = hexSize * 0.8;
+        const w = h * (img.naturalWidth / img.naturalHeight);
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,0.45)';
+        ctx.shadowBlur = hexSize * 0.12;
+        ctx.shadowOffsetY = hexSize * 0.05;
+        ctx.drawImage(img, cx - w / 2, cy - h / 2, w, h);
+        ctx.restore();
+        return true;
+    }
+    if (fallbackDraw) fallbackDraw();
+    return false;
+}
+
+
 // ===== ТЕКСТУРИ КАРТ РОЗВИТКУ (10: зворот колоди, рицар, дороги, достаток, ринок, універ, бібліотека, ратуша, собор, монополія) =====
 let devCardTextures = [];
 (function loadDevCardTextures() {
@@ -3365,6 +3404,9 @@ function renderMap(data, canvas, hexSize) {
         }else{
             // Desert tile - draw robber figure ONLY if robber is on this desert hex
             if (gameState.robber.hexKey === k) {
+                // Спрайт-фішка розбійника (нові текстури); старий канвас-токен — fallback
+                if (drawRobberMarker(ctx, cx, cy, hexSize)) { }
+                else {
                 const rs=hexSize*0.3,hw=rs*1.35,hh=rs*0.95,rr=hexSize*0.07;
                 ctx.beginPath();
                 ctx.moveTo(cx-hw+rr,cy-hh);
@@ -3431,6 +3473,7 @@ function renderMap(data, canvas, hexSize) {
                 ctx.lineTo(scx+s*0.66,scy-s*0.62);
                 ctx.closePath();
                 ctx.fill();
+                } // кінець fallback (старий канвас-токен)
             }
         }
     }
@@ -3670,6 +3713,9 @@ function renderMap(data, canvas, hexSize) {
         const rcx = rp.x + ox, rcy = rp.y + oy;
         const robberRes = mapData.resources.get(gameState.robber.hexKey);
         if (robberRes !== 'desert') {
+            // Спрайт-фішка розбійника (нові текстури); старий канвас-токен — fallback
+            if (drawRobberMarker(ctx, rcx, rcy, hexSize)) { }
+            else {
             // Same size as desert tile token
             const rs=hexSize*0.3,hw=rs*1.35,hh=rs*0.95,rr=hexSize*0.07;
             // Rounded rectangle (same as desert tile)
@@ -3736,6 +3782,7 @@ function renderMap(data, canvas, hexSize) {
             ctx.lineTo(scx+s*0.66,scy-s*0.62);
             ctx.closePath();
             ctx.fill();
+            } // кінець fallback (старий канвас-токен)
         }
     }
     cacheCanvas(ctx);
