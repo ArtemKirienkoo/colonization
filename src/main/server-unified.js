@@ -20,11 +20,15 @@ const io = socketIo(server, {
     transports: ['websocket', 'polling']
 });
 
-// Serve static files for browser testing (local mode only)
+// Serve static files — UI і ТЕПЕР ТАКОЖ assets — в ОБОХ режимах (локально і хмара).
+// Раніше ассети роздавались лише локально: у браузері на Render усі текстури/звуки
+// (.png/.mp3 під '../..\/assets/...') віддавали 404, бо корінь статики = src/ui,
+// а папка assets/ лежить на рівень вище. Тепер /assets/* обслуговується сервером,
+// тож браузерна версія бачить гекси, фішки (включно з новими розбійниками), карти й чує звуки.
+// Electron-застосунок це не стосується — він вантажить файли з диска (loadFile).
 const isCloud = process.env.CLOUD === 'true';
-if (!isCloud) {
-    app.use(express.static(path.join(__dirname, '..', 'ui')));
-}
+app.use(express.static(path.join(__dirname, '..', 'ui')));
+app.use('/assets', express.static(path.join(__dirname, '..', '..', 'assets')));
 
 // Store active rooms
 const rooms = new Map();
