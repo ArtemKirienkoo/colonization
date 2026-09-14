@@ -2489,11 +2489,19 @@ let buildingTextures = { road: {}, house: {}, castle: {} };
 // purple — фішка «за замовчуванням» (розбійник на пустині / колір ще не призначено).
 let robberTextures = {};
 (function loadRobberTextures() {
+    // Бази — за патерном _audioBases(): відносний '../../' працює в Electron/локально,
+    // альтернативні варіанти — на випадок іншого кореня статик-хостингу в хмарі.
+    const bases = ['../../assets/textures/markers/', '../assets/textures/markers/', 'assets/textures/markers/', '/assets/textures/markers/'];
     ['purple', 'red', 'blue', 'yellow', 'green'].forEach(color => {
         const img = new Image();
-        img.src = '../../assets/textures/markers/robber-' + color + '.png';
+        let bi = 0;
         img.onload = function() { robberTextures[color] = img; if (mapData) renderMap(mapData, canvas, mapHexSize); };
-        img.onerror = function() { console.warn('robber texture failed: ' + color); };
+        img.onerror = function() {
+            bi++;
+            if (bi < bases.length) { img.src = bases[bi] + 'robber-' + color + '.png'; }
+            else { console.warn('robber texture failed: ' + color); }
+        };
+        img.src = bases[0] + 'robber-' + color + '.png';
     });
 })();
 
