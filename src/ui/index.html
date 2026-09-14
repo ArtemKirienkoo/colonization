@@ -75,11 +75,11 @@
         #turnOrderPanel {
             position: absolute;
             left: 14px;
-            top: 60px;
+            top: 38px;
             bottom: 12px;
             z-index: 6;
             width: auto;
-            max-width: 220px;
+            max-width: 330px;
             overflow-y: auto;
         }
         .left-panel {
@@ -1009,24 +1009,7 @@
         color: #f1c40f;
     }
 
-    /* ===== ФЛАЖКИ В ПОРЯДКУ ХОДІВ ===== */
-    .turn-order-flag {
-        position: absolute;
-        width: 30px;
-        height: 30px;
-        object-fit: contain;
-        filter: drop-shadow(0 2px 3px rgba(0,0,0,0.4));
-        pointer-events: none;
-        z-index: 2;
-    }
-    .turn-order-flag.flag-left {
-        left: 10px;
-        bottom: 5px;
-    }
-    .turn-order-flag.flag-right {
-        right: 10px;
-        bottom: 5px;
-    }
+    /* ===== ФЛАЖКИ В ПОРЯДКУ ХОДІВ (більші картки-вивіски, гекси-прикраси прибрані) ===== */
 
     .turn-order-avatar-sign {
         position: absolute;
@@ -1167,11 +1150,12 @@
     .turn-order-item {
         flex: 0 0 auto !important;
         min-width: 0 !important;
-        padding: 10px 14px 10px 12px !important;
-        min-height: 66px !important;
+        padding: 12px 18px 12px 12px !important;
+        min-height: 98px !important;
         border: 2px solid rgba(0, 0, 0, 0.45) !important;
-        border-radius: 10px !important;
+        border-radius: 12px !important;
         justify-content: flex-start;
+        gap: 10px !important;
         overflow: hidden;
         box-shadow: 0 3px 10px rgba(0,0,0,0.35) !important;
     }
@@ -1179,22 +1163,32 @@
         border-color: #f1c40f !important;
         box-shadow: 0 0 16px rgba(241, 196, 15, 0.65), 0 3px 10px rgba(0,0,0,0.35) !important;
     }
-    .turn-order-label { text-shadow: 0 1px 3px rgba(0,0,0,0.65); font-size: 1.05em; }
-    .turn-order-name { max-width: 170px; color: #fff !important; }
-    .turn-order-sep { color: rgba(255,255,255,0.8) !important; }
-    .turn-order-vp { color: #fff !important; }
+    .turn-order-label { text-shadow: 0 1px 3px rgba(0,0,0,0.65); font-size: 1.2em; flex-direction: column; align-items: flex-start; gap: 2px !important; }
+    .turn-order-name { max-width: 220px; font-size: 1.05em; color: #fff !important; }
+    .turn-order-sep { display: none !important; }
+    .turn-order-vp { color: #fff !important; font-size: 0.95em; }
     .turn-order-item.active-turn .turn-order-name,
     .turn-order-item.active-turn .turn-order-sep,
     .turn-order-item.active-turn .turn-order-vp {
         color: #fff !important;
         text-shadow: 0 0 8px rgba(241,196,15,0.95), 0 1px 3px rgba(0,0,0,0.6);
     }
-    .turn-order-avatar { width: 42px !important; height: 42px !important; }
-    .turn-order-avatar svg { width: 26px !important; height: 26px !important; }
-    .turn-order-flag { width: 30px !important; height: 30px !important; }
-    .turn-order-flag.flag-left { left: 10px !important; bottom: 5px !important; }
-    .turn-order-flag.flag-right { right: 10px !important; bottom: 5px !important; }
-    .turn-order-avatar-sign { width: 40px !important; height: 40px !important; top: 4px !important; left: 26px !important; }
+    .turn-order-avatar { width: 52px !important; height: 52px !important; }
+    .turn-order-avatar svg { width: 34px !important; height: 34px !important; }
+    /* Аватар стає звичайним flex-елементом (не absolute): іконка гравця ліворуч,
+       нік + ПО праворуч, все вертикально по центру великої картки-вивіски */
+    .turn-order-avatar-sign {
+        position: relative !important;
+        top: auto !important;
+        left: auto !important;
+        transform: none !important;
+        width: 60px !important;
+        height: 60px !important;
+        flex-shrink: 0;
+        background-size: 100% 100% !important;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+    }
     /* Іконка профілю = САМА ІКОНКА (без кружка й підсвітки), розміром як слот аватара */
     .turn-order-avatar.has-icon {
         border-radius: 0 !important;
@@ -1449,9 +1443,148 @@
     .card-with-count { position: relative; }
     /* Стара кнопка "Обмін" — сховати, тепер обмін через клік по картках ресурсів */
     #tradeBtn { display: none !important; }
+
+    /* ===== ШРИФТ ЗАГОЛОВКА (той самий, що у splash.html) ===== */
+    @font-face {
+        font-family: 'Ruslan Display';
+        font-style: normal;
+        font-weight: 400;
+        src: url('../../assets/fonts/RuslanDisplay-Regular.ttf') format('truetype');
+    }
+
+    /* ===== ВІКНО ЗАВАНТАЖЕННЯ ПІД ЧАС ПІДКЛЮЧЕННЯ ГРАВЦІВ (пункт 1) ===== */
+    /* Показується у матчмейкінгу, поки гравці підключаються до катки. Фон —
+       дерев'яний стіл (та сама текстура, що й карта), напис гри + полоска
+       завантаження (як на екрані загрузки сервера у splash.html). */
+    #gameLoadingOverlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 9990;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding-top: 6vh;
+        background-image: url('../../assets/textures/menu/af585fd8-a823-4e03-8b08-61ac4e772977.png');
+        background-size: cover;
+        background-position: center;
+        transition: opacity 0.6s ease;
+        pointer-events: auto;
+    }
+    #gameLoadingOverlay.fade-out {
+        opacity: 0;
+        pointer-events: none;
+    }
+    #gameLoadingOverlay .mm-loading-logo {
+        font-family: 'Ruslan Display', 'Times New Roman', serif;
+        font-size: 5.2em;
+        letter-spacing: 4px;
+        background: linear-gradient(180deg, #fdf6d8 0%, #f2cf7e 30%, #d9a441 55%, #9a6a1f 80%, #6e4a15 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        -webkit-text-stroke: 1px rgba(62, 39, 12, 0.45);
+        margin-bottom: 56px;
+        filter: drop-shadow(0 4px 7px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 26px rgba(242, 207, 126, 0.3));
+        animation: loadingLogoPulse 2.5s infinite ease-in-out;
+    }
+    @keyframes loadingLogoPulse {
+        0%, 100% { transform: scale(1); opacity: 0.95; }
+        50% { transform: scale(1.03); opacity: 1; }
+    }
+    #gameLoadingOverlay .mm-loading-track {
+        position: relative;
+        width: min(560px, 72vw);
+        height: 20px;
+        border-radius: 10px;
+        background: linear-gradient(180deg, #3c2812, #1f1206);
+        border: 2px solid #8a5a24;
+        box-shadow:
+            0 0 0 2px rgba(30, 18, 6, 0.8),
+            inset 0 2px 6px rgba(0, 0, 0, 0.8),
+            0 6px 18px rgba(0, 0, 0, 0.55);
+        overflow: visible;
+    }
+    #gameLoadingOverlay .mm-loading-track::before,
+    #gameLoadingOverlay .mm-loading-track::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 0;
+        width: 13px;
+        height: 13px;
+        transform: translate(-50%, -50%) rotate(45deg);
+        background: linear-gradient(135deg, #f6e2a0, #d9a441 55%, #8a5a24);
+        border: 2px solid #5c3a10;
+        box-shadow: 0 0 10px rgba(242, 207, 126, 0.45), inset 0 0 3px rgba(255, 255, 255, 0.5);
+        z-index: 2;
+    }
+    #gameLoadingOverlay .mm-loading-track::after { left: 100%; }
+    #gameLoadingOverlay .mm-loading-fill {
+        height: 100%;
+        width: 0%;
+        border-radius: 9px;
+        background:
+            repeating-linear-gradient(90deg, rgba(110, 74, 21, 0.35) 0 2px, transparent 2px 14px),
+            linear-gradient(180deg, #fdf6d8, #f2cf7e 30%, #d9a441 60%, #9a6a1f 100%);
+        box-shadow: 0 0 15px rgba(242, 207, 126, 0.55), inset 0 1px 2px rgba(255, 255, 255, 0.55);
+        position: relative;
+        overflow: hidden;
+        animation: mmLoadingFill 4s ease-in-out forwards;
+    }
+    @keyframes mmLoadingFill {
+        0% { width: 0%; }
+        70% { width: 86%; }
+        100% { width: 100%; }
+    }
+    #gameLoadingOverlay .mm-loading-fill::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        right: 0;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+        animation: progressShine 1.6s infinite linear;
+    }
+    @keyframes progressShine {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+    }
+    #gameLoadingOverlay .mm-loading-status {
+        margin-top: 22px;
+        font-size: 1.1em;
+        color: #dcc590;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8), 0 0 12px rgba(0, 0, 0, 0.5);
+    }
+
+    /* ===== ЛІЧИЛЬНИК ЗАКРИТТЯ ВІКНА КУБИКІВ (пункт 3) ===== */
+    #dicePhaseCountdown {
+        color: #f1c40f;
+        font-size: 1.15em;
+        font-weight: bold;
+        margin-bottom: 14px;
+        min-height: 1.4em;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+    }
     </style>
 </head>
 <body>
+<!-- Вікно завантаження під час підключення гравців (пункт 1): фон — дерев'яний стіл,
+     напис гри + полоска завантаження. Показується у матчмейкінгу, поки йде підключення. -->
+<div id="gameLoadingOverlay" style="display: none;">
+    <div class="mm-loading-logo">COLONIZATION</div>
+    <div class="mm-loading-track">
+        <div class="mm-loading-fill"></div>
+    </div>
+    <div class="mm-loading-status" id="mmLoadingStatus">Підключення гравців...</div>
+</div>
+
 <!-- Game Menu Button -->
 <div class="game-menu-btn" id="gameMenuBtn">
     <span></span>
@@ -1481,6 +1614,7 @@
             <div class="initial-die" id="initialDie2" style="width: 70px; height: 70px; background: linear-gradient(135deg, #fff, #ddd); border-radius: 10px; display: flex; justify-content: center; align-items: center; font-size: 2.5em; font-weight: bold; color: #333; box-shadow: 0 3px 10px rgba(0,0,0,0.3);">⚀</div>
         </div>
         <div id="dicePhaseStatus" style="color: #f1c40f; margin-bottom: 20px; font-size: 1.2em; font-weight: bold;"></div>
+        <div id="dicePhaseCountdown" style="display: none;"></div>
         <div id="dicePhaseResults" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;"></div>
         <button id="rollDiceInitialBtn" style="padding: 15px 40px; font-size: 1.2em; background: linear-gradient(135deg, #9b59b6, #8e44ad); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold;">Продовжити</button>
     </div>
@@ -5675,6 +5809,89 @@ let pendingResourceTimer = null;      // Страхувальний таймер
 let pendingServerResources = null;    // Повний синк ресурсів, що чекає застосування у flush
 let diceCloseTimer = null;            // Відкладене закриття вікна результатів кидків
 
+// ===== ВІКНО ЗАВАНТАЖЕННЯ ПІД ЧАС ПІДКЛЮЧЕННЯ (пункт 1) =====
+// Показується у матчмейкінгу, поки гравці підключаються до катки (фон — дерев'яний
+// стіл, напис гри + полоска завантаження). Зникає, коли гра реально стартує.
+let gameLoadingShown = false;
+function showGameLoadingOverlay() {
+    if (gameLoadingShown) return;
+    gameLoadingShown = true;
+    const ov = document.getElementById('gameLoadingOverlay');
+    if (!ov) return;
+    ov.classList.remove('fade-out');
+    ov.style.display = 'flex';
+    // Перезапускаємо анімацію полоски завантаження
+    const fill = ov.querySelector('.mm-loading-fill');
+    if (fill) {
+        fill.style.animation = 'none';
+        void fill.offsetWidth;
+        fill.style.animation = '';
+    }
+    const status = document.getElementById('mmLoadingStatus');
+    if (status) status.textContent = 'Підключення гравців...';
+}
+function hideGameLoadingOverlay() {
+    if (!gameLoadingShown) return;
+    gameLoadingShown = false;
+    const ov = document.getElementById('gameLoadingOverlay');
+    if (!ov) return;
+    ov.classList.add('fade-out');
+    setTimeout(() => {
+        if (ov.style && !gameLoadingShown) ov.style.display = 'none';
+    }, 700);
+}
+
+// ===== ЛІЧИЛЬНИК ЗАКРИТТЯ ВІКНА КУБИКІВ (пункт 3) =====
+// Після того, як усі кинули кубики, вікно результатів тримається N секунд із
+// написом «Вікно закриється через X секунд», а потім закривається саме.
+let diceCountdownActive = false;
+function clearDiceCountdown() {
+    if (diceCloseTimer) {
+        clearTimeout(diceCloseTimer);
+        diceCloseTimer = null;
+    }
+    diceCountdownActive = false;
+    const cd = document.getElementById('dicePhaseCountdown');
+    if (cd) cd.style.display = 'none';
+    const rollBtn = document.getElementById('rollDiceInitialBtn');
+    if (rollBtn) {
+        rollBtn.disabled = false;
+        rollBtn.style.opacity = '1';
+        rollBtn.style.cursor = 'pointer';
+    }
+}
+function startDiceCountdown(seconds, onComplete) {
+    clearDiceCountdown();
+    diceCountdownActive = true;
+    const cd = document.getElementById('dicePhaseCountdown');
+    const rollBtn = document.getElementById('rollDiceInitialBtn');
+    if (rollBtn) {
+        rollBtn.disabled = true;
+        rollBtn.style.opacity = '0.5';
+        rollBtn.style.cursor = 'not-allowed';
+    }
+    let remaining = Math.max(1, seconds);
+    const tick = () => {
+        if (!diceCountdownActive) return;
+        if (!cd || cd.style.display === 'none') return;
+        cd.textContent = 'Вікно закриється через ' + remaining + ' секунд';
+        if (remaining > 1) {
+            remaining--;
+            diceCloseTimer = setTimeout(tick, 1000);
+        } else {
+            // Час вийшов — закриваємо вікно і викликаємо продовження гри
+            diceCountdownActive = false;
+            diceCloseTimer = null;
+            const ov = document.getElementById('dicePhaseOverlay');
+            if (ov) { ov.style.display = 'none'; ov.style.zIndex = '2500'; }
+            if (cd) cd.style.display = 'none';
+            if (typeof onComplete === 'function') onComplete();
+        }
+    };
+    if (cd) cd.style.display = 'block';
+    tick();
+}
+
 // Обробляє відкладені ресурси ПІСЛЯ завершення анімації кубиків.
 // Викликається з onRegularDiceRolled (коли кубики «впали»), а також
 // страхувальним таймером, якщо подія анімації була пропущена.
@@ -5858,9 +6075,10 @@ function registerMultiplayerHandlers(client) {
     client.onInitialBuildStart((data) => {
         console.log('Initial build started:', data, ' myPlayerId=', myPlayerId);
         
-        // Вікно результатів кидків лишаємо видимим ~3.5 с — раніше воно закривалось
-        // МИТТЄВО (переможець фази не встигав побачити список). Тимчасово піднімаємо
-        // вікно кубиків вище build-overlay, щоб вікно будівництва його не перекрило.
+        // Вікно результатів кидків лишаємо видимим з відліком 5 секунд — раніше воно
+        // закривалось МИТТЄВО (переможець фази не встигав побачити список) або, після
+        // старого фікса, мовчки 3.5 с. Тепер на самому вікні показується напис
+        // «Вікно закриється через X секунд», і лише потім починається будівництво.
         const diceOverlay = document.getElementById('dicePhaseOverlay');
         if (diceOverlay && diceOverlay.style.display !== 'none') {
             const rollStatus = document.getElementById('dicePhaseStatus');
@@ -5870,14 +6088,8 @@ function registerMultiplayerHandlers(client) {
                 rollStatus.textContent = '🎲 Усі кинули! Першим будує: ' + (winner.playerId === myPlayerId ? 'Ви' : 'Гравець ' + String(winner.playerId).slice(0, 4));
                 rollStatus.style.color = '#27ae60';
             }
-            if (diceCloseTimer) { clearTimeout(diceCloseTimer); diceCloseTimer = null; }
             diceOverlay.style.zIndex = '3000';
-            diceCloseTimer = setTimeout(() => {
-                diceCloseTimer = null;
-                const ov = document.getElementById('dicePhaseOverlay');
-                if (ov) { ov.style.display = 'none'; ov.style.zIndex = '2500'; }
-                finishInitialBuildStart(data);
-            }, 3500);
+            startDiceCountdown(5, () => finishInitialBuildStart(data));
         } else {
             finishInitialBuildStart(data);
         }
@@ -5931,8 +6143,9 @@ function registerMultiplayerHandlers(client) {
                 status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
                 status.style.color = '#27ae60';
             }
-            // Показуємо кнопку "Продовжити" для гравця, чий зараз хід
-            if (endBtn) endBtn.style.display = 'inline-block';
+            // Показуємо кнопку "Продовжити" лише в одиночній грі (мультиплеєр:
+            // друге вікно прибрано, гравець будує на канвасі і завершує хід кнопкою збоку)
+            if (!isMultiplayer && endBtn) endBtn.style.display = 'inline-block';
             const okBtn = document.getElementById('initialBuildOkBtn');
             if (okBtn) okBtn.style.display = 'none';
             // Розблокуємо будівництво
@@ -5946,9 +6159,9 @@ function registerMultiplayerHandlers(client) {
                 status.textContent = `⏳ Чекаємо, поки ${name} побудує...`;
                 status.style.color = '#f1c40f';
             }
-            // Показуємо кнопку "ОК" для гравців, що очікують
+            // Показуємо кнопку "ОК" лише в одиночній грі (мультиплеєр — без другого вікна)
             const okBtn = document.getElementById('initialBuildOkBtn');
-            if (okBtn) okBtn.style.display = 'inline-block';
+            if (!isMultiplayer && okBtn) okBtn.style.display = 'inline-block';
         }
     });
     client.onInitialBuildRound2Start((data) => {
@@ -5964,13 +6177,16 @@ function registerMultiplayerHandlers(client) {
             initialPhase.buildOrder = data.order;
         }
         
-        // Показуємо оверлей
-        const overlay = document.getElementById('buildPhaseOverlay');
-        if (overlay) overlay.style.display = 'flex';
+        // Показуємо оверлей ЛИШЕ в одиночній грі (мультиплеєр: друге вікно прибрано,
+        // будівництво йде просто на канвасі)
+        if (!isMultiplayer) {
+            const overlay = document.getElementById('buildPhaseOverlay');
+            if (overlay) overlay.style.display = 'flex';
+        }
         
-        // Показуємо кнопку "Продовжити" для активного гравця (ЗАВЖДИ, щоб можна було закрити вікно)
+        // Показуємо кнопку "Продовжити" для активного гравця лише в одиночній грі
         const endBtn = document.getElementById('initialBuildEndTurnBtn');
-        if (endBtn) {
+        if (!isMultiplayer && endBtn) {
             endBtn.style.display = 'inline-block';
         }
         const okBtn = document.getElementById('initialBuildOkBtn');
@@ -6006,9 +6222,9 @@ function registerMultiplayerHandlers(client) {
             status.textContent = `⏳ Чекаємо, поки ${name} побудує...`;
             status.style.color = '#f1c40f';
         }
-        // Показуємо кнопку "ОК" для гравців, що очікують
+        // Показуємо кнопку "ОК" лише в одиночній грі (мультиплеєр — без другого вікна)
         const okBtn = document.getElementById('initialBuildOkBtn');
-        if (okBtn) okBtn.style.display = 'inline-block';
+        if (!isMultiplayer && okBtn) okBtn.style.display = 'inline-block';
     });
     client.onInitialBuildYourDone((data) => {
         console.log('Initial build - your done:', data, ' myPlayerId=', myPlayerId);
@@ -6370,6 +6586,8 @@ function registerMultiplayerHandlers(client) {
         if (isTied) {
             // Цей гравець у ничий — скидаємо тільки його кидок
             initialPhase.myRoll = null;
+            // Скасовуємо відлік закриття вікна, якщо він уже йшов (перестраховка)
+            clearDiceCountdown();
             // Видаляємо тільки tied гравців з мапи
             for (const pid of tiedPlayers) {
                 initialPhase.diceRolls.delete(pid);
@@ -6424,6 +6642,8 @@ function registerMultiplayerHandlers(client) {
     client.onGameStateSync((data) => {
         console.log('Game state sync:', data);
         myPlayerId = getMyPlayerId();
+        // Синк стану = гра вже запущена — прибираємо вікно завантаження
+        hideGameLoadingOverlay();
         // Handle dice-roll phase as a fallback (in case start-dice-phase event was missed)
         if (data.gamePhase === 'dice-roll') {
             console.log('[game-state-sync] dice-roll phase detected');
@@ -6471,7 +6691,7 @@ function registerMultiplayerHandlers(client) {
             const status = document.getElementById('buildPhaseStatus');
             const endBtn = document.getElementById('initialBuildEndTurnBtn');
             
-            if (overlay) overlay.style.display = 'flex';
+            if (overlay) overlay.style.display = isMultiplayer ? 'none' : 'flex';
             if (info) info.textContent = '🏗️ Початкове будівництво: потрібно 1 село + 2 дороги';
             if (orderDiv && data.initialBuildOrder) {
                 orderDiv.innerHTML = '';
@@ -6493,8 +6713,8 @@ function registerMultiplayerHandlers(client) {
                     status.textContent = '🎯 Ваш хід! Побудуйте 1 село та 2 дороги';
                     status.style.color = '#27ae60';
                 }
-                // Показуємо кнопку "Продовжити" для активного гравця
-                if (endBtn) endBtn.style.display = 'inline-block';
+                // Показуємо кнопку "Продовжити" для активного гравця (тільки одиночна гра)
+                if (!isMultiplayer && endBtn) endBtn.style.display = 'inline-block';
             } else {
                 initialPhase.canBuild = false;
                 setBuildMode('none');
@@ -6504,9 +6724,9 @@ function registerMultiplayerHandlers(client) {
                     status.textContent = `⏳ Чекаємо, поки ${name} побудує...`;
                     status.style.color = '#f1c40f';
                 }
-                // Показуємо кнопку "ОК" для гравців, що очікують
+                // Показуємо кнопку "ОК" лише в одиночній грі
                 const okBtn = document.getElementById('initialBuildOkBtn');
-                if (okBtn) okBtn.style.display = 'inline-block';
+                if (!isMultiplayer && okBtn) okBtn.style.display = 'inline-block';
             }
             // ===== КІНЕЦЬ ДОДАНОЇ ЛОГІКИ =====
         }
@@ -7420,6 +7640,10 @@ function initMultiplayer() {
 function initMatchmakingGame(urlParams) {
     console.log('Initializing matchmaking game');
 
+    // Показуємо вікно завантаження (фон — дерев'яний стіл, напис гри + полоска).
+    // Воно зникає, коли гра реально стартує (start-dice-phase / game-state-sync).
+    showGameLoadingOverlay();
+
     mpClient = new MultiplayerClient();
     registerMultiplayerHandlers(mpClient);
 
@@ -7504,7 +7728,24 @@ function setupMatchmakingGameHandlers() {
 
         // Generate map
         const mapData = generateMap();
-        const topology = window.gameState?.topology || null;
+
+        // ===== ТОПОЛОГІЯ =====
+        // ВАЖЛИВО (фікс «ресурси не отримуються»): раніше тут бралась
+        // `window.gameState?.topology`, але gameState НЕ має поля topology —
+        // на сервер завжди йшла topology: null, і сервер без топології не міг
+        // знайти суміжні гекси біля поселень, тому НІХТО не отримував ресурси.
+        // Тепер топологія рахується з тієї САМОЇ карти, що летить на сервер.
+        let topologyPayload = null;
+        try {
+            const allHexes = [mapData.center, ...(mapData.ring1 || []), ...(mapData.ring2 || []), ...(mapData.ring3 || [])];
+            const topology = computeEdgesAndVertices(allHexes, 40); // 40 — для серверних перевірок не важливий
+            topologyPayload = {
+                edges: Array.from(topology.edges.entries()),
+                vertices: Array.from(topology.vertices.entries()).map(([key, val]) => [key, { pos: val.pos, hexes: val.hexes }])
+            };
+        } catch (e) {
+            console.error('[matchmaking] Помилка обчислення топології:', e);
+        }
 
         // Серіалізуємо Map-поля ДО відправки: socket.io не вміє передавати Map
         // (перетворює на {}), і клієнти отримували карту без ресурсів/океану.
@@ -7514,10 +7755,7 @@ function setupMatchmakingGameHandlers() {
         mpClient.socket.emit('matchmaking-start-game', {
             roomCode: roomCode,
             mapData: serializedMapData,
-            topology: topology ? {
-                edges: Array.from(topology.edges.entries()),
-                vertices: Array.from(topology.vertices.entries())
-            } : null
+            topology: topologyPayload
         });
 
         // Store map locally
@@ -7562,6 +7800,8 @@ function setupMatchmakingGameHandlers() {
 
         if (isTied) {
             initialPhase.myRoll = null;
+            // Скасовуємо відлік закриття вікна, якщо він уже йшов (перестраховка)
+            clearDiceCountdown();
             for (const pid of tiedPlayers) {
                 initialPhase.diceRolls.delete(pid);
             }
@@ -7664,6 +7904,8 @@ function setupMatchmakingGameHandlers() {
     mpClient.socket.on('game-state-sync', (data) => {
         console.log('[matchmaking] game-state-sync:', data);
         myPlayerId = getMyPlayerId();
+        // Синк стану = гра вже запущена — прибираємо вікно завантаження
+        hideGameLoadingOverlay();
 
         if (data.gamePhase === 'dice-roll') {
             console.log('[matchmaking][game-state-sync] dice-roll phase detected');
@@ -7699,7 +7941,7 @@ function setupMatchmakingGameHandlers() {
             updateTurnOrderPanel();
 
             const overlay = document.getElementById('buildPhaseOverlay');
-            if (overlay) overlay.style.display = 'flex';
+            if (overlay) overlay.style.display = 'none';
             if (data.currentPlayerId === myPlayerId) {
                 initialPhase.canBuild = true;
             } else {
@@ -8129,17 +8371,7 @@ function updateTurnOrderPanel() {
                 '</svg>';
         }
 
-        // Іконки збоку (флажки) — беремо з текстур ресурсів-гексів (land-0=дерево, land-1=кирпич)
-        const flagL = document.createElement('img');
-        flagL.className = 'turn-order-flag flag-left';
-        flagL.src = '../../assets/textures/hexs/land-0.png';
-        flagL.alt = '';
-        const flagR = document.createElement('img');
-        flagR.className = 'turn-order-flag flag-right';
-        flagR.src = '../../assets/textures/hexs/land-1.png';
-        flagR.alt = '';
-
-        // Підпис: нік : X ПО (textContent — безпечно для будь-яких нікнеймів)
+        // Підпис: нік + X ПО (textContent — безпечно для будь-яких нікнеймів)
         const label = document.createElement('div');
         label.className = 'turn-order-label';
 
@@ -8147,21 +8379,14 @@ function updateTurnOrderPanel() {
         nameSpan.className = 'turn-order-name';
         nameSpan.textContent = info.name;
 
-        const sepSpan = document.createElement('span');
-        sepSpan.className = 'turn-order-sep';
-        sepSpan.textContent = ':';
-
         const vpSpan = document.createElement('span');
         vpSpan.className = 'turn-order-vp';
         vpSpan.textContent = getTurnPanelVP(pid) + ' ПО';
 
         label.appendChild(nameSpan);
-        label.appendChild(sepSpan);
         label.appendChild(vpSpan);
 
         item.appendChild(avatar);
-        item.appendChild(flagL);
-        item.appendChild(flagR);
         item.appendChild(label);
         list.appendChild(item);
     });
@@ -8193,8 +8418,11 @@ function startDicePhase(data) {
     // Це вирішує проблему з другим вікном кубиків, яке не потрібно після завершення фази
     if (initialPhase.phase === 'complete' || initialPhase.phase === 'initial-build') {
         console.log('startDicePhase: фаза вже завершена, пропускаємо показ вікна кубиків');
+        hideGameLoadingOverlay();
         return;
     }
+    // Гра реально стартувала — вікно завантаження підключення прибираємо
+    hideGameLoadingOverlay();
 
     const rollBtn = document.getElementById('rollBtn');
     if (rollBtn) rollBtn.disabled = true;
@@ -8435,7 +8663,7 @@ function onInitialBuildStart(data) {
     const status = document.getElementById('buildPhaseStatus');
     const endBtn = document.getElementById('initialBuildEndTurnBtn');
 
-    overlay.style.display = 'flex';
+    overlay.style.display = isMultiplayer ? 'none' : 'flex';
     
     info.textContent = '🏗️ Початкове будівництво: потрібно 1 село + 2 дороги';
     
@@ -8480,9 +8708,9 @@ function onInitialBuildStart(data) {
         status.style.color = '#f1c40f';
         initialPhase.canBuild = false;
         setBuildMode('none');
-        // Show OK button for waiting players so they can close the overlay
+        // Show OK button only in single player (без другого вікна у мультиплеєрі)
         const okBtn = document.getElementById('initialBuildOkBtn');
-        if (okBtn) okBtn.style.display = 'inline-block';
+        if (!isMultiplayer && okBtn) okBtn.style.display = 'inline-block';
     }
 }
 
@@ -8500,13 +8728,14 @@ function onInitialBuildNextPlayer(data) {
     if (endBtn) endBtn.style.display = 'none';
     
     if (currentId === myPlayerId) {
-        // It's my turn - show "Продовжити" button, allow building
+        // It's my turn - allow building. Кнопка "Продовжити" показується лише
+        // в одиночній грі (мультиплеєр: друге вікно прибрано).
         initialPhase.canBuild = true;
         setBuildMode('none');
-        if (endBtn) endBtn.style.display = 'inline-block';
+        if (!isMultiplayer && endBtn) endBtn.style.display = 'inline-block';
     } else {
-        // It's not my turn - show "Продовжити" button so they can close the overlay
-        if (endBtn) endBtn.style.display = 'inline-block';
+        // Мультиплеєр: жодної кнопки/вікна — гравець просто чекає свого ходу
+        if (!isMultiplayer && endBtn) endBtn.style.display = 'inline-block';
         initialPhase.canBuild = false;
         setBuildMode('none');
     }
