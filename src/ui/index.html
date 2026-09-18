@@ -75,16 +75,18 @@
         #turnOrderPanel {
             position: absolute;
             left: 14px;
-            top: 38px;
+            /* Список виводиться ВИЩЕ і флажки ВУЖЧІ (текстура витягується на всю картку) */
+            top: 16px;
             bottom: 12px;
             z-index: 6;
-            width: auto;
+            width: 330px;
             max-width: 330px;
             overflow-y: auto;
         }
         .left-panel {
             position: absolute;
-            left: 280px;
+            /* Колода зсунута правіше, щоб не перекривати флажки гравців (панель 330px) */
+            left: 356px;
             top: 20%;
             transform: translateY(-50%);
             z-index: 6;
@@ -105,6 +107,8 @@
                перекладина зі стропами виходить приблизно на рівні центра */
             bottom: 48px;
             z-index: 6;
+            /* Фіксована ширина: залізна вивіска НЕ змінює розмір, коли з'являються/зникають карти */
+            width: 330px;
             max-width: 330px;
             max-height: 50vh;
             overflow-y: auto;
@@ -1114,7 +1118,8 @@
     /* ===== ЛІВА КОЛОНКА: колода розвитку ===== */
     .dev-deck-wrap { gap: 5px; width: 100%; }
     .dev-deck { padding: 0; }
-    .dev-deck-back { width: 110px; height: 148px; }
+    /* Висота під пропорцію текстури dev-0 (260×364), щоб карта НЕ обрізалась */
+    .dev-deck-back { width: 110px; height: 154px; }
     .dev-deck-count { font-size: 1.05em; }
     .dev-section { padding: 2px 0; }
     .dev-hand { gap: 5px; }
@@ -1150,8 +1155,9 @@
     .turn-order-item {
         flex: 0 0 auto !important;
         min-width: 0 !important;
-        padding: 12px 18px 12px 12px !important;
-        min-height: 98px !important;
+        /* Флажок нижчий і вужчий (панель 330px): менше паддінгу по боках */
+        padding: 8px 16px 8px 10px !important;
+        min-height: 74px !important;
         border: 2px solid rgba(0, 0, 0, 0.45) !important;
         border-radius: 12px !important;
         justify-content: flex-start;
@@ -1163,10 +1169,11 @@
         border-color: #f1c40f !important;
         box-shadow: 0 0 16px rgba(241, 196, 15, 0.65), 0 3px 10px rgba(0,0,0,0.35) !important;
     }
-    .turn-order-label { text-shadow: 0 1px 3px rgba(0,0,0,0.65); font-size: 1.2em; flex-direction: column; align-items: flex-start; gap: 2px !important; }
-    .turn-order-name { max-width: 220px; font-size: 1.05em; color: #fff !important; }
+    /* Нік і ПО — в ОДИН рядок (не стовпчиком) */
+    .turn-order-label { text-shadow: 0 1px 3px rgba(0,0,0,0.65); font-size: 1.0em; flex-direction: row; align-items: baseline; gap: 5px !important; white-space: nowrap; }
+    .turn-order-name { max-width: 168px; font-size: 0.85em; color: #fff !important; }
     .turn-order-sep { display: none !important; }
-    .turn-order-vp { color: #fff !important; font-size: 0.95em; }
+    .turn-order-vp { color: #fff !important; font-size: 0.78em; }
     .turn-order-item.active-turn .turn-order-name,
     .turn-order-item.active-turn .turn-order-sep,
     .turn-order-item.active-turn .turn-order-vp {
@@ -1182,13 +1189,16 @@
         top: auto !important;
         left: auto !important;
         transform: none !important;
-        width: 60px !important;
-        height: 60px !important;
+        /* Іконка гравця менша (під нижчий флажок) */
+        width: 36px !important;
+        height: 36px !important;
         flex-shrink: 0;
         background-size: 100% 100% !important;
         background-position: center !important;
         background-repeat: no-repeat !important;
     }
+    /* Фолбек-іконка (SVG) всередині слота — дрібна, не вилазить за межі слота */
+    .turn-order-avatar-sign svg { width: 62%; height: 62%; }
     /* Іконка профілю = САМА ІКОНКА (без кружка й підсвітки), розміром як слот аватара */
     .turn-order-avatar.has-icon {
         border-radius: 0 !important;
@@ -1308,13 +1318,17 @@
 
     /* ===== DEV CARD TEXTURED ===== */
     .dev-card-item.dev-card-textured {
-        background-size: cover !important;
+        /* Повна текстура карти БЕЗ обрізання: тягнеться на весь блок (0.75 = пропорція текстур) */
+        background-size: 100% 100% !important;
         background-position: center !important;
         background-repeat: no-repeat !important;
         border-width: 3px !important;
         color: #fff !important;
         text-shadow: 0 1px 3px rgba(0,0,0,0.9), 0 0 4px rgba(0,0,0,0.7);
+        width: 76px;
+        aspect-ratio: 3 / 4;
         min-width: 76px;
+        padding: 4px 6px !important;
     }
     .dev-card-item.dev-card-textured .dc-name { color: #fff !important; font-size: 0.7em; }
 
@@ -1433,16 +1447,15 @@
     .trade-popup .tp-btn:hover { background: linear-gradient(135deg, #2ecc71, #27ae60); }
     .trade-popup .tp-btn.cancel { background: linear-gradient(135deg, #c0392b, #e74c3c); }
     .trade-popup .tp-btn.cancel:hover { background: linear-gradient(135deg, #e74c3c, #c0392b); }
-    .trade-popup .tp-target-row { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
-    .trade-popup .tp-target {
-        width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
-        display: flex; align-items: center; justify-content: center; font-size: 1.1em;
-        border: 2px solid rgba(255,255,255,0.3); transition: all 0.15s; background: rgba(0,0,0,0.3);
-    }
-    .trade-popup .tp-target:hover { border-color: #f1c40f; transform: scale(1.15); }
     .card-with-count { position: relative; }
     /* Стара кнопка "Обмін" — сховати, тепер обмін через клік по картках ресурсів */
     #tradeBtn { display: none !important; }
+
+    /* ===== ВІКНО КУБИКІВ: неактивна кнопка «Продовжити» НЕ показується ===== */
+    /* Кнопка потрібна лише для власне кидка кубиків. Щойно вона стає disabled
+       (чекаємо інших гравців / усі кинули / іде зворотний відлік) — прибираємо
+       її з вікна зовсім; результати і таймер закриття залишаються. */
+    #rollDiceInitialBtn:disabled { display: none !important; }
 
     /* ===== ШРИФТ ЗАГОЛОВКА (той самий, що у splash.html) ===== */
     @font-face {
@@ -2847,7 +2860,7 @@ function updateDevHandDisplay() {
         const tex = (texIdx != null) ? devCardTextures[texIdx] : null;
         if (tex && tex.complete && tex.naturalWidth > 0) {
             div.style.backgroundImage = "url('../../assets/textures/cards/dev-" + texIdx + ".png')";
-            div.style.backgroundSize = 'cover';
+            div.style.backgroundSize = '100% 100%'; // повна текстура, без обрізання (cover)
             div.style.backgroundPosition = 'center';
         }
         div.innerHTML = '<span class="dc-icon">'+info.icon+'</span><span class="dc-name">'+info.name+'</span>';
@@ -4662,7 +4675,9 @@ function activateKnightCard(index){
                 const desertHexKey = hexKey(desertHex);
                 gameState.robber.hexKey = desertHexKey;
                 gameState.robber.placedBy = myPlayerId;
-                gameState.robber.color = '#a020f0'; // Reset to default purple when driven to desert
+                // Фішка на ПУСТИНІ завжди ФІОЛЕТОВА (нейтральна): «purple» є ключем
+                // текстур розбійника (robber-purple.png), тож спрайт намалюється коректно.
+                gameState.robber.color = 'purple';
                 
                 // Update knight count for largest army tracking
                 const currentKnights = gameState.knightCards.get(myPlayerId) || 0;
@@ -4709,10 +4724,10 @@ function activateYearOfPlenty(index){
     let selected=[];
     const rcClasses={wood:'wood-card',brick:'brick-card',geese:'geese-card',water:'water-card',stone:'stone-card'};
     resources.forEach(r=>{
+        // Назви ресурсів прибрано — лишилась тільки іконка на картці
         h+='<div style="text-align:center;flex:1;min-width:0;">' +
            '<div class="resource-card-item '+rcClasses[r]+'" style="'+cardCustomStyle+'">' +
            '<span class="res-icon" style="font-size:1.4em;">'+RESOURCES[r].icon+'</span>' +
-           '<span class="res-name" style="font-size:0.75em;">'+RESOURCES[r].name+'</span>' +
            '</div>' +
            '<div style="display:flex;gap:4px;justify-content:center;">' +
            '<button class="yop-minus" data-r="'+r+'" disabled style="width:22px;height:22px;border-radius:3px;border:2px solid #e74c3c;background:rgba(231,76,60,0.2);color:#e74c3c;font-size:1em;font-weight:bold;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">−</button>' +
@@ -4739,7 +4754,8 @@ function activateYearOfPlenty(index){
                 const cardDiv=document.createElement('div');
                 cardDiv.className='resource-card-item '+rcClasses[r];
                 cardDiv.style.cssText = cardCustomStyle + 'margin:0;';
-                cardDiv.innerHTML='<span class="res-icon" style="font-size:1.4em;">'+RESOURCES[r].icon+'</span><span class="res-name" style="font-size:0.75em;">'+RESOURCES[r].name+'</span>';
+                // Без назви ресурсу — тільки іконка
+                cardDiv.innerHTML='<span class="res-icon" style="font-size:1.4em;">'+RESOURCES[r].icon+'</span>';
                 cardsDiv.appendChild(cardDiv);
             });
         }
@@ -4840,7 +4856,7 @@ function activateMonopoly(index){
     let h='<h3 style="text-align:center;color:#f39c12;margin-bottom:15px;">👑 МОНОПОЛІЯ</h3><p style="text-align:center;color:#ccc;margin-bottom:12px;">Оберіть ресурс. Всі інші гравці віддадуть вам ВСІ свої картки цього ресурсу.</p><div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:12px;">';
     const rcClasses={wood:'wood-card',brick:'brick-card',geese:'geese-card',water:'water-card',stone:'stone-card'};
     resources.forEach(r=>{
-        h+='<div class="yop-res-option" data-r="'+r+'" style="padding:10px 14px;border-radius:6px;cursor:pointer;background:rgba(243,156,18,0.15);border:2px solid rgba(243,156,18,0.3);text-align:center;min-width:80px;"><div style="font-size:1.5em;">'+RESOURCES[r].icon+'</div><div style="font-size:0.7em;color:#ccc;">'+RESOURCES[r].name+'</div></div>';
+        h+='<div class="yop-res-option" data-r="'+r+'" style="padding:10px 14px;border-radius:6px;cursor:pointer;background:rgba(243,156,18,0.15);border:2px solid rgba(243,156,18,0.3);text-align:center;min-width:80px;"><div style="font-size:1.5em;">'+RESOURCES[r].icon+'</div></div>';
     });
     h+='</div>';
     h+='<div style="text-align:center;"><button id="monoCancel" style="padding:6px 15px;background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:6px;cursor:pointer;">Скасувати</button></div>';
@@ -4936,7 +4952,7 @@ function showMonopolyResourceSelection(modal, targetPlayerId, card) {
     // Show target player's resources (WITHOUT count - just icons)
     h+='<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:12px;padding:8px;background:rgba(0,0,0,0.2);border-radius:8px;">';
     resources.forEach(r=>{
-        h+='<div class="yop-res-option" data-r="'+r+'" style="padding:8px 12px;border-radius:6px;cursor:pointer;background:rgba(243,156,18,0.15);border:2px solid rgba(243,156,18,0.3);text-align:center;min-width:70px;"><div style="font-size:1.5em;">'+RESOURCES[r].icon+'</div><div style="font-size:0.7em;color:#ccc;">'+RESOURCES[r].name+'</div></div>';
+        h+='<div class="yop-res-option" data-r="'+r+'" style="padding:8px 12px;border-radius:6px;cursor:pointer;background:rgba(243,156,18,0.15);border:2px solid rgba(243,156,18,0.3);text-align:center;min-width:70px;"><div style="font-size:1.5em;">'+RESOURCES[r].icon+'</div></div>';
     });
     h+='</div>';
     
@@ -5198,6 +5214,10 @@ function placeRobber(targetHexKey) {
     // Update local robber position immediately for visual feedback
     gameState.robber.hexKey = targetHexKey;
     gameState.robber.placedBy = myPlayerId;
+    // Колір фішки = колір гравця, що поставив розбійника (синхронно з сервером)
+    if (typeof myPlayerColor !== 'undefined' && myPlayerColor) {
+        gameState.robber.color = myPlayerColor;
+    }
     
     // Render map to show updated robber position
     renderMap(mapData, canvas, mapHexSize);
@@ -5878,6 +5898,9 @@ function showGameLoadingOverlay() {
     // Перезапускаємо анімацію полоски завантаження
     const fill = ov.querySelector('.mm-loading-fill');
     if (fill) {
+        // Скидаємо інлайнові transition/width, залишені «швидким добіганням» попереднього показу
+        fill.style.transition = '';
+        fill.style.width = '';
         fill.style.animation = 'none';
         void fill.offsetWidth;
         fill.style.animation = '';
@@ -5890,10 +5913,39 @@ function hideGameLoadingOverlay() {
     gameLoadingShown = false;
     const ov = document.getElementById('gameLoadingOverlay');
     if (!ov) return;
-    ov.classList.add('fade-out');
+    // Гра стартувала (усі гравці підключились): швидко й плавно доводимо полоску
+    // до 100% з поточної позиції (без стрибка в 0%), показуємо «Готово!» і лише
+    // після цього плавно зникаємо в катку — як при відкритті самої гри.
+    const fill = ov.querySelector('.mm-loading-fill');
+    if (fill) {
+        let currentWidth = '0%';
+        try { currentWidth = getComputedStyle(fill).width; } catch (err) { /* fallback до 0% */ }
+        fill.style.animation = 'none';
+        fill.style.width = currentWidth; // фіксуємо поточний прогрес
+        void fill.offsetWidth;           // форсуємо reflow, щоб transition пішов звідси
+        fill.style.transition = 'width 0.45s ease-out';
+        fill.style.width = '100%';
+    }
+    const status = document.getElementById('mmLoadingStatus');
+    if (status) status.textContent = 'Готово!';
+    // Даємо полосці добігти до 100% + коротка пауза, потім плавний fade-out у гру
     setTimeout(() => {
-        if (ov.style && !gameLoadingShown) ov.style.display = 'none';
-    }, 700);
+        if (gameLoadingShown) return; // показ перезапустили (reconnect) — не ховаємо
+        ov.classList.add('fade-out');
+        setTimeout(() => {
+            if (gameLoadingShown) return;
+            ov.style.display = 'none';
+            // Повний скид полоски для наступного показу
+            if (fill) {
+                fill.style.transition = '';
+                fill.style.width = '';
+                fill.style.animation = 'none';
+                void fill.offsetWidth;
+                fill.style.animation = '';
+            }
+            if (status) status.textContent = 'Підключення гравців...';
+        }, 700);
+    }, 650);
 }
 
 // ===== ЛІЧИЛЬНИК ЗАКРИТТЯ ВІКНА КУБИКІВ (пункт 3) =====
@@ -7132,7 +7184,7 @@ function applyDevDeckTexture() {
     if (back && devCardTextures[0] && devCardTextures[0].complete && devCardTextures[0].naturalWidth > 0) {
         back.classList.add('textured');
         back.style.backgroundImage = "url('../../assets/textures/cards/dev-0.png')";
-        back.style.backgroundSize = 'cover';
+        back.style.backgroundSize = '100% 100%'; // повна текстура колоди, без обрізання
         back.style.backgroundPosition = 'center';
         back.style.backgroundRepeat = 'no-repeat';
         const icon = back.querySelector('.dev-deck-icon');
@@ -7189,62 +7241,41 @@ function openTradePopup(resourceType, anchorEl) {
     popup.className = 'trade-popup';
     renderTradeRatioButton(popup, resourceType, ratio);
     anchorEl.appendChild(popup);
-    activeTrade = { fromResource: resourceType, ratio, popup, anchor: anchorEl };
+    activeTrade = { fromResource: resourceType, ratio, popup, anchor: anchorEl, awaitingTarget: false };
 }
 
-// Рендерить початковий стан попапа: кнопка "Обмін X:1"
-// (викликається при відкритті попапа кліком по картці ресурсу)
+// Рендерить початковий стан попапа: кнопка "Обмін X:1".
+// КНОПОК ВИБОРУ ЦІЛІ В ПОПАПІ НЕМАЄ: після кліку "Обмін" кнопка змінюється на
+// "Відмінити", а цільовий ресурс гравець обирає КЛІКОМ ПО КАРТЦАХ РЕСУРСІВ
+// ЗНИЗУ ЕКРАНА (режим очікування цілі — awaitingTarget).
 function renderTradeRatioButton(popup, resourceType, ratio) {
     popup.innerHTML = '';
     const btn = document.createElement('button');
     btn.className = 'tp-btn';
     btn.textContent = 'Обмін ' + ratio + ':1';
-    btn.addEventListener('click', () => {
-        // Перевірка ресурсів ДО переходу до вибору цілі:
+    btn.addEventListener('click', (e) => {
+        // Зупиняємо спливання, щоб document-слухач "закриття поза попапом"
+        // не закрив щойно перемальований попап цим самим кліком.
+        e.stopPropagation();
+        // Перевірка ресурсів ДО переходу в режим очікування цілі:
         // якщо не вистачає — повідомлення і попап залишається у початковому стані
         if ((gameState.resourceCards[resourceType] || 0) < ratio) {
             showMessage('Недостатньо ресурсів!');
             return;
         }
-        showTradeTargets(resourceType, popup, ratio);
+        // Кнопка "Обмін" змінюється на "Відмінити"; ціль обирається кліком
+        // по картках ресурсів знизу екрана (setupResourceCardTradeClicks)
+        popup.innerHTML = '';
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'tp-btn cancel';
+        cancelBtn.textContent = 'Відмінити';
+        cancelBtn.addEventListener('click', closeTradePopup);
+        popup.appendChild(cancelBtn);
+        activeTrade.awaitingTarget = true;
+        activeTrade.ratio = ratio;
+        showMessage('Оберіть карту ресурсу, який хочете отримати (' + ratio + ' → 1)');
     });
     popup.appendChild(btn);
-}
-function showTradeTargets(fromResource, popup, ratio) {
-    popup.innerHTML = '';
-    const label = document.createElement('div');
-    label.style.cssText = 'color:#aaa;font-size:0.7em;text-align:center;';
-    label.textContent = 'Оберіть ресурс:';
-    popup.appendChild(label);
-    const row = document.createElement('div');
-    row.className = 'tp-target-row';
-    const cards = gameState.resourceCards;
-    for (const rt of ['wood', 'brick', 'geese', 'water', 'stone']) {
-        if (rt === fromResource) continue;
-        const t = document.createElement('div');
-        t.className = 'tp-target';
-        t.textContent = RESOURCES[rt].icon;
-        t.title = RESOURCES[rt].name;
-        t.addEventListener('click', () => {
-            if (cards[fromResource] >= ratio) {
-                gameState.resourceCards[fromResource] -= ratio;
-                gameState.resourceCards[rt] += 1;
-                updateResourceCardsDisplay();
-                if (typeof syncResourcesToServer === 'function') syncResourcesToServer();
-                showMessage('🔄 Обмін ' + ratio + ':1 виконано: ' + RESOURCES[fromResource].name + ' → ' + RESOURCES[rt].name);
-                closeTradePopup();
-            } else {
-                showMessage('Недостатньо ресурсів!');
-            }
-        });
-        row.appendChild(t);
-    }
-    popup.appendChild(row);
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'tp-btn cancel';
-    cancelBtn.textContent = 'Відмінити';
-    cancelBtn.addEventListener('click', closeTradePopup);
-    popup.appendChild(cancelBtn);
 }
 function setupResourceCardTradeClicks() {
     ['wood', 'brick', 'geese', 'water', 'stone'].forEach(rt => {
@@ -7255,8 +7286,30 @@ function setupResourceCardTradeClicks() {
             card.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const anchor = card.closest('.card-with-count');
-                if (activeTrade && activeTrade.anchor === anchor) closeTradePopup();
-                else openTradePopup(rt, anchor);
+                // Повторний клік по тій самій картці = скасувати (закрити попап)
+                if (activeTrade && activeTrade.anchor === anchor) { closeTradePopup(); return; }
+                // Режим очікування цілі: клік по ІНШІЙ картці ресурсу внизу
+                // екрана = вибір ресурсу, який отримуємо. Виконуємо обмін.
+                if (activeTrade && activeTrade.awaitingTarget) {
+                    if (rt === activeTrade.fromResource) {
+                        // Обмін "сам у себе" неможливий — трактуємо як скасування
+                        closeTradePopup();
+                        return;
+                    }
+                    const trade = activeTrade;
+                    if ((gameState.resourceCards[trade.fromResource] || 0) >= trade.ratio) {
+                        gameState.resourceCards[trade.fromResource] -= trade.ratio;
+                        gameState.resourceCards[rt] += 1;
+                        updateResourceCardsDisplay();
+                        if (typeof syncResourcesToServer === 'function') syncResourcesToServer();
+                        showMessage('🔄 Обмін ' + trade.ratio + ':1 виконано: ' + RESOURCES[trade.fromResource].name + ' → ' + RESOURCES[rt].name);
+                    } else {
+                        showMessage('Недостатньо ресурсів!');
+                    }
+                    closeTradePopup();
+                    return;
+                }
+                openTradePopup(rt, anchor);
             });
         }
     });

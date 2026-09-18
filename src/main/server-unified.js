@@ -3909,12 +3909,23 @@ io.on('connection', (socket) => {
         else if (action === 'place-robber') {
         // Update robber position on server — use room.robber (NOT room.gameState.robber)
         // room.robber is what regular-dice-roll uses for resource collection
-        // Robber on desert should always be purple, regardless of who placed it
+        // Robber on desert (knight move) should always be purple, regardless of who placed it
         const robberPlayer = room.players.find(p => p.id === socket.id);
+        // Визначаємо ключ пустині з ресурсів карти (пустиня завжди одна);
+        // фолбек — прапорець fromKnight від клієнта
+        let desertKey = null;
+        if (room.gameState && room.gameState.resources) {
+            for (const [key, res] of Object.entries(room.gameState.resources)) {
+                if (res === 'desert') { desertKey = key; break; }
+            }
+        }
+        const isDesertHex = (desertKey && payload.hexKey === desertKey) || payload.fromKnight === true;
         room.robber = {
             hexKey: payload.hexKey,
             placedBy: socket.id,
-            color: robberPlayer ? robberPlayer.color : 'purple'
+            // На пустині фішка нейтрально-фіолетова;
+            // при звичайній постановці — кольору гравця
+            color: isDesertHex ? 'purple' : (robberPlayer ? robberPlayer.color : 'purple')
         };
             
             // ===== RESOURCE THEFT =====
