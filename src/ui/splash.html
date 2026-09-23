@@ -1823,17 +1823,6 @@
             localStorage.setItem('sfxVolume', document.getElementById('sfxVolume').value);
         }
 
-        // Helper function to close all modals
-        function closeAllModals() {
-            document.getElementById('gameModeModal').style.display = 'none';
-            document.getElementById('multiplayerLobbyModal').style.display = 'none';
-            document.getElementById('createRoomModal').style.display = 'none';
-            document.getElementById('roomCreatedModal').style.display = 'none';
-            document.getElementById('joinRoomModal').style.display = 'none';
-            document.getElementById('settingsModal').style.display = 'none';
-            document.getElementById('volumeModal').style.display = 'none';
-        }
-
         // Helper function to show temporary message
         function showMessage(text) {
             // Create message element
@@ -1870,83 +1859,6 @@
             console.log('Using cloud server URL');
             return 'https://colonization.onrender.com';
         }
-
-        function registerSplashHandlers(client) {
-    client.onPlayerJoined((data) => {
-        console.log('Player joined:', data);
-        if (isHost && currentRoomCode) {
-            updatePlayersList(data.players, mySocketId);
-            const startGameBtn = document.getElementById('startGameBtn');
-            if (startGameBtn && startGameBtn.style.display === 'none') {
-                startGameBtn.style.display = 'inline-block';
-            }
-        }
-    });
-    client.onColorChanged((data) => {
-        console.log('Color changed:', data);
-        if (currentRoomCode) {
-            updatePlayersList(data.players, mySocketId);
-        }
-    });
-    client.onColorChangeFailed((data) => {
-        console.log('Color change failed:', data);
-        alert(data.message || 'Не вдалося змінити колір');
-        if (selectedPlayerIdForColor) {
-            colorSelectionModal.style.display = 'flex';
-        }
-    });
-    client.onPlayerLeft((data) => {
-        console.log('Player left:', data);
-        if (currentRoomCode) {
-            updatePlayersList(data.players, mySocketId);
-            const startGameBtn = document.getElementById('startGameBtn');
-            if (startGameBtn && startGameBtn.style.display === 'none') {
-                startGameBtn.style.display = 'inline-block';
-            }
-        }
-    });
-    client.onRoomClosed((data) => {
-        document.getElementById('roomCreatedModal').style.display = 'none';
-        document.getElementById('joinRoomModal').style.display = 'none';
-        document.getElementById('multiplayerLobbyModal').style.display = 'flex';
-        loadRoomsList();
-        console.log('Кімната закрита:', data.message || 'Хозяїн вийшов');
-    });
-    client.onRoomsList((rooms) => {
-        if (document.getElementById('multiplayerLobbyModal').style.display === 'flex') {
-            const roomsList = document.getElementById('roomsList');
-            if (rooms.length === 0) {
-                roomsList.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">Немає активних кімнат</div>';
-            } else {
-                roomsList.innerHTML = rooms.map(room => {
-                    const isInGame = room.status === 'in-game';
-                    const statusText = isInGame ? 'У грі' : 'Очікування';
-                    const statusColor = isInGame ? '#e74c3c' : '#27ae60';
-                    const opacity = isInGame ? '0.5' : '1';
-                    
-                    return `
-                    <div class="room-item" data-code="${room.code}" data-status="${room.status || 'waiting'}" style="padding: 10px; background: rgba(255,255,255,${isInGame ? '0.03' : '0.05'}); border-radius: 6px; margin-bottom: 8px; cursor: ${isInGame ? 'not-allowed' : 'pointer'}; border: 1px solid ${isInGame ? 'rgba(231,76,60,0.3)' : 'rgba(243,156,18,0.2)'}; opacity: ${opacity};">
-                        <div style="font-weight: bold; color: ${isInGame ? '#666' : '#f39c12'};">${room.name}</div>
-                        <div style="font-size: 0.85em; color: #aaa;">Гравці: ${room.players}/${room.maxPlayers}</div>
-                        <div style="font-size: 0.75em; color: ${statusColor}; margin-top: 2px;">● ${statusText}</div>
-                    </div>
-                `;
-                }).join('');
-                document.querySelectorAll('.room-item').forEach(item => {
-                    item.addEventListener('click', () => {
-                        const status = item.getAttribute('data-status');
-                        if (status === 'in-game') {
-                            return; // Don't allow clicking on in-game rooms
-                        }
-                        document.getElementById('multiplayerLobbyModal').style.display = 'none';
-                        document.getElementById('joinRoomModal').style.display = 'flex';
-                    });
-                });
-            }
-        }
-    });
-    // onGameStarted обробляється окремо в логіці очікування
-}
 
         function initMultiplayer(serverUrl) {
             mpClient = new MultiplayerClient();
@@ -2157,12 +2069,6 @@
         function showGameModeModal() {
             audioManager.playClickSound();
             document.getElementById('gameModeModal').style.display = 'flex';
-        }
-
-        function showMultiplayerLobby() {
-            audioManager.playClickSound();
-            document.getElementById('multiplayerLobbyModal').style.display = 'flex';
-            loadRoomsList();
         }
 
         function loadRoomsList() {
@@ -2515,9 +2421,6 @@
             const v = parseInt(localStorage.getItem(GUEST_CUPS_KEY), 10);
             return isNaN(v) ? 0 : v;
         }
-        function setGuestCups(cups) {
-            localStorage.setItem(GUEST_CUPS_KEY, String(Math.max(0, parseInt(cups, 10) || 0)));
-        }
         function getAccount() {
             try { return JSON.parse(localStorage.getItem(ACCOUNT_KEY)); } catch (e) { return null; }
         }
@@ -2612,7 +2515,7 @@
             document.getElementById('profileModalCups').textContent = '🏆 Кубки: ' + getProfileCups();
             // Email показуємо лише для акаунтів (потрібен для відновлення пароля)
             const emailEl = document.getElementById('profileModalEmail');
-            if (emailEl) emailEl.textContent = (acc && acc.email) ? ('📧 ' + acc.email) : '';
+            if (emailEl) emailEl.textContent = (acc && acc.email) ? (acc.email) : '';
             const bindBtn = document.getElementById('bindEmailBtn');
             if (bindBtn) {
                 bindBtn.style.display = (acc && acc.playerId) ? 'inline-block' : 'none';
@@ -2856,11 +2759,7 @@
         document.getElementById('confirmEditNickBtn').addEventListener('click', doChangeNick);
         document.getElementById('editNickInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doChangeNick(); });
 
-        // ===== ВХІД / РЕЄСТРАЦІЯ / ПРИВ'ЯЗКА АКАУНТА ЧЕРЕЗ GOOGLE =====
-        // Кнопки входу/реєстрації/привʼязки через Google прибрані з UI.
-        // Серверна інфраструктура (маршрути /google-auth, socket-події
-        // google-auth-start/poll тощо) ЗАЛИШЕНА — якщо знадобиться повернути
-        // Google-вхід, достатньо додати кнопки й виклик startGoogleAuthFlow знову.
+        // ===== Google-вхід/привʼязку прибрано ПОВНІСТЮ (і з UI, і із сервера) =====
 
         // ===== ПРИВ'ЯЗКА EMAIL ДО АКАУНТА (кнопка в профілі) =====
         document.getElementById('bindEmailBtn').addEventListener('click', () => {
@@ -3403,21 +3302,6 @@
                     sessionStorage.setItem('myPlayerColor', myPlayerData.color);
                 }
                 document.getElementById('roomCreatedModal').style.display = 'flex';
-                
-                // Show server URL for sharing
-                if (window.electronAPI && window.electronAPI.getServerInfo) {
-                    const serverInfo = window.electronAPI.getServerInfo();
-                    const serverUrlDisplay = document.getElementById('serverUrlDisplay');
-                    const serverInfoDisplay = document.getElementById('serverInfoDisplay');
-                    
-                    serverInfo.then(info => {
-                        const url = info.publicUrl || info.localUrl;
-                        if (url && serverUrlDisplay && serverInfoDisplay) {
-                            serverUrlDisplay.textContent = url;
-                            serverInfoDisplay.style.display = 'block';
-                        }
-                    });
-                }
             }).catch(err => {
                 // Check if it's a duplicate room name error
                 if (err.message && err.message.includes('вже існує')) {
@@ -4083,24 +3967,24 @@
            підвіски (модальні вікна). bt = рядок, з якого починається дошка. */
         const MENU_WOOD = {
             badge: [
-                { url: '../../assets/textures/menu/cut/small-0.png', w: 655, h: 249, bt: 101 },
-                { url: '../../assets/textures/menu/cut/small-1.png', w: 652, h: 250, bt: 108 },
-                { url: '../../assets/textures/menu/cut/small-2.png', w: 664, h: 239, bt: 91 },
-                { url: '../../assets/textures/menu/cut/small-3.png', w: 661, h: 237, bt: 94 },
-                { url: '../../assets/textures/menu/cut/small-4.png', w: 664, h: 221, bt: 73 },
-                { url: '../../assets/textures/menu/cut/small-5.png', w: 656, h: 221, bt: 74 },
-                { url: '../../assets/textures/menu/cut/small-6.png', w: 662, h: 197, bt: 42 },
-                { url: '../../assets/textures/menu/cut/small-7.png', w: 654, h: 196, bt: 43 }
+                { url: '../../assets/textures/menu/cut/small-0.png', w: 655, h: 249, bt: 102 },
+                { url: '../../assets/textures/menu/cut/small-1.png', w: 652, h: 250, bt: 109 },
+                { url: '../../assets/textures/menu/cut/small-2.png', w: 664, h: 239, bt: 84 },
+                { url: '../../assets/textures/menu/cut/small-3.png', w: 661, h: 237, bt: 88 },
+                { url: '../../assets/textures/menu/cut/small-4.png', w: 664, h: 221, bt: 78 },
+                { url: '../../assets/textures/menu/cut/small-5.png', w: 656, h: 221, bt: 79 },
+                { url: '../../assets/textures/menu/cut/small-6.png', w: 662, h: 197, bt: 73 },
+                { url: '../../assets/textures/menu/cut/small-7.png', w: 654, h: 196, bt: 74 }
             ],
             big: [
-                { url: '../../assets/textures/menu/cut/big-0.png', w: 292, h: 512, bt: 103 },
-                { url: '../../assets/textures/menu/cut/big-1.png', w: 301, h: 512, bt: 110 },
-                { url: '../../assets/textures/menu/cut/big-2.png', w: 287, h: 512, bt: 104 },
-                { url: '../../assets/textures/menu/cut/big-3.png', w: 302, h: 512, bt: 97 },
-                { url: '../../assets/textures/menu/cut/big-4.png', w: 284, h: 469, bt: 90 },
-                { url: '../../assets/textures/menu/cut/big-5.png', w: 288, h: 469, bt: 100 },
-                { url: '../../assets/textures/menu/cut/big-6.png', w: 293, h: 466, bt: 90 },
-                { url: '../../assets/textures/menu/cut/big-7.png', w: 296, h: 468, bt: 79 }
+                { url: '../../assets/textures/menu/cut/big-0.png', w: 292, h: 512, bt: 104 },
+                { url: '../../assets/textures/menu/cut/big-1.png', w: 301, h: 512, bt: 116 },
+                { url: '../../assets/textures/menu/cut/big-2.png', w: 287, h: 512, bt: 105 },
+                { url: '../../assets/textures/menu/cut/big-3.png', w: 302, h: 512, bt: 112 },
+                { url: '../../assets/textures/menu/cut/big-4.png', w: 284, h: 469, bt: 102 },
+                { url: '../../assets/textures/menu/cut/big-5.png', w: 288, h: 469, bt: 113 },
+                { url: '../../assets/textures/menu/cut/big-6.png', w: 293, h: 466, bt: 114 },
+                { url: '../../assets/textures/menu/cut/big-7.png', w: 296, h: 468, bt: 92 }
             ]
         };
 
@@ -4209,5 +4093,20 @@
             requestAnimationFrame(tick);
         })();
     </script>
+<style>
+    /* ===== ЄДИНИЙ ШРИФТ УСЬОГО UI — Forum (схожий за духом на заголовковий
+       Ruslan Display, але з іншим малюнком; повна українська кирилиця, локальний
+       файл у assets/fonts). Блок у кінці body — перекриває ВСІ стилі та inline.
+       Винятки: заголовок гри (.logo) і екран загрузки (.loading-logo,
+       .loading-status-percent) лишаються Ruslan Display. ===== */
+    @font-face {
+        font-family: 'Forum';
+        font-style: normal;
+        font-weight: 400;
+        src: url('../../assets/fonts/Forum-Regular.ttf') format('truetype');
+    }
+    body, body * { font-family: 'Forum', 'Times New Roman', serif !important; }
+    .logo, .loading-logo, .loading-status-percent { font-family: 'Ruslan Display', 'Times New Roman', serif !important; }
+</style>
 </body>
 </html>

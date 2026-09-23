@@ -314,15 +314,6 @@ class MultiplayerClient {
         });
     }
 
-    // Notify server that initial build is complete
-    completeInitialBuild() {
-        this._logEmit('initial-build-complete', { roomCode: this.roomCode, playerId: this.socket.id });
-        this.socket.emit('initial-build-complete', {
-            roomCode: this.roomCode,
-            playerId: this.socket.id
-        });
-    }
-
     // Change player color
     changeColor(playerId, color) {
         this._logEmit('change-color', { roomCode: this.roomCode, playerId, color });
@@ -346,11 +337,6 @@ class MultiplayerClient {
     // Handle sync-buildings (receiving all buildings after reconnect)
     onSyncBuildings(callback) {
         this._safeOn('sync-buildings', callback);
-    }
-
-    // Handle incoming game actions
-    onGameAction(callback) {
-        this._safeOn('game-action', callback);
     }
 
     // Handle player joined
@@ -576,12 +562,6 @@ class MultiplayerClient {
         this.socket.emit('restart-vote', { roomCode: this.roomCode });
     }
 
-    // Host forces restart
-    forceRestart() {
-        this._logEmit('restart-game', { roomCode: this.roomCode });
-        this.socket.emit('restart-game', { roomCode: this.roomCode });
-    }
-
     // Request game state sync from server
     requestGameStateSync() {
         if (this.socket && this.roomCode) {
@@ -644,9 +624,5 @@ class MultiplayerClient {
     }
 }
 
-// Export for use in other files
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = MultiplayerClient;
-} else {
-    window.MultiplayerClient = MultiplayerClient;
-}
+// The file is loaded via <script> in index.html / splash.html (browser only)
+window.MultiplayerClient = MultiplayerClient;

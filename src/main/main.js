@@ -17,29 +17,6 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
 // Keep a global reference of the window object
 let mainWindow;
-let serverProcess = null;
-let serverInfo = {
-    publicUrl: null,
-    localUrl: null
-};
-
-// Start the multiplayer server
-function startServer() {
-    const { startServer: startMPServer, getPublicIp, getLocalIp } = require('./server-unified.js');
-    startMPServer();
-    
-    // Get server URLs after a longer delay to ensure server is fully ready
-    setTimeout(() => {
-        const localIp = getLocalIp();
-        serverInfo.localUrl = `http://${localIp}:3000`;
-        
-        getPublicIp().then(publicIp => {
-            if (publicIp) {
-                serverInfo.publicUrl = `http://${publicIp}:3000`;
-            }
-        });
-    }, 3000); // Increased to 3 seconds to ensure server is fully ready
-}
 
 // Resolve the real, non-asar file:// base for the audio assets directory so
 // that <audio> can load files inside a PACKAGED build (Chromium's media stack
@@ -149,11 +126,6 @@ function createWindow() {
     });
     
     // Expose server info to renderer
-    ipcMain.handle('get-server-info', () => {
-        return serverInfo;
-    });
-
-    // Відкриття зовнішніх посилань (наприклад, Google OAuth) у системному браузері
     ipcMain.handle('open-external', (_event, url) => {
         if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
             return shell.openExternal(url);
@@ -164,8 +136,8 @@ function createWindow() {
 
 // This method will be called when Electron has finished initialization
 app.whenReady().then(() => {
-    // Local server is disabled - using cloud server only (https://colonization.onrender.com)
-    // startServer(); // Disabled: only cloud multiplayer is supported
+    // Мультиплеєр — тільки через хмарний сервер (https://colonization.onrender.com).
+    // Локальний сервер запускається окремо: Procfile / npm run start:server | start:cloud.
     createWindow();
 });
 

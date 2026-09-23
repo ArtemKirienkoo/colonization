@@ -34,7 +34,7 @@
       "artifactName": "${productName} Setup.${ext}",
       "differentialPackage": false
     },
-        "files": [
+    "files": [
       "src/**/*",
       "assets/**/*"
     ],
@@ -42,7 +42,9 @@
       {
         "from": "assets/audio",
         "to": "assets/audio",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "publish": null,
@@ -62,8 +64,7 @@
     "express": "^4.22.2",
     "mongodb": "^7.5.0",
     "nodemailer": "^9.0.5",
-    "socket.io": "^4.8.3",
-    "socket.io-client": "^4.8.3"
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
     "electron": "^31.3.1",
