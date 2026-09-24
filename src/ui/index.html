@@ -10,6 +10,11 @@
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="multiplayer.js"></script>
     <style>
+        :root {
+            --ui-window: url('../../assets/textures/ui-window.png');
+            --ui-button: url('../../assets/textures/ui-button.png');
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
         
         /* ===== CUSTOM CURSOR ===== */
@@ -49,6 +54,8 @@
             max-width: 100%;
             height: 100vh;
             max-height: 100vh;
+        }
+
         /* ===== ОВЕРЛЕЙ-РОЗКЛАДКА: канвас = весь екран, дошка рівно в центрі
            екрана, панелі плавають ПОВЕРХ карти — жодних колонок і пустот ===== */
         .main-content {
@@ -160,14 +167,25 @@
         /* === SIDEBAR === */
 
         .roll-btn { background: linear-gradient(135deg, #9b59b6, #8e44ad) !important; }
+        /* Текстурні кнопки без напису: зелена галочка / червоний хрестик.
+           Розмір відповідає пропорції текстури, тому іконка не розтягується. */
+        #voteRestartBtn, #rollDiceInitialBtn, #initialBuildEndTurnBtn, #initialBuildOkBtn,
+        #gameOverExitBtn, #mmSearchCancelBtn {
+            width: 128px !important;
+            height: 76px !important;
+            min-width: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            background-color: transparent !important;
+            background-image: url('../../assets/textures/buttons/ui-btns/yes-green.png') !important;
             background-position: center !important;
             background-size: contain !important;
-            border: none !important;
-            border-radius: 0 !important;
-            padding: 0 !important;
-            min-width: 0 !important;
-            width: 128px !important;
-            background-image: url('../../assets/textures/buttons/ui-btns/yes-green.png') !important;
+            background-repeat: no-repeat !important;
+            color: transparent !important;
+            font-size: 0 !important;
+            line-height: 0 !important;
+            text-shadow: none !important;
         }
         #gameOverExitBtn, #mmSearchCancelBtn {
             background-image: url('../../assets/textures/buttons/ui-btns/no-red.png') !important;
@@ -181,33 +199,6 @@
             filter: grayscale(0.75) brightness(0.8);
             cursor: not-allowed;
         }
-        /* Кнопки меню паузи: кам'яна плашка (її підставляє JS у --btn-bg, тому
-           перекривати --btn-bg у CSS марно — інлайн-стиль сильніший) + знак
-           ЛІВОРУЧ у РІДНИХ пропорціях: «Продовжити» — галочка, «Вийти» — хрестик.
-           Пункт 2: плашки yes/no НЕ розтягуємо на всю ширину кнопки (іконка в
-           центрі плашки деформувалася б) — тут вони як іконки висотою 62% */
-        .game-menu-popup .menu-continue,
-        .game-menu-popup .menu-exit::before {
-            content: '';
-            position: absolute;
-            left: 16px;
-            top: 50%;
-            transform: translateY(-50%);
-            height: 62%;
-            aspect-ratio: 447 / 266;
-            background-repeat: no-repeat;
-            background-position: center;
-            background-size: contain;
-            filter: drop-shadow(0 2px 3px rgba(0,0,0,0.6));
-            pointer-events: none;
-            z-index: 1;
-        }
-        .game-menu-popup .menu-continue::before {
-            background-image: url('../../assets/textures/buttons/ui-btns/yes-green.png');
-        }
-        .game-menu-popup .menu-exit::before {
-            background-image: url('../../assets/textures/buttons/ui-btns/no-red.png');
-        }
 
         /* ===== DICE AREA (зона кидання кубиків) ===== */
         .dice-area {
@@ -216,10 +207,9 @@
             align-items: center;
             gap: 4px;
             padding: 8px 10px;
-            /* Текстурна панель зони кидання кубиків (зелений сук + дерев'яна рама).
-               Текстуру обріжено по контенту — без рамки й радіуса вона ПОВНІСТЮ
-               доходить до країв блоку */
-            background: url('../../assets/textures/dice-tray.png') center / 100% 100% no-repeat;
+            /* Зберігаємо природні пропорції: cover не розтягує текстуру,
+               а лише обрізає зайві краї. */
+            background: url('../../assets/textures/dice-tray.png') center / cover no-repeat;
             border: none;
             cursor: pointer;
             transition: all 0.2s;
@@ -343,6 +333,7 @@
             gap: 3px;
         }
         .resource-card-item {
+            position: relative;
             width: 54px;
             height: 116px;
             border-radius: 5px;
@@ -368,9 +359,7 @@
         }
 
          /* ===== BUILDING ===== */
-         .build-panel { display: flex; flex-direction: column; gap: 8px; align-items: stretch; flex-shrink: 0; }
-             min-height: 0;
-         }
+         .build-panel { display: flex; flex-direction: column; gap: 8px; align-items: stretch; flex-shrink: 0; min-height: 0; }
 
         .build-btn {
             display: flex; flex-direction: column; align-items: center; gap: 2px;
@@ -405,9 +394,44 @@
         /* Текстурний режим секції: залізна вивіска на шесті (sign-big-*, 300×506) як тло,
             заввишки — ПІВ ЕКРАНА (50vh), ширина панелі 330 (текстура тягнеться 100%×100%,
             як у вивіски трекінгів). Верхній паддінг 10vh перекриває перекладину зі стропами
+            (~13.8% висоти текстури), бокові — заклепки. Рука карт займає дошку і скролиться
+            всередині, якщо карт багато. */
+        .dev-section.textured {
+            background-color: transparent;
+            background-size: 100% 100%;
+            background-position: center;
+            background-repeat: no-repeat;
+            border: none;
             border-radius: 0;
             padding: 10vh 30px 20px;
+            width: 100%;
+            height: 50vh;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            filter: brightness(0.85) saturate(0.95) drop-shadow(0 3px 5px rgba(0, 0, 0, 0.65));
+        }
+        .dev-section.textured .dev-header { margin-bottom: 8px; flex: 0 0 auto; }
+        .dev-section.textured .buy-dev-btn { width: 100%; }
+        .dev-section.textured .dev-hand {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            align-content: flex-start;
+            scrollbar-width: none;
+        }
+        .dev-section.textured .dev-hand::-webkit-scrollbar { display: none; }
+        /* Заглушка, коли карт на руках нема (або всі використані): текст на місці карт */
         .dev-hand-empty {
+            display: none;
+            flex: 1 1 auto;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: #e8e0d0;
+            font-size: 0.95em;
+            line-height: 1.45;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
             padding: 6px 4px;
         }
 
@@ -428,6 +452,18 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+            padding: 0;
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            transition: transform 0.2s, filter 0.2s;
+        }
+        .dev-deck:hover { transform: translateY(-4px); filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.5)); }
+        .dev-deck-back {
+            width: 92px;
+            height: 124px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #8e44ad, #5b2c6f);
             border: 3px solid #f7dc6f;
             display: flex;
             align-items: center;
@@ -441,9 +477,37 @@
             border: 2px dashed rgba(247, 220, 111, 0.5);
             border-radius: 6px;
         }
+        /* Коли на звороті колоди намальована текстура (dev-0) — пунктирна рамка зайва */
+        .dev-deck-back.textured::before { display: none; }
+        .dev-deck-icon { font-size: 2.4em; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.4)); position: relative; z-index: 1; }
+        .dev-deck-count { font-size: 1em; color: #f1c40f; font-weight: bold; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75); }
+        .dev-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; gap: 3px; flex-wrap: nowrap; }
+        .dev-header h4 { font-size: 1em; color: #f39c12; letter-spacing: 0.5px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .buy-dev-btn { padding: 4px 8px !important; font-size: 0.85em !important; background: linear-gradient(135deg, #8e44ad, #7c3aed) !important; flex-shrink: 0; white-space: nowrap; transition: all 0.2s; }
+        .buy-dev-btn:hover:not(.disabled) { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(142, 68, 173, 0.4); }
         .buy-dev-btn.disabled { opacity: 0.4; cursor: not-allowed !important; transform: none !important; }
         .buy-dev-btn.enabled { opacity: 1; cursor: pointer !important; }
+        .dev-hand { display: flex; gap: 4px; flex-wrap: wrap; padding: 2px 0; min-height: 50px; }
+        .dev-card-item {
+            flex-shrink: 0;
+            min-width: 70px;
+            height: auto;
+            min-height: 60px;
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            padding: 5px 10px;
+            font-size: 0.85em;
+            border: 2px solid;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        .dev-card-item:hover { transform: translateY(-3px); box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
         .dev-card-item.nonusable { opacity: 0.55; filter: grayscale(0.6); cursor: not-allowed; }
         .dev-card-item.nonusable:hover { transform: none; box-shadow: none; }
 
@@ -454,28 +518,22 @@
             right: 15px;
             width: 64px;
             height: 38px;
-            /* Текстурні кнопки паузи/виходу з паузи (обираються через body.is-paused).
-               Бокс під пропорції текстури 692×408, contain — без спотворень */
-            background: var(--pause-tex, url('../../assets/textures/buttons/pause-btn.png')) center / contain no-repeat;
+            /* Пауза — зелена кнопка з паузою; відкрите меню — та сама кнопка з хрестиком. */
+            background: url('../../assets/textures/buttons/pause-btn.png') center / contain no-repeat;
             border: none;
             border-radius: 0;
             cursor: pointer;
             z-index: 2000;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
+            transition: filter 0.15s ease;
+        }
+        body.game-menu-open .game-menu-btn {
+            background-image: url('../../assets/textures/buttons/pause-close-btn.png');
+        }
+        .game-menu-btn:hover {
+            filter: brightness(1.12) saturate(1.05);
         }
         .game-menu-btn span {
             display: none;
-        }
-        .game-menu-btn.active span:nth-child(1) {
-            transform: rotate(45deg) translate(5px, 5px);
-        }
-        .game-menu-btn.active span:nth-child(2) {
-            opacity: 0;
-        }
-        .game-menu-btn.active span:nth-child(3) {
-            transform: rotate(-45deg) translate(5px, -5px);
         }
 
         /* ===== GAME MENU POPUP ===== */
@@ -496,41 +554,10 @@
             display: flex;
             pointer-events: auto;
         }
-        .game-menu-popup .menu-content {
-            background: transparent;
-            border: none;
-            border-radius: 20px;
-            padding: 40px 36px;
-            display: flex;
-            flex-direction: column;
-            gap: 18px;
-            min-width: 380px;
-            box-shadow: none;
-            pointer-events: auto;
-            position: relative;
-            z-index: 1;
-        }
-        /* ===== ДЕРЕВ'ЯНІ ПІДВІСКИ ЗА МОДАЛКАМИ ГРИ ===== */
-        .pendant-layer {
-            position: absolute;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 0;
-            pointer-events: none;
-            filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.55));
-        }
-        .pendant-layer .pendant-chains,
-        .pendant-layer .pendant-board {
-            position: absolute;
-            left: 0;
-            width: 100%;
-            background-repeat: no-repeat;
-        }
-
         /* ===== КАМ'ЯНІ КНОПКИ В МОДАЛКАХ ГРИ ===== */
         .game-menu-popup .menu-content button,
         .settings-box button {
+            position: relative;
             width: 100%;
             padding: 18px 32px;
             font-size: 1.25em;
@@ -541,20 +568,33 @@
             letter-spacing: 0.5px;
             transition: all 0.25s;
             color: #f7f0dc;
+            text-align: center;
             text-shadow: 1px 2px 4px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.5);
-            background-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-0.png'));
-            background-size: 100% 100%;
-            background-position: center;
-            background-repeat: no-repeat;
-            -webkit-mask-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-0.png'));
-            mask-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-0.png'));
-            -webkit-mask-size: 100% 100%;
-            mask-size: 100% 100%;
-            -webkit-mask-position: center;
-            mask-position: center;
-            -webkit-mask-repeat: no-repeat;
-            mask-repeat: no-repeat;
+            /* Одна кнопка для всіх звичайних кнопок меню/модалок. */
+            background: var(--ui-button) center / 100% 100% no-repeat !important;
+            background-color: transparent !important;
             box-shadow: 0 4px 12px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.4);
+        }
+        .game-menu-popup .menu-content {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 18px;
+            width: min(380px, calc(100vw - 40px));
+            min-width: 0;
+            padding: 52px 64px 48px;
+            background: var(--ui-window) center / 100% 100% no-repeat;
+            background-color: transparent;
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+            pointer-events: auto;
+        }
+        .game-menu-popup .menu-content button {
+            flex: 0 0 auto;
+            min-height: 62px;
         }
         .game-menu-popup .menu-content button:hover,
         .settings-box button:hover {
@@ -570,9 +610,10 @@
             box-shadow: 0 2px 6px rgba(0,0,0,0.5);
         }
         .settings-box button.back-btn {
-            background-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-4.png'));
-            -webkit-mask-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-4.png'));
-            mask-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-4.png'));
+            background: var(--ui-button) center / 100% 100% no-repeat !important;
+            background-color: transparent !important;
+            -webkit-mask-image: none !important;
+            mask-image: none !important;
             color: #e2dcc6;
         }
         .settings-box button.back-btn:hover {
@@ -599,20 +640,21 @@
             z-index: 3000;
         }
         .settings-box {
-            background: transparent;
+            background: var(--ui-window) center / 100% 100% no-repeat;
+            background-color: transparent;
             border: none;
-            border-radius: 12px;
-            padding: 24px 32px;
-            color: #fff;
+            border-radius: 0;
+            padding: 58px 76px 54px;
+            color: #3b2a18;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             box-shadow: none;
             text-align: center;
-            max-width: 420px;
-            min-width: 320px;
+            max-width: 560px;
+            min-width: 360px;
             position: relative;
             z-index: 1;
         }
-        .settings-box h3 { color: #ffd88a; margin-bottom: 16px; font-size: 1.3em; text-shadow: 1px 2px 4px rgba(0, 0, 0, 0.65); }
+        .settings-box h3 { color: #6b3b0b; margin-bottom: 16px; font-size: 1.3em; text-shadow: none; }
 
         /* ===== VOLUME SETTINGS ===== */
         .volume-slider-container {
@@ -621,7 +663,7 @@
         }
         .volume-slider-container label {
             display: block;
-            color: #f7f0dc;
+            color: #4a301b;
             margin-bottom: 6px;
             font-size: 0.95em;
             font-weight: 700;
@@ -747,6 +789,7 @@
         }
         .dev-buy-cost-item.geese-card .res-icon { background-image: url('../../assets/textures/cards/res-geese.png'); }
         .dev-buy-cost-item.water-card .res-icon { background-image: url('../../assets/textures/cards/res-water.png'); }
+        .dev-buy-cost-item.stone-card .res-icon { background-image: url('../../assets/textures/cards/res-stone.png'); }
         .yop-res-grid { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 12px; }
         .yop-res-option {
             padding: 8px 12px; border-radius: 6px; cursor: pointer;
@@ -831,22 +874,67 @@
         z-index: 3;
     }
     #messageContainer {
-           рама зверху/знизу (56/52px) НЕ розтягуються по ширині — рендеряться
-           фіксовано (60/12/11px, масштаб ≈0.2), центральний сланець розтягується
-           під довжину тексту */
-        border-style: solid;
-        border-color: transparent;
-        border-width: 12px 60px 11px 60px;
-        border-image: url('../../assets/textures/message-plate.png') 56 298 52 296 fill / 12px 60px 11px 60px / stretch;
-        padding: 10px 20px 12px;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 4500;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        pointer-events: none;
+        max-width: min(70vw, 720px);
+        padding: 12px 20px;
+        color: #fff;
+        text-align: center;
+        background: rgba(26, 26, 46, 0.94);
+        border: 2px solid #f39c12;
+        border-radius: 12px;
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55), 0 0 18px rgba(243, 156, 18, 0.25);
         white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+    #messageContainer:empty { display: none; }
+    .game-message {
+        max-width: 100%;
+        color: #fff;
+        text-shadow: 1px 2px 4px rgba(0, 0, 0, 0.95);
         animation: message-in 0.25s ease-out;
+        transition: opacity 0.6s ease;
+    }
+    .game-message.fade-out { opacity: 0; }
     @keyframes message-in {
         from { opacity: 0; transform: translateY(-10px); }
         to   { opacity: 1; transform: translateY(0); }
     }
 
-    /* ===== FLAT UI OVERRIDES: жодних панелей, вікон і полосок ===== */
+    /* Модальні вікни та меню паузи тепер мають одну спільну текстуру. */
+    .settings-box,
+    .game-menu-popup .menu-content,
+    .confirm-box,
+    .disconnect-box {
+        background: var(--ui-window) center / 100% 100% no-repeat;
+        background-color: transparent;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+    }
+    .confirm-box,
+    .disconnect-box {
+        color: #3b2a18;
+        padding: 58px 76px 54px;
+    }
+    .confirm-box h3 { color: #6b3b0b; }
+    .confirm-box p { color: #4a301b; }
+    .settings-box button,
+    .game-menu-popup .menu-content button {
+        background: var(--ui-button) center / 100% 100% no-repeat !important;
+        background-color: transparent !important;
+        -webkit-mask-image: none !important;
+        mask-image: none !important;
+    }
+
     .left-panel, .right-panel, .bottom-left, .bottom-center,
     .map-area, .costs-box, .stats-bar, .resource-cards-box, .medals, .build-btns-col {
         background: transparent !important;
@@ -895,6 +983,32 @@
         margin: auto;
     }
 
+    /* Порядок ходів: вертикальний список зліва, гравці по порядку ходу зверху вниз.
+       Панель ПРОЗОРА (флажки — самі текстури-вивіски), тому жодної темної плашки */
+    #turnOrderPanel {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        padding: 0 !important;
+        overflow-y: auto !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        justify-content: flex-start !important;
+        gap: 6px !important;
+    }
+    #turnOrderPanel::-webkit-scrollbar { display: none !important; }
+    #turnOrderPanel .top-title { display: none; }
+
+    #turnOrderList {
+        display: flex !important;
+        flex-direction: column !important;
+        flex-wrap: nowrap !important;
+        align-items: stretch !important;
+        justify-content: flex-start !important;
+        gap: 6px !important;
+        overflow-y: auto !important;
+        min-width: 0 !important;
         flex: 1 !important;
     }
     #turnOrderList::-webkit-scrollbar { display: none !important; }
@@ -913,25 +1027,44 @@
         gap: 10px !important;
         box-shadow: 0 3px 10px rgba(0,0,0,0.35) !important;
         position: relative !important;
-    /* Емблема флажка: висота = висота флажка; ТРОХИ РОЗШИРЕНА (пункт 1):
+    }
+    /* Емблема флажка: висота = висота флажка; ТРОХИ РОЗШИРЕНА (пункт 1): емблема
+       ліворуч без спотворень (contain), банер праворуч тягнеться на решту ширини */
+    .turn-order-item::before,
+    .turn-order-item::after {
+        content: '';
+        position: absolute;
         top: 0;
-        right: 0;
         bottom: 0;
+        pointer-events: none;
+        z-index: 0;
+    }
+    /* Лівий шар — емблема (щит із планкою), фіксована ширина, contain */
+    .turn-order-item::before {
+        left: 0;
+        width: 60px;
+        background-image: var(--flag-emblem);
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+    /* Правий шар — банер, розтягується на решту картки */
+    .turn-order-item::after {
+        left: 52px;
+        right: 0;
         background-image: var(--flag-banner);
         background-size: 100% 100%;
         background-repeat: no-repeat;
-        z-index: 0;
-        pointer-events: none;
     }
-    .turn-order-item.active-turn {
-       drop-shadow повторює альфа-силует емблеми і банера, а не прямокутник */
+    /* Підсвітка активного ходу: drop-shadow по контуру САМОЇ текстури
+       (drop-shadow повторює альфа-силует емблеми і банера, а не прямокутник) */
     .turn-order-item.active-turn::before,
     .turn-order-item.active-turn::after {
         filter: drop-shadow(0 0 3px rgba(241, 196, 15, 0.95)) drop-shadow(0 0 8px rgba(241, 196, 15, 0.8)) drop-shadow(0 0 14px rgba(241, 196, 15, 0.5));
     }
     /* Нік — вертикально по ЦЕНТРУ текстури флажка (пункт 2), ліворуч на банері */
     .turn-order-label { position: absolute !important; left: 68px !important; top: 50% !important; transform: translateY(-50%) !important; text-shadow: 0 1px 3px rgba(0,0,0,0.65); font-size: 1.0em; flex-direction: row; align-items: baseline; gap: 5px !important; white-space: nowrap; z-index: 1; }
-    .turn-order-name { max-width: 168px; font-size: 0.85em; color: #fff !important; }
+    .turn-order-name { max-width: 168px; font-size: 0.85em; color: #fff !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .turn-order-sep { display: none !important; }
     /* Кількість ПО — прям на ПРАВІЙ стороні флажка (пункт 4), по центру висоти */
     .turn-order-vp { position: absolute !important; right: 20px !important; top: 50% !important; transform: translateY(-50%) !important; color: #fff !important; font-size: 1.0em !important; font-weight: bold; white-space: nowrap; z-index: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.7); }
@@ -969,7 +1102,21 @@
     .bottom-left { scrollbar-width: none; }
     .bottom-left::-webkit-scrollbar { display: none !important; }
 
+    /* ===== ЛІВА КОЛОНКА: колода розвитку ===== */
+    .dev-deck-wrap { gap: 5px; width: 100%; }
+    .dev-deck { padding: 0; }
+    /* Висота під пропорцію текстури dev-0 (260×364), щоб карта НЕ обрізалась */
+    .dev-deck-back { width: 110px; height: 154px; }
+    .dev-deck-count { font-size: 1.05em; }
+    .dev-section { padding: 2px 0; }
+    .dev-hand { gap: 5px; }
+    .dev-card-item { min-width: 66px; }
+
     /* ===== ПРАВА КОЛОНКА: кубики → кнопки (трекінги/будівництво — на висувних вкладках) ===== */
+    /* Будівництво: рядки "назва + кількість + вартість" і КРУГЛІ кнопки справа */
+    .build-panel { display: flex; flex-direction: column; gap: 5px; min-height: 0; flex: 0 0 auto; }
+    .build-row { display: flex; align-items: center; gap: 6px; padding: 2px 2px; min-width: 0; }
+    .build-row > .btn-icon { flex-shrink: 0; }
     .build-row .br-name {
         flex: 1;
         min-width: 0;
@@ -978,6 +1125,43 @@
         text-shadow: 0 1px 2px rgba(0,0,0,0.65);
         white-space: nowrap;
         overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .build-row .br-count {
+        flex-shrink: 0;
+        font-size: 0.85em;
+        font-weight: 700;
+        color: #fff;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.65);
+        min-width: 38px;
+        text-align: right;
+    }
+    .build-row.depleted .br-count { color: #e74c3c; }
+    .build-row .br-cost {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        white-space: nowrap;
+    }
+    /* Міні-картки ресурсів у вартості будівництва (нові текстурки) */
+    .cost-card {
+        width: 16px;
+        height: 22px;
+        border-radius: 2px;
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+        display: inline-block;
+        filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+    }
+    .cost-card.res-wood   { background-image: url('../../assets/textures/cards/res-wood.png'); }
+    .cost-card.res-brick  { background-image: url('../../assets/textures/cards/res-brick.png'); }
+    .cost-card.res-geese  { background-image: url('../../assets/textures/cards/res-geese.png'); }
+    .cost-card.res-water  { background-image: url('../../assets/textures/cards/res-water.png'); }
+    .cost-card.res-stone  { background-image: url('../../assets/textures/cards/res-stone.png'); }
+    .build-btn {
+        flex-shrink: 0;
         width: 46px;
         height: 46px;
         min-width: 46px;
@@ -996,16 +1180,39 @@
        Панель будівництва (завжди відкрита): top 286px + 240px = низ ~526px; колонка починається на 58px,
        тому margin-top = 526 - 58 + ~18px запасу = 486px. Кубики + сума центровані по обох осях. */
     .dice-area { flex: 1 1 auto; margin-top: 486px; justify-content: flex-end; gap: 8px; padding: 8px 10px; min-height: 0; }
-    .dice-container { gap: 12px; }
+    .dice-container { display: flex; gap: 12px; }
     .die { width: 48px; height: 48px; font-size: 1.6em; border-radius: 9px; }
-    .total { font-size: 1.1em; }
+    .total { font-size: 1.1em; color: #f1c40f; font-weight: bold; }
 
-    /* Низ правої колонки: [«Завершити хід» ЗЛІВА (виходить за межі вкладок) | зона кубиків],
-       під ними — «Обмін» на всю ширину. Рядок виноситься вліво на 126px (кнопка 118 + gap 8),
-       тому зона кубиків займає рівно 330px — ширину колонки = ширину вкладок-вивісок,
-       лівий/правий край зони точно збігаються з краями вивісок будівництва і трекінгів */
-    .dice-bottom { display: flex; flex-direction: row; gap: 8px; flex: 1 1 auto; min-height: 0; margin-left: -126px; }
-    .end-turn-side { flex: 0 0 118px; align-self: flex-end; padding: 10px 6px; }
+    /* Низ правої колонки: [текстурна кнопка завершення ходу | зона кубиків].
+       під ними — «Обмін» на всю ширину. Рядок виноситься вліво на 172px (кнопка 164 + gap 8),
+       тому зона кубиків займає рівно 330px — ширину колонки, без накладання на карту. */
+    .dice-bottom { display: flex; flex-direction: row; gap: 8px; flex: 1 1 auto; min-height: 0; margin-left: -172px; }
+    .end-turn-side {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 164px;
+        width: 164px;
+        height: 64px;
+        align-self: flex-end;
+        padding: 4px 8px;
+        border: 0;
+        border-radius: 0;
+        background: url('../../assets/textures/buttons/end-turn-btn.png') center / 100% 100% no-repeat !important;
+        color: #fff;
+        font-size: 0.8rem;
+        font-weight: 700;
+        line-height: 1.1;
+        text-align: center;
+        text-shadow: 0 2px 3px rgba(0,0,0,0.9);
+        overflow: hidden;
+    }
+    .end-turn-side:hover:not(:disabled) {
+        filter: brightness(1.12) saturate(1.05);
+        box-shadow: none;
+    }
+    .end-turn-side:disabled { filter: grayscale(0.25) brightness(0.8); }
     .action-btns { flex-direction: row; gap: 8px; flex: 0 0 auto; }
     .action-btns button { flex: 1; min-width: 0; padding: 7px 4px; font-size: 0.88em; line-height: 1.2; }
     /* Скрол у «Моїх картах» — без видимої смуги */
@@ -1049,6 +1256,8 @@
     .disconnect-box .dc-title { font-size: 1.3em; color: #e67e22; margin-bottom: 12px; font-weight: bold; }
     .disconnect-box .dc-name { font-size: 1.1em; color: #f1c40f; margin-bottom: 16px; }
     .disconnect-box .dc-countdown { font-size: 3.5em; font-weight: bold; color: #fff; margin: 10px 0; }
+    .disconnect-box .dc-countdown.urgent { color: #e74c3c; animation: dc-pulse 1s infinite; }
+    .disconnect-box .dc-hint { font-size: 0.85em; color: #aaa; margin-top: 8px; }
     @keyframes dc-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
 
     /* ===== БІЧНІ ВИВІСКИ — ЗАВЖДИ ВІДКРИТІ (без кнопок і висування) ===== */
@@ -1078,7 +1287,37 @@
         background-image: url('../../assets/textures/menu/signs/sign-small-0.png');
     }
     .tracking-panel .medals {
+        position: absolute;
+        top: 31%; left: 9%; right: 9%; bottom: 7%;
+        display: flex; flex-direction: column; justify-content: space-evenly; gap: 4px;
+    }
+    .tracking-panel .medal { padding: 2px 6px; gap: 8px; }
+    .tracking-panel .medal-icon { width: 34px; height: 34px; font-size: 1em; }
+    .tracking-panel .medal-title { font-size: 1.05em; }
+    .tracking-panel .medal-stats { font-size: 0.95em; }
+
+    /* Будівництво: велика вивіска 300×506 → 330×240 (нижча вкладка). Дошка починається з ~14% висоти — текст нижче, тільки на дошці */
+    .building-panel .side-panel-content {
+        width: 330px;
+        height: 240px;
+        background-image: url('../../assets/textures/menu/signs/sign-big-0.png');
+    }
+    .building-panel .build-panel {
+        position: absolute;
+        top: 19%; left: 10%; right: 10%; bottom: 5%;
+        display: flex; flex-direction: column;
+        /* Рядки — компактною групою по центру дошки: фіксований проміжок 10px замість розтягування на всю дошку */
+        justify-content: center; gap: 10px;
+    }
+    .building-panel .build-row { padding: 0; gap: 4px; }
+    .building-panel .build-row .br-name { font-size: 0.88em; }
+    .building-panel .build-row .br-count { font-size: 0.82em; min-width: 32px; }
+    .building-panel .build-row .br-cost { gap: 1px; }
     .building-panel .build-row .cost-card { width: 12px; height: 16px; }
+    .building-panel .build-btn { padding: 2px 3px; }
+    .building-panel .build-btn .btn-icon { width: 18px; height: 14px; font-size: 0.85em; }
+
+    /* .medal-stats тут НЕ обмежуємо: він є тільки в трекінгах, розмір задає .tracking-panel .medal-stats (0.95em) */
     .side-panel-content .sp-row {
         display: flex; align-items: center; gap: 6px;
         color: #eee; font-size: 0.85em; text-shadow: 0 1px 2px rgba(0,0,0,0.8);
@@ -1087,36 +1326,48 @@
 
     /* ===== TRADE POPUP (спливаюче вікно на картці ресурсу) ===== */
     .trade-popup {
-        position: absolute; bottom: 105%; left: 50%; transform: translateX(-50%);
-        background: rgba(26, 26, 46, 0.97);
-        border: 2px solid #27ae60;
-        border-radius: 10px;
-        padding: 8px 10px;
+        position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+        background: transparent;
+        border: 0;
+        border-radius: 0;
+        padding: 0;
         z-index: 500;
-        display: flex; flex-direction: column; gap: 6px;
-        box-shadow: 0 0 18px rgba(39,174,96,0.5);
-        min-width: 90px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: none;
+        width: auto;
+        height: auto;
+        min-width: 0;
+        line-height: 0;
         animation: tp-appear 0.15s ease;
     }
     @keyframes tp-appear { from { opacity: 0; transform: translateX(-50%) translateY(6px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
-    .trade-popup::after {
-        content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
-        border: 7px solid transparent; border-top-color: #27ae60;
-    }
+    .trade-popup::after { display: none; }
     .trade-popup .tp-btn {
-        /* Пункт 2: текстуру не розтягуємо — contain, іконка «мішок зі стрілками»
-           ліворуч у РІДНИХ пропорціях (619×356), напис «Обмін N:1» праворуч */
-        padding: 6px 12px 6px 56px;
-        background: url('../../assets/textures/buttons/ui-btns/trade-blue.png') left 5px center / contain no-repeat;
-        color: #fff; border: none; border-radius: 6px; cursor: pointer;
-        font-size: 0.85em; font-weight: bold; white-space: nowrap; transition: all 0.15s;
-        min-height: 30px;
+        /* Кнопка зберігає власні пропорції; вікно підганяється під її фактичний розмір. */
+        display: block;
+        flex: 0 0 auto;
+        width: 112px;
+        height: 64.426px;
+        flex: 0 0 112px;
+        aspect-ratio: 619 / 356;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: url('../../assets/textures/buttons/ui-btns/trade-blue.png') center / contain no-repeat;
+        color: transparent;
+        font-size: 0;
+        line-height: 0;
+        text-shadow: none;
+        cursor: pointer;
+        overflow: hidden;
+        transition: filter 0.15s;
     }
-    .trade-popup .tp-btn:hover { filter: brightness(1.18); }
+    .trade-popup .tp-btn:hover { filter: brightness(1.12) saturate(1.05); }
     .trade-popup .tp-btn.cancel {
-        padding-left: 62px;
-        /* Текстурна кнопка «Відмінити» (червона, з хрестиком) — теж без розтягування */
-        background: url('../../assets/textures/buttons/ui-btns/no-red.png') left 5px center / contain no-repeat;
+        background-image: url('../../assets/textures/buttons/ui-btns/no-red.png');
+        background-size: contain;
     }
     .card-with-count { position: relative; }
     /* Стара кнопка "Обмін" — сховати, тепер обмін через клік по картках ресурсів */
@@ -1193,6 +1444,8 @@
         justify-content: center;
         padding-top: 6vh;
         background-image: url('../../assets/textures/menu/af585fd8-a823-4e03-8b08-61ac4e772977.png');
+        background-size: cover;
+        background-position: center;
         transition: opacity 0.6s ease;
         pointer-events: auto;
     }
@@ -1222,7 +1475,37 @@
         width: min(560px, 72vw);
         height: 20px;
         border-radius: 10px;
+        background: linear-gradient(180deg, #3c2812, #1f1206);
+        border: 2px solid #8a5a24;
+        box-shadow:
+            0 0 0 2px rgba(30, 18, 6, 0.8),
+            inset 0 2px 6px rgba(0, 0, 0, 0.8),
+            0 6px 18px rgba(0, 0, 0, 0.55);
+        overflow: visible;
+    }
+    #gameLoadingOverlay .mm-loading-track::before,
+    #gameLoadingOverlay .mm-loading-track::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 0;
+        width: 13px;
+        height: 13px;
+        transform: translate(-50%, -50%) rotate(45deg);
+        background: linear-gradient(135deg, #f6e2a0, #d9a441 55%, #8a5a24);
+        border: 2px solid #5c3a10;
+        box-shadow: 0 0 10px rgba(242, 207, 126, 0.45), inset 0 0 3px rgba(255, 255, 255, 0.5);
+        z-index: 2;
+    }
+    #gameLoadingOverlay .mm-loading-track::after { left: 100%; }
+    #gameLoadingOverlay .mm-loading-fill {
+        height: 100%;
+        width: 0%;
         border-radius: 9px;
+        background:
+            repeating-linear-gradient(90deg, rgba(110, 74, 21, 0.35) 0 2px, transparent 2px 14px),
+            linear-gradient(180deg, #fdf6d8, #f2cf7e 30%, #d9a441 60%, #9a6a1f 100%);
+        box-shadow: 0 0 15px rgba(242, 207, 126, 0.55), inset 0 1px 2px rgba(255, 255, 255, 0.55);
         position: relative;
         overflow: hidden;
         animation: mmLoadingFill 4s ease-in-out forwards;
@@ -1385,7 +1668,7 @@
         <!-- Справа: кубики → кнопки (трекінги/будівництво перенесено на висувні вкладки справа) -->
         <div class="right-panel">
             <div class="dice-bottom">
-                <button class="roll-btn end-turn-side" id="endTurnBtn">Завершити хід</button>
+                <button class="end-turn-side" id="endTurnBtn" title="Завершити поточний хід">Завершити хід</button>
                 <div class="dice-area" id="diceArea" title="Натисніть, щоб кинути кубики">
                     <div class="dice-container">
                         <div class="die" id="die1"><span class="die-value">⚄</span></div>
@@ -4061,6 +4344,10 @@ function showMessage(msg){
 }
 
 function setBuildMode(mode){
+    if(robberMode && mode !== 'none'){
+        showMessage('Спочатку розмістіть розбійника!');
+        return;
+    }
     if(gameState.roadBuildingMode>0){showMessage('🛤️ Спочатку завершіть карту "Дороги"!');
         return;
     }
@@ -4171,6 +4458,7 @@ function collectResources(diceTotal, forPlayerId){
 }
 function canPerformMultiplayerActions(){
     if(!isMultiplayer) return true;
+    if(robberMode || gameState.cardInProgress || gameState.roadBuildingMode > 0) return false;
     if(initialPhase.active && initialPhase.phase === 'dice-roll') return false;
     if(initialPhase.active && initialPhase.phase === 'initial-build') return false;
     return isMyTurn && canPerformActions;
@@ -4213,6 +4501,10 @@ function showResourceNotification(collected){
 }
 
 function buyDevCard(){
+    if(robberMode){
+        showMessage('Спочатку розмістіть розбійника!');
+        return;
+    }
     if(gameState.roadBuildingMode>0||gameState.cardInProgress){
         showMessage('Спочатку завершіть поточну дію!');
         return;
@@ -4241,6 +4533,10 @@ function showDevBuyModal(){
     modal.style.display='flex';
 }
 function confirmBuyDevCard(){
+    if(robberMode){
+        showMessage('Спочатку розмістіть розбійника!');
+        return;
+    }
     const c=gameState.resourceCards;
     const modal=document.getElementById('devBuyModal');
     // Повторна перевірка ресурсів (хід міг змінитися/ресурси витратитися)
@@ -4277,6 +4573,10 @@ function confirmBuyDevCard(){
     }
 }
 function confirmActivateDevCard(index){
+    if(robberMode){
+        showMessage('Спочатку розмістіть розбійника!');
+        return;
+    }
     if(gameState.roadBuildingMode>0||gameState.cardInProgress){
         showMessage('Спочатку завершіть поточну дію!');
         return;
@@ -4640,8 +4940,12 @@ function activateMonopoly(index){
 }
 
 function openTradeModal(){
+    if(robberMode){
+        showMessage('Спочатку розмістіть розбійника!');
+        return;
+    }
     if(gameState.roadBuildingMode>0||isRolling||gameState.cardInProgress){
-        showMessage('Спочатку завершіть використання карт!');
+        showMessage('Спочатку завершіть поточну дію!');
         return;
     }
     if(isMultiplayer&&!canPerformMultiplayerActions()){
@@ -4744,6 +5048,10 @@ function openTradeModal(){
 }
 // ===== ROBBER MECHANICS =====
 function handleSevenRolled() {
+    if (robberMode) {
+        showMessage('Спочатку розмістіть розбійника!');
+        return;
+    }
     if (gameState.roadBuildingMode > 0 || gameState.cardInProgress) {
         showMessage('Спочатку завершіть поточну дію!');
         return;
@@ -5254,15 +5562,17 @@ function rollDice(){
         handleRegularDiceRoll();
         return;
     }
+    // Після 7 пріоритет має розміщення розбійника, а не сумісний старий текст у полі суми.
+    if (robberMode) {
+        showMessage('Спочатку розмістіть розбійника!');
+        return;
+    }
     if(!canRollDice()){
-        const te=document.getElementById('total'),ot=te.textContent;
         if(gameState.roadBuildingMode>0||gameState.cardInProgress){
-            te.textContent='🛤️ Спочатку завершіть використання карти!';
+            showMessage('Спочатку завершіть поточну дію!');
         }else{
-            te.textContent='Спочатку: 1 село + 2 дороги';
+            showMessage('Спочатку: 1 село + 2 дороги');
         }
-        te.style.color='#e74c3c';
-        setTimeout(()=>{te.textContent=ot;te.style.color='#f1c40f';},2000);
         return;
     }
     audioManager.playDiceSound();
@@ -5288,12 +5598,14 @@ function rollDice(){
             showResourceNotification(collectResources(total));
         }
         
-        // Затримка після анімації — буквально кілька мс (було 1500мс)
+        // Після 7 пріоритет має розміщення розбійника, а не сумісний старий текст у полі суми.
         setTimeout(()=>{
             isRolling=false;
-            rb.disabled=false;
-            rb.style.opacity='1';
-            rb.style.cursor='pointer';
+            if (!robberMode && !gameState.cardInProgress) {
+                rb.disabled=false;
+                rb.style.opacity='1';
+                rb.style.cursor='pointer';
+            }
             },40);
         }
     });
@@ -5310,16 +5622,23 @@ addHoverSounds();
 const gameMenuBtn = document.getElementById('gameMenuBtn');
 const gameMenuPopup = document.getElementById('gameMenuPopup');
 
+function setGameMenuOpen(open) {
+    gameMenuBtn.classList.toggle('active', open);
+    gameMenuPopup.classList.toggle('active', open);
+    document.body.classList.toggle('game-menu-open', open);
+}
+
+function setGamePaused(paused) {
+    isPaused = paused;
+    document.body.classList.toggle('is-paused', paused);
+}
+
 gameMenuBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     audioManager.playClickSound();
-    const opening = !gameMenuBtn.classList.contains('active');
-    gameMenuBtn.classList.toggle('active', opening);
-    gameMenuPopup.classList.toggle('active', opening);
-    // Клік по кнопці паузи = справжня пауза: is-paused міняє текстуру кнопки
-    // на «вихід з паузи» (зелена з хрестиком) і блокує взаємодію з грою
-    document.body.classList.toggle('is-paused', opening);
-    isPaused = opening;
+    const opening = !gameMenuPopup.classList.contains('active');
+    setGameMenuOpen(opening);
+    setGamePaused(opening);
 });
 
 // Запам'ятовуємо, чи була гра на паузі до відкриття налаштувань
@@ -5328,8 +5647,7 @@ let wasPausedBeforeSettings = false;
 document.getElementById('menuSettings').addEventListener('click', () => {
     audioManager.playClickSound();
     wasPausedBeforeSettings = isPaused;
-    gameMenuBtn.classList.remove('active');
-    gameMenuPopup.classList.remove('active');
+    setGameMenuOpen(false);
     document.getElementById('settingsModal').style.display = 'flex';
 });
 
@@ -5338,15 +5656,11 @@ document.getElementById('backFromSettings').addEventListener('click', (e) => {
     audioManager.playClickSound();
     document.getElementById('settingsModal').style.display = 'none';
     if (wasPausedBeforeSettings) {
-        gameMenuBtn.classList.add('active');
-        gameMenuPopup.classList.add('active');
-        document.body.classList.add('is-paused');
-        isPaused = true;
+        setGameMenuOpen(true);
+        setGamePaused(true);
     } else {
-        gameMenuBtn.classList.remove('active');
-        gameMenuPopup.classList.remove('active');
-        document.body.classList.remove('is-paused');
-        isPaused = false;
+        setGameMenuOpen(false);
+        setGamePaused(false);
     }
 });
 
@@ -5369,8 +5683,8 @@ document.getElementById('backFromVolume').addEventListener('click', () => {
 
 document.getElementById('menuExit').addEventListener('click', () => {
     audioManager.playClickSound();
-    gameMenuBtn.classList.remove('active');
-    gameMenuPopup.classList.remove('active');
+    setGameMenuOpen(false);
+    setGamePaused(false);
     window.__exitMultiplayer && window.__exitMultiplayer();
     window.location.href = 'splash.html';
 });
@@ -5399,125 +5713,13 @@ window.__exitMultiplayer = () => {
 
 document.getElementById('menuContinue').addEventListener('click', () => {
     audioManager.playClickSound();
-    isPaused = false;
+    setGameMenuOpen(false);
+    setGamePaused(false);
     settingsPreviousState = null;
-    document.body.classList.remove('is-paused');
-    gameMenuBtn.classList.remove('active');
-    gameMenuPopup.classList.remove('active');
 });
 
-// ===== ДЕРЕВ'ЯНІ ПІДВІСКИ ДЛЯ МОДАЛОК ГРИ (пауза/налаштування/гучність) =====
-const MENU_WOOD = {
-    big: [
-        { url: '../../assets/textures/menu/cut/big-0.png', w: 292, h: 512, bt: 103 },
-        { url: '../../assets/textures/menu/cut/big-1.png', w: 301, h: 512, bt: 110 },
-        { url: '../../assets/textures/menu/cut/big-2.png', w: 287, h: 512, bt: 104 },
-        { url: '../../assets/textures/menu/cut/big-3.png', w: 302, h: 512, bt: 97 },
-        { url: '../../assets/textures/menu/cut/big-4.png', w: 284, h: 469, bt: 90 },
-        { url: '../../assets/textures/menu/cut/big-5.png', w: 288, h: 469, bt: 100 },
-        { url: '../../assets/textures/menu/cut/big-6.png', w: 293, h: 466, bt: 90 },
-        { url: '../../assets/textures/menu/cut/big-7.png', w: 296, h: 468, bt: 79 }
-    ]
-};
-
-function mapWoodSprite(el, tex, rect) {
-    el.style.backgroundImage = 'url("' + tex.url + '")';
-    el.style.backgroundSize = (tex.w / rect.w * 100).toFixed(4) + '% ' + (tex.h / rect.h * 100).toFixed(4) + '%';
-    const px = rect.w >= tex.w ? 0 : rect.x / (tex.w - rect.w) * 100;
-    const py = rect.h >= tex.h ? 0 : rect.y / (tex.h - rect.h) * 100;
-    el.style.backgroundPosition = px.toFixed(4) + '% ' + py.toFixed(4) + '%';
-}
-
-function layoutPendantLayer(overlay, repick) {
-    const box = overlay.querySelector('.settings-box') || overlay.querySelector('.menu-content');
-    if (!box) return;
-    let layer = overlay.querySelector('.pendant-layer');
-    if (!layer) {
-        layer = document.createElement('div');
-        layer.className = 'pendant-layer';
-        const chains = document.createElement('div');
-        chains.className = 'pendant-chains';
-        const board = document.createElement('div');
-        board.className = 'pendant-board';
-        layer.appendChild(chains);
-        layer.appendChild(board);
-        overlay.insertBefore(layer, box);
-        layer._geo = '';
-    }
-    const tex = MENU_WOOD.big;
-    if (repick || !layer._woodRect) {
-        layer._woodRect = tex[Math.floor(Math.random() * tex.length)];
-    }
-    const b = layer._woodRect;
-    const br = box.getBoundingClientRect();
-    const or = overlay.getBoundingClientRect();
-    if (br.width < 40 || br.height < 40) return;
-    const boardTop = Math.max(0, Math.round(br.top - or.top) - 24);
-    const boardH = Math.round(br.height) + 24 + 34;
-    const W = Math.round(br.width * 1.16);
-    const H = boardTop + boardH;
-    const geo = [W, H, boardTop, boardH, b.url].join('|');
-    if (layer._geo === geo) return;
-    layer._geo = geo;
-    layer.style.width = W + 'px';
-    layer.style.height = H + 'px';
-    const chains = layer.children[0];
-    const board = layer.children[1];
-    chains.style.top = '0px';
-    chains.style.height = boardTop + 'px';
-    board.style.top = boardTop + 'px';
-    board.style.height = boardH + 'px';
-    mapWoodSprite(chains, b, { x: 0, y: 0, w: b.w, h: b.bt });
-    mapWoodSprite(board, b, { x: 0, y: b.bt, w: b.w, h: b.h - b.bt });
-}
-
-(function initWoodPendants() {
-    const overlays = Array.from(document.querySelectorAll('.settings-overlay, .game-menu-popup'));
-    const states = overlays.map(ov => ({ ov, open: false }));
-    function tick() {
-        for (const s of states) {
-            const isOpen = s.ov.classList.contains('active') || s.ov.style.display === 'flex';
-            if (isOpen) {
-                layoutPendantLayer(s.ov, !s.open);
-                s.open = true;
-            } else {
-                s.open = false;
-            }
-        }
-        requestAnimationFrame(tick);
-    }
-    requestAnimationFrame(tick);
-})();
-
-// ===== КАМ'ЯНІ КНОПКИ В МОДАЛКАХ ГРИ =====
-const stoneTextures = Array.from({ length: 8 }, (_, i) => {
-    const url = "../../assets/textures/buttons/stone-textures/btn-" + i + ".png";
-    const img = new Image();
-    img.src = url;
-    return { url: url, img: img };
-});
-let stoneDecodedPromise = null;
-function ensureStoneTexturesDecoded() {
-    if (!stoneDecodedPromise) {
-        stoneDecodedPromise = Promise.all(stoneTextures.map(t => t.img.decode().catch(() => {})));
-    }
-    return stoneDecodedPromise;
-}
-async function applyRandomStone() {
-    await ensureStoneTexturesDecoded();
-    document.querySelectorAll('.game-menu-popup .menu-content button, .settings-box button:not(.forgot-pass-link)').forEach(btn => {
-        const t = stoneTextures[Math.floor(Math.random() * 8)];
-        btn.style.setProperty('--btn-bg', "url('" + t.url + "')");
-    });
-}
-applyRandomStone();
-// Пере-рандомізуємо при відкритті будь-якої модалки
-document.querySelectorAll('.settings-overlay, .game-menu-popup').forEach(overlay => {
-    new MutationObserver(() => {
-        const isOpen = overlay.classList.contains('active') || (overlay.style.display && overlay.style.display !== 'none');
-        if (isOpen) applyRandomStone();
-    }).observe(overlay, { attributes: true, attributeFilter: ['style', 'class'] });
-});
+// Модальні вікна та меню паузи тепер використовують єдину нову текстуру ui-window.png.
+// Старі дерев'яні підвіски більше не створюються.
 
 // Volume sliders — зберігаємо в localStorage, щоб налаштування були спільними з головним меню
 // Золотий стан дерев'яної полоски: перемальовує заповнену частину
@@ -5587,18 +5789,14 @@ document.getElementById('sfxVolume').addEventListener('input', (e) => {
     saveVolumeSettings();
 });
 
-// Close menu when clicking outside (тільки якщо не відкриті модальні вікна)
+// Close game menu when clicking outside (тільки якщо не відкриті модальні вікна)
 document.addEventListener('click', (e) => {
     if (document.getElementById('settingsModal').style.display === 'flex') return;
     if (document.getElementById('volumeModal').style.display === 'flex') return;
+    if (!gameMenuPopup.classList.contains('active')) return;
     if (!gameMenuBtn.contains(e.target) && !gameMenuPopup.contains(e.target)) {
-        gameMenuBtn.classList.remove('active');
-        gameMenuPopup.classList.remove('active');
-        // Меню закрито кліком повз — знімаємо і паузу (синхронізовано з текстурою кнопки)
-        if (isPaused) {
-            document.body.classList.remove('is-paused');
-            isPaused = false;
-        }
+        setGameMenuOpen(false);
+        setGamePaused(false);
     }
 });
 
@@ -5647,16 +5845,9 @@ if (_devBuyModalEl) _devBuyModalEl.addEventListener('click', (e) => { if (e.targ
 
 // Pause functionality
 function togglePause() {
-    isPaused = !isPaused;
-    if (isPaused) {
-        document.body.classList.add('is-paused');
-        gameMenuBtn.classList.add('active');
-        gameMenuPopup.classList.add('active');
-    } else {
-        document.body.classList.remove('is-paused');
-        gameMenuBtn.classList.remove('active');
-        gameMenuPopup.classList.remove('active');
-    }
+    const opening = !gameMenuPopup.classList.contains('active');
+    setGameMenuOpen(opening);
+    setGamePaused(opening);
 }
 
 
@@ -5677,20 +5868,7 @@ document.addEventListener('keydown', (e) => {
             return;
         }
         
-        // Якщо відкрите ігрове меню - закриваємо його
-        if (gameMenuPopup.classList.contains('active')) {
-            if (isPaused) {
-                // Якщо ми в паузі, виходимо з паузи (продовжуємо гру)
-                togglePause();
-                return; // ВАЖЛИВО: виходимо, щоб не потрапити в else нижче
-            } else {
-                // Якщо просто відкрите меню (без паузи) - закриваємо
-                gameMenuBtn.classList.remove('active');
-                gameMenuPopup.classList.remove('active');
-                return;
-            }
-        } 
-        // Якщо немає відкритих вікон - відкриваємо/закриваємо паузу
+        // Escape закриває відкрите ігрове меню або відкриває паузу.
         togglePause();
     }
 });
@@ -6860,8 +7038,8 @@ function registerMultiplayerHandlers(client) {
         // Remove the pause state left over from the game-over screen,
         // otherwise the whole UI stays dimmed (is-paused sets opacity 0.7
         // and pointer-events: none) and nothing can be clicked after restart
-        document.body.classList.remove('is-paused');
-        isPaused = false;
+        setGameMenuOpen(false);
+        setGamePaused(false);
         
         // Reset the shared dev deck counter (server starts a fresh 25-card deck)
         devDeckRemaining = 25;
@@ -7208,6 +7386,10 @@ function closeTradePopup() {
     activeTrade = null;
 }
 function openTradePopup(resourceType, anchorEl) {
+    if (robberMode) {
+        showMessage('Спочатку розмістіть розбійника!');
+        return;
+    }
     if (isMultiplayer && typeof canPerformMultiplayerActions === 'function' && !canPerformMultiplayerActions()) {
         showMessage(isMyTurn && !canPerformActions ? 'Спочатку киньте кубики!' : 'Зараз не ваш хід!'); return;
     }
@@ -7229,6 +7411,8 @@ function renderTradeRatioButton(popup, resourceType, ratio) {
     const btn = document.createElement('button');
     btn.className = 'tp-btn';
     btn.textContent = 'Обмін ' + ratio + ':1';
+    btn.title = 'Обмін ' + ratio + ':1';
+    btn.setAttribute('aria-label', 'Обмін ' + ratio + ':1');
     btn.addEventListener('click', (e) => {
         // Зупиняємо спливання, щоб document-слухач "закриття поза попапом"
         // не закрив щойно перемальований попап цим самим кліком.
@@ -7245,6 +7429,8 @@ function renderTradeRatioButton(popup, resourceType, ratio) {
         const cancelBtn = document.createElement('button');
         cancelBtn.className = 'tp-btn cancel';
         cancelBtn.textContent = 'Відмінити';
+        cancelBtn.title = 'Відмінити обмін';
+        cancelBtn.setAttribute('aria-label', 'Відмінити обмін');
         cancelBtn.addEventListener('click', closeTradePopup);
         popup.appendChild(cancelBtn);
         activeTrade.awaitingTarget = true;
@@ -7261,7 +7447,8 @@ function setupResourceCardTradeClicks() {
             card.title = 'Натисніть для обміну';
             card.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const anchor = card.closest('.card-with-count');
+                // Попап позиціюється відносно самої картки ресурсу, а не блоку картки з лічильником.
+                const anchor = card;
                 // Повторний клік по тій самій картці = скасувати (закрити попап)
                 if (activeTrade && activeTrade.anchor === anchor) { closeTradePopup(); return; }
                 // Режим очікування цілі: клік по ІНШІЙ картці ресурсу внизу
@@ -7620,7 +7807,8 @@ function navigateToNewMatch(roomCode) {
     hideMmSearchOverlay();
     const overlay = document.getElementById('gameOverOverlay');
     if (overlay) overlay.style.display = 'none';
-    document.body.classList.remove('is-paused');
+    setGameMenuOpen(false);
+    setGamePaused(false);
     try { audioManager.stopVictoryTheme(); } catch (e) {}
     try { audioManager.stopDefeatTheme(); } catch (e) {}
     window.location.href = 'index.html?mode=matchmaking&code=' + encodeURIComponent(roomCode);
@@ -8055,6 +8243,7 @@ function setupMatchmakingGameHandlers() {
     // Handle action error
     mpClient.socket.on('action-error', (data) => {
         console.log('[matchmaking] action-error:', data);
+        showMessage((data && data.message) || 'Помилка дії');
     });
 
     // Handle regular dice rolled
@@ -8925,6 +9114,10 @@ function handleRegularDiceRoll() {
         showMessage('Зараз не ваш хід!');
         return;
     }
+    if (robberMode) {
+        showMessage('Спочатку розмістіть розбійника!');
+        return;
+    }
     if (hasRolledThisTurn) {
         showMessage('Ви вже кинули кубики!');
         return;
@@ -8947,9 +9140,10 @@ function handleRegularDiceRoll() {
     if (multiplayerClient && isMultiplayer) {
         console.log('[UI] Sending dice roll to server:', die1, die2);
         multiplayerClient.rollRegularDice(die1, die2);
-        // Check for 7 after server confirms
+        // Одразу вмикаємо режим розбійника, щоб між відправкою кидка
+        // та обробкою анімації не можна було виконати іншу дію.
         if (total === 7) {
-            setTimeout(() => handleSevenRolled(), 1000);
+            handleSevenRolled();
         }
     } else {
         // Одиночна гра — локальна анімація (3D-кубики)
@@ -8995,9 +9189,13 @@ function handleRegularDiceRoll() {
 function handleEndTurn() {
     console.log('[UI] handleEndTurn called, isMyTurn:', isMyTurn, 'hasRolledThisTurn:', hasRolledThisTurn, 'myPlayerId:', myPlayerId);
     
-    // Block ending turn while robber needs to be placed
-    if (robberMode || gameState.cardInProgress) {
+    // Блокуємо завершення ходу до розміщення розбійника або завершення карти.
+    if (robberMode) {
         showMessage('Спочатку розмістіть розбійника!');
+        return;
+    }
+    if (gameState.cardInProgress || gameState.roadBuildingMode > 0) {
+        showMessage('Спочатку завершіть поточну дію!');
         return;
     }
     

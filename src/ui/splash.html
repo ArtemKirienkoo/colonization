@@ -7,6 +7,11 @@
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="multiplayer.js"></script>
     <style>
+        :root {
+            --ui-window: url('../../assets/textures/ui-window.png');
+            --ui-button: url('../../assets/textures/ui-button.png');
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
 
         /* ===== TITLE FONT =====
@@ -130,11 +135,7 @@
             gap: 15px;
             margin-bottom: 30px;
         }
-        /* ===== STONE BUTTONS (готові камені з асету користувача) =====
-           Кожна кнопка — ЦЕ сам камінь з PNG (btn-0…btn-7, вирізані з нового асету
-           686f…png). Через mask-image кнопка приймає ФОРМУ каменю з альфа-каналу:
-           без прямокутника, без border-radius — тільки неправильний силует каменю.
-           Рандомний вибір каменя задає JS через --btn-bg. */
+        /* Єдина нова кнопка для головного меню. */
         .menu-btn {
             width: fit-content; /* не розтягуємо камінь — розмір по контенту */
             margin-left: auto;
@@ -150,18 +151,11 @@
             min-width: 250px;
             color: #f7f0dc;
             text-shadow: 1px 2px 4px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.5);
-            background-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-0.png'));
-            background-size: 100% 100%;
-            background-position: center;
-            background-repeat: no-repeat;
-            -webkit-mask-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-0.png'));
-            mask-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-0.png'));
-            -webkit-mask-size: 100% 100%;
-            mask-size: 100% 100%;
-            -webkit-mask-position: center;
-            mask-position: center;
-            -webkit-mask-repeat: no-repeat;
-            mask-repeat: no-repeat;
+            /* Єдина нова кнопка для головного меню. */
+            background: var(--ui-button) center / contain no-repeat !important;
+            background-color: transparent !important;
+            -webkit-mask-image: none !important;
+            mask-image: none !important;
             box-shadow:
                 0 4px 12px rgba(0,0,0,0.5),
                 0 1px 3px rgba(0,0,0,0.4);
@@ -374,45 +368,24 @@
         .settings-box {
             position: relative;
             z-index: 1;
-            background: transparent;
+            background: var(--ui-window) center / contain no-repeat;
+            background-color: transparent;
             border: none;
-            border-radius: 12px;
-            padding: 30px 38px;
-            color: #fff;
+            border-radius: 0;
+            padding: 58px 76px 54px;
+            color: #3b2a18;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             text-align: center;
-            max-width: 420px;
-            min-width: 320px;
-        }
-        /* ===== ДЕРЕВ'ЯНІ ПІДВІСКИ ЗА МОДАЛЬНИМИ ВІКНАМИ =====
-           Рандомна дерев'яна дошка із ланцюгами: ланцюги йдуть від верху
-           екрана до верху вікна, дошка ззаду вікна (шар створює JS). */
-        .pendant-layer {
-            position: absolute;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 0;
-            pointer-events: none;
-            filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.55));
-        }
-        .pendant-layer .pendant-chains,
-        .pendant-layer .pendant-board {
-            position: absolute;
-            left: 0;
-            width: 100%;
-            background-repeat: no-repeat;
+            max-width: 560px;
+            min-width: 360px;
         }
         .settings-box h3 {
-            color: #ffd88a;
+            color: #6b3b0b;
             margin-bottom: 16px;
             font-size: 1.3em;
-            text-shadow: 1px 2px 4px rgba(0, 0, 0, 0.65);
+            text-shadow: none;
         }
         .settings-box button {
-            /* база: текстура й відступи — БЕЗ ширини/мінімальної ширини, щоб
-               не ламати сервісні кнопки (копіювати код, кольори гравців,
-               іконки ✏️/📋) та кнопки всередині рядів/панелей */
             padding: 16px 38px;
             font-size: 1.05em;
             margin: 6px 0;
@@ -423,18 +396,9 @@
             color: #f7f0dc;
             text-shadow: 1px 2px 4px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.5);
             transition: all 0.25s;
-            background-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-0.png'));
-            background-size: 100% 100%;
-            background-position: center;
-            background-repeat: no-repeat;
-            -webkit-mask-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-0.png'));
-            mask-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-0.png'));
-            -webkit-mask-size: 100% 100%;
-            mask-size: 100% 100%;
-            -webkit-mask-position: center;
-            mask-position: center;
-            -webkit-mask-repeat: no-repeat;
-            mask-repeat: no-repeat;
+            /* Однакова кнопка для всіх звичайних кнопок меню/модалок. */
+            background: var(--ui-button) center / contain no-repeat !important;
+            background-color: transparent !important;
             box-shadow:
                 0 4px 12px rgba(0,0,0,0.5),
                 0 1px 3px rgba(0,0,0,0.4);
@@ -453,9 +417,7 @@
             box-shadow:
                 0 2px 6px rgba(0,0,0,0.5);
         }
-        /* Компактні «камені»: тільки кнопки-прямі діти вікна та звичайні
-           mode/back кнопки. Сервісні (✏️ 📋, кольори гравців, копіювання
-           коду) і кнопки всередині панелей мають власні розміри. */
+        /* Компактні кнопки у вікнах: сервісні контроли мають власні розміри. */
         .settings-box > button,
         .settings-box .mode-btn,
         .settings-box .back-btn {
@@ -467,9 +429,10 @@
             margin-right: auto;
         }
         .settings-box button.back-btn {
-            background-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-4.png'));
-            -webkit-mask-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-4.png'));
-            mask-image: var(--btn-bg, url('../../assets/textures/buttons/stone-textures/btn-4.png'));
+            background: var(--ui-button) center / contain no-repeat !important;
+            background-color: transparent !important;
+            -webkit-mask-image: none !important;
+            mask-image: none !important;
             color: #e2dcc6;
         }
         .settings-box button.back-btn:hover {
@@ -487,7 +450,7 @@
         .settings-box button.forgot-pass-link:active {
             width: auto;
             display: block;
-            background: none;
+            background: none !important;
             border: none;
             box-shadow: none;
             transform: none;
@@ -511,16 +474,16 @@
         .settings-box button.forgot-pass-link,
         .settings-box button.forgot-pass-link:hover,
         .settings-box button.forgot-pass-link:active {
-            -webkit-mask-image: none;
-            mask-image: none;
+            -webkit-mask-image: none !important;
+            mask-image: none !important;
         }
         /* Кольорові свотчі вибору кольору — чисті круглі кольори, без каменю */
         .settings-box button.color-option,
         .settings-box button.color-option:hover,
         .settings-box button.color-option:active {
-            background-image: none;
-            -webkit-mask-image: none;
-            mask-image: none;
+            background: none !important;
+            -webkit-mask-image: none !important;
+            mask-image: none !important;
             border-radius: 50%;
             box-shadow: none;
             /* База .settings-box button дає кнопкам padding:16px 38px і флекс-розтягування,
@@ -573,10 +536,10 @@
             margin: 0;
             border-radius: 50%;
             border: 3px solid rgba(255, 255, 255, 0.35);
-            background: #1a1a1a;
-            background-size: contain;
-            background-position: center;
-            background-repeat: no-repeat;
+            background: #1a1a1a !important;
+            background-size: contain !important;
+            background-position: center !important;
+            background-repeat: no-repeat !important;
             /* вимикаємо кам'яний масок-силует кнопок — іконки круглі */
             -webkit-mask-image: none;
             mask-image: none;
@@ -1360,41 +1323,8 @@
 </div>
 
     <script>
-        // ===== РАНДОМІЗАЦІЯ КАМ'ЯНИХ КНОПОК =====
-        // Кожна кнопка випадково бере ОДНУ з 8 готових каменів (btn-0.png…btn-7.png):
-        // форма, колір, бевел і мох — повністю з текстури.
-        // ВАЖЛИВО: поки PNG у mask-image/background-image ЩЕ НЕ ДЕКОДОВАНО, Chromium
-        // малює кнопку повністю прозорою ("зниклі" кнопки; з'являються лише на hover,
-        // бо filter/transform форсують репаїнт). Тому всі текстури пре-декодовуються
-        // на старті, а --btn-bg призначається ЛИШЕ ПІСЛЯ decode() обраної текстури —
-        // до того моменту кнопка залишається видимою з попередньою (готовою) текстурою.
-        const stoneTextures = Array.from({ length: 8 }, (_, i) => {
-            const url = "../../assets/textures/buttons/stone-textures/btn-" + i + ".png";
-            const img = new Image();
-            img.src = url;
-            return { url: url, img: img };
-        });
-        let stoneDecodedPromise = null;
-        function ensureStoneTexturesDecoded() {
-            if (!stoneDecodedPromise) {
-                stoneDecodedPromise = Promise.all(stoneTextures.map(t => t.img.decode().catch(() => {})));
-            }
-            return stoneDecodedPromise;
-        }
-        async function applyRandomStone() {
-            await ensureStoneTexturesDecoded();
-            document.querySelectorAll('.menu-btn, .settings-box button:not(.forgot-pass-link):not(.color-option)').forEach(btn => {
-                const t = stoneTextures[Math.floor(Math.random() * 8)];
-                btn.style.setProperty('--btn-bg', "url('" + t.url + "')");
-            });
-        }
-        applyRandomStone();
-        // Пере-рандомізуємо щоразу, коли відкривається будь-яка модалка
-        document.querySelectorAll('.settings-overlay').forEach(overlay => {
-            new MutationObserver(() => {
-                if (overlay.style.display && overlay.style.display !== 'none') applyRandomStone();
-            }).observe(overlay, { attributes: true, attributeFilter: ['style'] });
-        });
+        /* Усі звичайні кнопки використовують одну текстуру ui-button.png.
+           Малі вивіски профілю залишаються без змін. */
 
         // ===== SERVER LOADING SCREEN: екран загрузки сервера при старті гри =====
         // Показується замість головного меню, поки сервер не запуститься повністю
@@ -3961,10 +3891,9 @@
             }
         }
 
-        /* ===== ДЕРЕВ'ЯНІ ТЕКСТУРИ ВІКОН МЕНЮ =====
-           16 окремих PNG з альфа-каналом (вирізані впритул по краю дошки):
-           badge — малі дошки з ланцюгами (бейдж профілю), big — великі
-           підвіски (модальні вікна). bt = рядок, з якого починається дошка. */
+        /* ===== ТЕКСТУРИ МЕНЮ =====
+           Малі вивіски профілю (badge) залишені без змін; для всіх великих
+           модальних вікон використовується ui-window.png. */
         const MENU_WOOD = {
             badge: [
                 { url: '../../assets/textures/menu/cut/small-0.png', w: 655, h: 249, bt: 102 },
@@ -3975,16 +3904,6 @@
                 { url: '../../assets/textures/menu/cut/small-5.png', w: 656, h: 221, bt: 79 },
                 { url: '../../assets/textures/menu/cut/small-6.png', w: 662, h: 197, bt: 73 },
                 { url: '../../assets/textures/menu/cut/small-7.png', w: 654, h: 196, bt: 74 }
-            ],
-            big: [
-                { url: '../../assets/textures/menu/cut/big-0.png', w: 292, h: 512, bt: 104 },
-                { url: '../../assets/textures/menu/cut/big-1.png', w: 301, h: 512, bt: 116 },
-                { url: '../../assets/textures/menu/cut/big-2.png', w: 287, h: 512, bt: 105 },
-                { url: '../../assets/textures/menu/cut/big-3.png', w: 302, h: 512, bt: 112 },
-                { url: '../../assets/textures/menu/cut/big-4.png', w: 284, h: 469, bt: 102 },
-                { url: '../../assets/textures/menu/cut/big-5.png', w: 288, h: 469, bt: 113 },
-                { url: '../../assets/textures/menu/cut/big-6.png', w: 293, h: 466, bt: 114 },
-                { url: '../../assets/textures/menu/cut/big-7.png', w: 296, h: 468, bt: 92 }
             ]
         };
 
@@ -4020,78 +3939,8 @@
             btn.style.paddingTop = Math.round(t.bt * scale) + 'px';
         })();
 
-        // Шар підвіски за модальним вікном: ланцюги від верху екрана до вікна,
-        // дошка точно за вікном. Рандомна дошка при кожному відкритті.
-        function layoutPendantLayer(overlay, repick) {
-            const box = overlay.querySelector('.settings-box');
-            if (!box) return;
-            let layer = overlay.querySelector('.pendant-layer');
-            if (!layer) {
-                layer = document.createElement('div');
-                layer.className = 'pendant-layer';
-                const chains = document.createElement('div');
-                chains.className = 'pendant-chains';
-                const board = document.createElement('div');
-                board.className = 'pendant-board';
-                layer.appendChild(chains);
-                layer.appendChild(board);
-                overlay.insertBefore(layer, box);
-                layer._geo = '';
-            }
-            const tex = MENU_WOOD.big;
-            if (repick || !layer._woodRect) {
-                layer._woodRect = tex[Math.floor(Math.random() * tex.length)];
-            }
-            const b = layer._woodRect;
-            const br = box.getBoundingClientRect();
-            const or = overlay.getBoundingClientRect();
-            if (br.width < 40 || br.height < 40) return;
-            // дошка виступає вище вікна на 24px (заголовок сидить на рівній
-            // деревині, а не на рваному краю з мохом) і на 34px нижче
-            const boardTop = Math.max(0, Math.round(br.top - or.top) - 24);
-            const boardH = Math.round(br.height) + 24 + 34;
-            const W = Math.round(br.width * 1.16);
-            const H = boardTop + boardH;
-            // гео-рядок для порівняння: якщо нічого не змінилось — стилі не чіпаємо
-            const geo = [W, H, boardTop, boardH, b.url].join('|');
-            if (layer._geo === geo) return;
-            layer._geo = geo;
-            layer.style.width = W + 'px';
-            layer.style.height = H + 'px';
-            const chains = layer.children[0];
-            const board = layer.children[1];
-            chains.style.top = '0px';
-            chains.style.height = boardTop + 'px';
-            board.style.top = boardTop + 'px';
-            board.style.height = boardH + 'px';
-            // смуга ланцюгів і дошка — дві ділянки одного PNG (спільний масштаб X,
-            // тому кріплення ланцюгів точно збігаються з доскою)
-            mapWoodSprite(chains, b, { x: 0, y: 0, w: b.w, h: b.bt });
-            mapWoodSprite(board, b, { x: 0, y: b.bt, w: b.w, h: b.h - b.bt });
-        }
-
-        (function initWoodPendants() {
-            // Самокоригуюча геометрія: поки модалка відкрита, щокадру звіряємо
-            // шар із живим rect боксу. Це покриває будь-яку причину зсуву —
-            // resize/restore вікна, анімації, пізню загрузку шрифтів тощо —
-            // без покладання на окремі події (resize/RO), які можна пропустити.
-            const states = Array.from(document.querySelectorAll('.settings-overlay'))
-                .map(ov => ({ ov, open: false }));
-            function tick() {
-                for (const s of states) {
-                    const isOpen = s.ov.style.display === 'flex';
-                    if (isOpen) {
-                        // щойно відкрилась — нова рандомна дошка; далі тільки геометрія
-                        layoutPendantLayer(s.ov, !s.open);
-                        s.open = true;
-                    } else {
-                        s.open = false;
-                    }
-                }
-                requestAnimationFrame(tick);
-            }
-            requestAnimationFrame(tick);
-        })();
+        // Модальні вікна використовують ui-window.png; маленькі вивіски профілю
+        // (MENU_WOOD.badge) залишаються без змін.
     </script>
 <style>
     /* ===== ЄДИНИЙ ШРИФТ УСЬОГО UI — Forum (схожий за духом на заголовковий
