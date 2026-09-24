@@ -201,24 +201,24 @@
         }
 
         /* ===== DICE AREA (зона кидання кубиків) ===== */
+        /* Пункт 1: текстуру-піднос (dice-tray.png) прибрано повністю — зона кубиків
+           тепер без власного фону, кубики лежать прямо на панелі сайдбару. */
         .dice-area {
             display: flex;
             flex-direction: column;
             align-items: center;
             gap: 4px;
             padding: 8px 10px;
-            /* Зберігаємо природні пропорції: cover не розтягує текстуру,
-               а лише обрізає зайві краї. */
-            background: url('../../assets/textures/dice-tray.png') center / cover no-repeat;
+            background: none !important;
             border: none;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: filter 0.2s, opacity 0.2s;
             user-select: none;
             width: 100%;
         }
-        .dice-area:hover { filter: brightness(1.1); border-color: #f39c12; box-shadow: 0 0 14px rgba(243,156,18,0.3); }
-        .dice-area.disabled { opacity: 0.55; cursor: not-allowed; box-shadow: none; }
-        .dice-area.disabled:hover { border-color: rgba(243, 156, 18, 0.25); box-shadow: none; }
+        .dice-area:hover { filter: brightness(1.1); }
+        .dice-area.disabled { opacity: 0.55; cursor: not-allowed; }
+        .dice-area.disabled:hover { filter: none; }
         .action-btns { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
         .action-btns button { width: 100%; }
         #rollBtn { display: none; }
@@ -573,7 +573,9 @@
             /* Одна кнопка для всіх звичайних кнопок меню/модалок. */
             background: var(--ui-button) center / 100% 100% no-repeat !important;
             background-color: transparent !important;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.4);
+            /* Пункт 5: box-shadow прибрано — він малював прозорий прямокутник-підкладку
+               навколо текстурованої кнопки (тінь мала форму боксу, а не кнопки) */
+            box-shadow: none;
         }
         .game-menu-popup .menu-content {
             position: relative;
@@ -600,14 +602,14 @@
         .settings-box button:hover {
             transform: translateY(-2px);
             filter: brightness(1.07) saturate(1.08);
-            box-shadow: 0 10px 24px rgba(0,0,0,0.55), 0 2px 5px rgba(0,0,0,0.45);
+            box-shadow: none;
             color: #fff;
         }
         .game-menu-popup .menu-content button:active,
         .settings-box button:active {
             transform: translateY(0);
             filter: brightness(0.94);
-            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+            box-shadow: none;
         }
         .settings-box button.back-btn {
             background: var(--ui-button) center / 100% 100% no-repeat !important;
@@ -758,11 +760,12 @@
         }
 
         /* ===== DEV BUY MODAL (вартість карти розвитку) ===== */
+        /* Пункт 3: картки вартості завжди стоять в один ряд (без переносу) */
         .dev-buy-cost {
             display: flex;
             gap: 8px;
             justify-content: center;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
             margin: 10px 0 16px;
         }
         .dev-buy-cost-item {
@@ -882,24 +885,38 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 6px;
+        gap: 10px;
         pointer-events: none;
-        max-width: min(70vw, 720px);
-        padding: 12px 20px;
-        color: #fff;
-        text-align: center;
-        background: rgba(26, 26, 46, 0.94);
-        border: 2px solid #f39c12;
-        border-radius: 12px;
-        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55), 0 0 18px rgba(243, 156, 18, 0.25);
+        max-width: min(92vw, 880px);
+        padding: 0;
+        background: none;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
         white-space: pre-wrap;
         overflow-wrap: anywhere;
     }
     #messageContainer:empty { display: none; }
+    /* Пункт 2: кожне повідомлення малюється на золотій текстурованій плашці
+       (message-plate.png, 1918×364). Внутрішня «темна» зона текстури — це
+       x ≈ 6%…94%, y ≈ 17%…82%, тому текст тримаємо в паддінгу, а не по краях. */
     .game-message {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        width: max-content;
         max-width: 100%;
-        color: #fff;
-        text-shadow: 1px 2px 4px rgba(0, 0, 0, 0.95);
+        min-width: min(484px, 92vw);
+        min-height: 92px;
+        padding: 18px 56px;
+        color: #f5e8ca;
+        font-weight: 700;
+        font-size: 1.05em;
+        line-height: 1.3;
+        text-align: center;
+        text-shadow: 0 2px 5px rgba(0, 0, 0, 0.95), 0 0 12px rgba(0, 0, 0, 0.55);
+        background: url('../../assets/textures/message-plate.png') center / 100% 100% no-repeat;
         animation: message-in 0.25s ease-out;
         transition: opacity 0.6s ease;
     }
@@ -925,6 +942,11 @@
         color: #3b2a18;
         padding: 58px 76px 54px;
     }
+    /* Пункт 3: вікно з вартістю карти розвитку має вміщати 3 картки ресурсів в ОДИН ряд,
+       тому текстуроване вікно ширше за старий max-width: 380px */
+    .confirm-box {
+        max-width: min(600px, calc(100vw - 32px));
+    }
     .confirm-box h3 { color: #6b3b0b; }
     .confirm-box p { color: #4a301b; }
     .settings-box button,
@@ -933,6 +955,18 @@
         background-color: transparent !important;
         -webkit-mask-image: none !important;
         mask-image: none !important;
+    }
+    /* Пункт 5: у текстурних кнопок немає жодної тіні-підкладки на будь-якому стані
+       (гасимо і глобальне правило button:hover, яке малювало золотий прямокутник) */
+    .confirm-btns .btn-yes,
+    .confirm-btns .btn-no,
+    .settings-box button,
+    .game-menu-popup .menu-content button {
+        box-shadow: none !important;
+    }
+    .confirm-btns .btn-yes:hover,
+    .confirm-btns .btn-no:hover {
+        box-shadow: none !important;
     }
 
     .left-panel, .right-panel, .bottom-left, .bottom-center,
@@ -944,14 +978,16 @@
         padding: 0 !important;
     }
     /* .dev-section прибрано звідси: секція «Мої карти розвитку» живе на текстурній вивісці (sign-dev-*) */
-    /* .dice-area прибрано звідси: зона кидання кубиків має текстурну панель (dice-tray.png) */
+    /* .dice-area прибрано звідси: зона кидання кубиків тепер взагалі без фону
+       (текстуру-піднос dice-tray.png видалено з репозиторію) */
     .dev-deck, .medal {
         background: transparent !important;
         border: none !important;
         box-shadow: none !important;
         border-radius: 0 !important;
     }
-    .dice-area:hover, .dev-deck:hover {
+    /* Пункт 5: тінь-підкладку прибрано і в зони кубиків — лишається тільки текстура/вміст */
+    .dev-deck:hover {
         box-shadow: 0 0 14px rgba(243,156,18,0.35) !important;
     }
     .medal.active-army {

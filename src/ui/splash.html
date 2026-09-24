@@ -156,29 +156,26 @@
             background-color: transparent !important;
             -webkit-mask-image: none !important;
             mask-image: none !important;
-            box-shadow:
-                0 4px 12px rgba(0,0,0,0.5),
-                0 1px 3px rgba(0,0,0,0.4);
+            /* Пункт 5: без тіні-підкладки — вона малювала прозорий прямокутник
+               навколо текстурованої кнопки (тінь у формі боксу, а не кнопки) */
+            box-shadow: none;
         }
         .menu-btn:hover {
             transform: translateY(-3px);
             filter: brightness(1.07) saturate(1.08);
-            box-shadow:
-                0 10px 24px rgba(0,0,0,0.55),
-                0 2px 5px rgba(0,0,0,0.45);
+            box-shadow: none;
             color: #fff;
         }
         .menu-btn:active {
             transform: translateY(1px);
             filter: brightness(0.94);
-            box-shadow:
-                0 2px 6px rgba(0,0,0,0.5);
+            box-shadow: none;
         }
         .menu-btn.primary:hover {
-            box-shadow: 0 10px 24px rgba(90,130,60,0.4), 0 2px 5px rgba(0,0,0,0.45);
+            filter: brightness(1.12) saturate(1.1);
         }
         .menu-btn.exit-btn:hover {
-            box-shadow: 0 10px 24px rgba(160,64,48,0.4), 0 2px 5px rgba(0,0,0,0.45);
+            filter: brightness(1.12) saturate(1.1);
         }
         /* Disabled state */
         .menu-btn[disabled] {
@@ -189,9 +186,7 @@
         .menu-btn[disabled]:hover {
             transform: none;
             filter: grayscale(0.6);
-            box-shadow:
-                0 4px 12px rgba(0,0,0,0.5),
-                0 1px 3px rgba(0,0,0,0.4);
+            box-shadow: none;
         }
         .version {
             font-size: 0.9em;
@@ -399,23 +394,19 @@
             /* Однакова кнопка для всіх звичайних кнопок меню/модалок. */
             background: var(--ui-button) center / contain no-repeat !important;
             background-color: transparent !important;
-            box-shadow:
-                0 4px 12px rgba(0,0,0,0.5),
-                0 1px 3px rgba(0,0,0,0.4);
+            /* Пункт 5: тінь-підкладку прибрано (прозорий прямокутник від боксу кнопки) */
+            box-shadow: none;
         }
         .settings-box button:hover {
             transform: translateY(-2px);
             filter: brightness(1.07) saturate(1.08);
-            box-shadow:
-                0 10px 24px rgba(0,0,0,0.55),
-                0 2px 5px rgba(0,0,0,0.45);
+            box-shadow: none;
             color: #fff;
         }
         .settings-box button:active {
             transform: translateY(0);
             filter: brightness(0.94);
-            box-shadow:
-                0 2px 6px rgba(0,0,0,0.5);
+            box-shadow: none;
         }
         /* Компактні кнопки у вікнах: сервісні контроли мають власні розміри. */
         .settings-box > button,
@@ -441,7 +432,7 @@
         }
         .settings-box button.back-btn.exit-btn:hover {
             filter: brightness(1.07) saturate(1.1);
-            box-shadow: 0 10px 24px rgba(160,64,48,0.4), 0 2px 5px rgba(0,0,0,0.45);
+            box-shadow: none;
         }
 
         /* ===== ЗАБУЛИ ПАРОЛЬ? (маленьке текстове посилання у вікні входу) ===== */
