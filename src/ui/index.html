@@ -17,17 +17,28 @@
 
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
         
-        /* ===== CUSTOM CURSOR ===== */
-        /* Default: golden mouse cursor arrow */
-        html { cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2232%22 height=%2232%22 viewBox=%220 0 32 32%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%220%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23fdf6d8%22/%3E%3Cstop offset=%220.45%22 stop-color=%22%23f2cf7e%22/%3E%3Cstop offset=%220.8%22 stop-color=%22%23d9a441%22/%3E%3Cstop offset=%221%22 stop-color=%22%238a5a24%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d=%22M7 8 L7 24 L12 18 L16 24 L20 20 L14 14 L23 14 Z%22 transform=%22translate(1.6 2)%22 fill=%22%23000000%22 opacity=%220.3%22/%3E%3Cpath d=%22M7 8 L7 24 L12 18 L16 24 L20 20 L14 14 L23 14 Z%22 fill=%22url(%23g)%22 stroke=%22%234a2f10%22 stroke-width=%221.6%22 stroke-linejoin=%22round%22/%3E%3Cpath d=%22M9.2 11.2 L9.2 19.8 L11.8 16.6%22 fill=%22none%22 stroke=%22%23ffffff%22 stroke-opacity=%220.55%22 stroke-width=%221.3%22 stroke-linecap=%22round%22/%3E%3C/svg%3E') 8 8, auto !important; }
+        /* ===== CUSTOM CURSOR =====
+           Натрілки з атласу (assets/textures/cursors/, нарізані tools/make-cursor.js):
+           cursor-gold — звичайний, cursor-gold-hover — із золотим ореолом на
+           інтерактивних елементах, cursor-gray — на заблокованих.
+           Числа після url() — hotspot (вістря натрілки) у пікселях файлу.
+           Натрілка в усіх трьох файлах однакового розміру (36px) і ОДНАКОВИЙ
+           канвас (43×50, hotspot 8 7; у срібної 9 7 — її вістря на 1px правіше),
+           тому вказівка не з'їжджає при переході між станами і Chromium не
+           перевиділяє спрайт іншого розміру — раніше саме це лишало «силуети»
+           курсора на кнопках. */
+        html { cursor: url('../../assets/textures/cursors/cursor-gold.png') 8 7, auto !important; }
         body, body * { cursor: inherit !important; }
-        /* Hover: BIG WHITE arrow with golden glow on all interactive elements */
+        /* Hover: золота натрілка з ореолом на інтерактивних елементах.
+           Другий url() у списку — фолбек: якщо варіант стану ще не готовий,
+           Chromium покаже базову золоту натрілку, а не системний курсор /
+           білу руку (вони «блимали» поверх гри при наведенні). */
         button, .build-btn, .dev-card-item, .game-menu-btn, .menu-content button, .yop-res-option, .yop-minus, .yop-plus, .room-item, .mode-btn, .back-btn, .menu-btn, .primary, .secondary, .exit-btn, .volume-slider-container input[type="range"] {
-            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22 viewBox=%220 0 40 40%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%220%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23fffbe8%22/%3E%3Cstop offset=%220.45%22 stop-color=%22%23f6e2a0%22/%3E%3Cstop offset=%220.8%22 stop-color=%22%23d9a441%22/%3E%3Cstop offset=%221%22 stop-color=%22%239a6a1f%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f2cf7e%22 stroke-width=%226%22 stroke-linejoin=%22round%22 opacity=%220.25%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f2cf7e%22 stroke-width=%223.2%22 stroke-linejoin=%22round%22 opacity=%220.45%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22url(%23g)%22 stroke=%22%234a2f10%22 stroke-width=%222%22 stroke-linejoin=%22round%22/%3E%3Cpath d=%22M11.4 12.6 L11.4 25 L14.6 21.2%22 fill=%22none%22 stroke=%22%23ffffff%22 stroke-opacity=%220.6%22 stroke-width=%221.4%22 stroke-linecap=%22round%22/%3E%3C/svg%3E') 10 12, pointer !important;
+            cursor: url('../../assets/textures/cursors/cursor-gold-hover.png') 8 7, url('../../assets/textures/cursors/cursor-gold.png') 8 7, pointer !important;
         }
-        /* Disabled: gray arrow */
+        /* Disabled: срібна натрілка (той самий принцип із фолбеком) */
         button[disabled], .build-btn.disabled, .dev-card-item.used, .dev-card-item.nonusable, .buy-dev-btn.disabled {
-            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2232%22 height=%2232%22 viewBox=%220 0 32 32%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%220%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23d6d6d6%22/%3E%3Cstop offset=%221%22 stop-color=%22%23808080%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d=%22M7 8 L7 24 L12 18 L16 24 L20 20 L14 14 L23 14 Z%22 fill=%22url(%23g)%22 stroke=%22%233f3f3f%22 stroke-width=%221.6%22 stroke-linejoin=%22round%22 opacity=%220.9%22/%3E%3C/svg%3E') 8 8, not-allowed !important;
+            cursor: url('../../assets/textures/cursors/cursor-gray.png') 9 7, url('../../assets/textures/cursors/cursor-gold.png') 8 7, not-allowed !important;
         }
         html, body { height: 100%; overflow: hidden; }
         body {
@@ -97,23 +108,26 @@
         }
         .right-panel {
             position: absolute;
-            /* Ширина й відступ = як у вкладок-вивісок (330px, right 6px) */
+            /* Ширина й відступ = як у вкладок-вивісок (330px, right 6px).
+               Низ опущено до краю екрана (було 12px) — кнопки кидка/завершення
+               ходу і зона кубиків стали нижче. */
             right: 6px;
             top: 58px;
-            bottom: 12px;
+            bottom: 0;
             width: 330px;
             z-index: 6;
         }
         .bottom-left {
             position: absolute;
             left: 14px;
-            /* Низ дошки в ~48px над краєм екрана; висота дошки — ПОЛОВИНА екрана,
-               перекладина зі стропами виходить приблизно на рівні центра */
+            /* Низ вивіски в ~48px над краєм екрана; висота панелі = пропорція текстури
+               (400px → ~252px через aspect-ratio), тому вивіска не спотворюється */
             bottom: 48px;
             z-index: 6;
-            /* Фіксована ширина: залізна вивіска НЕ змінює розмір, коли з'являються/зникають карти */
-            width: 330px;
-            max-width: 330px;
+            /* Фіксована ширина: вивіска НЕ змінює розмір, коли з'являються/зникають карти.
+               400px (було 330) — щоб пергамент вміщав ряд карт розвитку (76×101) без обрізання */
+            width: 400px;
+            max-width: 400px;
             max-height: 50vh;
             overflow-y: auto;
         }
@@ -186,6 +200,7 @@
             font-size: 0 !important;
             line-height: 0 !important;
             text-shadow: none !important;
+            box-shadow: none !important;
         }
         #gameOverExitBtn, #mmSearchCancelBtn {
             background-image: url('../../assets/textures/buttons/ui-btns/no-red.png') !important;
@@ -200,9 +215,11 @@
             cursor: not-allowed;
         }
 
-        /* ===== DICE AREA (зона кидання кубиків) ===== */
+        /* ===== DICE AREA (зона кубиків — ТІЛЬКИ показ результату, НЕ кнопка) ===== */
         /* Пункт 1: текстуру-піднос (dice-tray.png) прибрано повністю — зона кубиків
-           тепер без власного фону, кубики лежать прямо на панелі сайдбару. */
+           тепер без власного фону, кубики лежать прямо на панелі сайдбару.
+           Пункт 3: кидок ТІЛЬКИ кнопкою — клік по зоні кубиків вимкнено (немає
+           cursor: pointer, немає hover-підсвітки, обробника click прибрано). */
         .dice-area {
             display: flex;
             flex-direction: column;
@@ -211,14 +228,12 @@
             padding: 8px 10px;
             background: none !important;
             border: none;
-            cursor: pointer;
-            transition: filter 0.2s, opacity 0.2s;
+            cursor: default;
             user-select: none;
             width: 100%;
         }
-        .dice-area:hover { filter: brightness(1.1); }
-        .dice-area.disabled { opacity: 0.55; cursor: not-allowed; }
-        .dice-area.disabled:hover { filter: none; }
+        /* Лише притемнення, коли кидок недоступний (стан синхронний із rollBtn) */
+        .dice-area.disabled { opacity: 0.6; }
         .action-btns { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
         .action-btns button { width: 100%; }
         #rollBtn { display: none; }
@@ -340,15 +355,19 @@
             background-size: contain;
             background-position: center;
             background-repeat: no-repeat;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+            /* Пункт 5: прибрано box-shadow (прозорий прямокутник від боксу кнопки/картки),
+               тінь малюється drop-shadow суворо по контуру форми карти */
+            box-shadow: none;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
             flex-shrink: 0;
+            transition: transform 0.2s, filter 0.2s;
         }
         .resource-card-item.wood-card { background-image: url('../../assets/textures/cards/res-wood.png'); }
         .resource-card-item.brick-card { background-image: url('../../assets/textures/cards/res-brick.png'); }
         .resource-card-item.geese-card { background-image: url('../../assets/textures/cards/res-geese.png'); }
         .resource-card-item.water-card { background-image: url('../../assets/textures/cards/res-water.png'); }
         .resource-card-item.stone-card { background-image: url('../../assets/textures/cards/res-stone.png'); }
-        .resource-card-item:hover { transform: translateY(-3px); box-shadow: 0 4px 12px rgba(0,0,0,0.6); }
+        .resource-card-item:hover { transform: translateY(-3px); box-shadow: none; filter: drop-shadow(0 5px 9px rgba(0,0,0,0.65)); }
         .res-count {
             font-size: 1.6em;
             font-weight: bold;
@@ -391,11 +410,12 @@
             flex-shrink: 0;
             min-width: 0;
         }
-        /* Текстурний режим секції: залізна вивіска на шесті (sign-big-*, 300×506) як тло,
-            заввишки — ПІВ ЕКРАНА (50vh), ширина панелі 330 (текстура тягнеться 100%×100%,
-            як у вивіски трекінгів). Верхній паддінг 10vh перекриває перекладину зі стропами
-            (~13.8% висоти текстури), бокові — заклепки. Рука карт займає дошку і скролиться
-            всередині, якщо карт багато. */
+        /* Текстурний режим секції: вивіска з пергаментом (menu/signs/sign-parchment.png,
+            1255×791) — та сама, що у трекінгів і будівництва. Панель ширша за бічні (400px),
+            тому висота йде від пропорції текстури (aspect-ratio), а не від 50vh — вивіска
+            не розтягується. Верхній паддінг 80px перекриває перекладину зі стропами
+            (~32% висоти текстури), бокові 46px — рамку вивіски, нижній 26px — нижній край
+            пергаменту. Рука карт займає пергамент і скролиться всередині, якщо карт багато. */
         .dev-section.textured {
             background-color: transparent;
             background-size: 100% 100%;
@@ -403,13 +423,14 @@
             background-repeat: no-repeat;
             border: none;
             border-radius: 0;
-            padding: 10vh 30px 20px;
+            aspect-ratio: 1255 / 791;
+            height: auto;
+            padding: 80px 46px 26px;
             width: 100%;
-            height: 50vh;
             min-height: 0;
             display: flex;
             flex-direction: column;
-            filter: brightness(0.85) saturate(0.95) drop-shadow(0 3px 5px rgba(0, 0, 0, 0.65));
+            filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.65));
         }
         .dev-section.textured .dev-header { margin-bottom: 8px; flex: 0 0 auto; }
         .dev-section.textured .buy-dev-btn { width: 100%; }
@@ -468,7 +489,9 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: inset 0 0 18px rgba(0,0,0,0.35), 0 4px 12px rgba(0,0,0,0.4);
+            /* Пункт 5: box-shadow прибрано — він малював темний прямокутник навколо
+               фігурної карти. Тінь дає drop-shadow на .dev-deck:hover по контуру */
+            box-shadow: none;
             position: relative;
         }
         .dev-deck-back::before {
@@ -485,8 +508,13 @@
         .dev-header h4 { font-size: 1em; color: #f39c12; letter-spacing: 0.5px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .buy-dev-btn { padding: 4px 8px !important; font-size: 0.85em !important; background: linear-gradient(135deg, #8e44ad, #7c3aed) !important; flex-shrink: 0; white-space: nowrap; transition: all 0.2s; }
         .buy-dev-btn:hover:not(.disabled) { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(142, 68, 173, 0.4); }
-        .buy-dev-btn.disabled { opacity: 0.4; cursor: not-allowed !important; transform: none !important; }
-        .buy-dev-btn.enabled { opacity: 1; cursor: pointer !important; }
+        /* Курсор для цієї кнопки НЕ перевизначаємо: загальні правила у блоці
+           «CUSTOM CURSOR» вище вже дають срібну натрілку для
+           `.buy-dev-btn.disabled` і золоту — для кнопок узагалі. Раніше тут
+           стояли системні `not-allowed` / `pointer`, і на кнопці блимала біла
+           рука замість натрілки гри. */
+        .buy-dev-btn.disabled { opacity: 0.4; transform: none !important; }
+        .buy-dev-btn.enabled { opacity: 1; }
         .dev-hand { display: flex; gap: 4px; flex-wrap: wrap; padding: 2px 0; min-height: 50px; }
         .dev-card-item {
             flex-shrink: 0;
@@ -535,6 +563,18 @@
         .game-menu-btn span {
             display: none;
         }
+        /* Пункт 4: у текстурних кнопок не має бути прямокутної тіні. Глобальне
+           `button:hover { box-shadow: 0 4px 15px rgba(243,156,18,0.4) }` малювало
+           золотий ПРЯМОКУТНИК за прозорими кутами текстури: кнопка паузи на
+           hover, а в кидка кубиків і «Завершити хід» — ще й у вимкненому стані
+           (там власне `.dice-side-btn:hover:not(:disabled)` з box-shadow: none не
+           спрацьовує, тож правило йшло від button:hover). !important — щоб
+           правило не залежало від порядку й специфічності. */
+        .dice-side-btn,
+        .end-turn-side,
+        .game-menu-btn {
+            box-shadow: none !important;
+        }
 
         /* ===== GAME MENU POPUP ===== */
         .game-menu-popup {
@@ -558,8 +598,17 @@
         .game-menu-popup .menu-content button,
         .settings-box button {
             position: relative;
-            width: 100%;
-            padding: 18px 32px;
+            /* Фіксований розмір у пропорції ui-button.png (1451×466): кнопки більше
+               не розтягуються — ні по ширині, ні по висоті */
+            width: 232px;
+            max-width: 100%;
+            aspect-ratio: 1451 / 466;
+            box-sizing: border-box;
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
             font-size: 1.25em;
             border: none;
             border-radius: 0;
@@ -577,27 +626,14 @@
                навколо текстурованої кнопки (тінь мала форму боксу, а не кнопки) */
             box-shadow: none;
         }
+        /* Розмір, паддінги й пропорцію текстури задає спільне правило текстурованих
+           вікон (див. нижче «Модальні вікни та меню паузи»): тут лишається розкладка. */
         .game-menu-popup .menu-content {
             position: relative;
             z-index: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: stretch;
-            gap: 18px;
-            width: min(380px, calc(100vw - 40px));
-            min-width: 0;
-            padding: 52px 64px 48px;
-            background: var(--ui-window) center / 100% 100% no-repeat;
-            background-color: transparent;
-            border: none;
-            border-radius: 0;
-            box-shadow: none;
             pointer-events: auto;
         }
-        .game-menu-popup .menu-content button {
-            flex: 0 0 auto;
-            min-height: 62px;
-        }
+        .game-menu-popup .menu-content button { flex: 0 0 auto; }
         .game-menu-popup .menu-content button:hover,
         .settings-box button:hover {
             transform: translateY(-2px);
@@ -641,31 +677,26 @@
             display: flex; justify-content: center; align-items: center;
             z-index: 3000;
         }
+        /* Розмір, паддінги та пропорцію текстури задає спільне правило текстурованих
+           вікон (див. «Модальні вікни та меню паузи» нижче). */
         .settings-box {
-            background: var(--ui-window) center / 100% 100% no-repeat;
-            background-color: transparent;
-            border: none;
-            border-radius: 0;
-            padding: 58px 76px 54px;
-            color: #3b2a18;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            box-shadow: none;
-            text-align: center;
-            max-width: 560px;
-            min-width: 360px;
             position: relative;
             z-index: 1;
+            /* Пункт 4: текст на пергаменті темніший — краще читається */
+            color: #2f1d0b;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        .settings-box h3 { color: #6b3b0b; margin-bottom: 16px; font-size: 1.3em; text-shadow: none; }
+        .settings-box h3 { color: #5b2a02; margin-bottom: 16px; font-size: 1.3em; text-shadow: none; }
 
         /* ===== VOLUME SETTINGS ===== */
         .volume-slider-container {
-            margin: 12px 0;
+            margin: 6px 0;
+            width: 100%;
             text-align: left;
         }
         .volume-slider-container label {
             display: block;
-            color: #4a301b;
+            color: #331e0c;
             margin-bottom: 6px;
             font-size: 0.95em;
             font-weight: 700;
@@ -690,7 +721,7 @@
             border-radius: 50%;
             /* кована золота заклепка */
             background: radial-gradient(circle at 35% 30%, #fff7dd 0%, #f2cf7e 40%, #d9a441 75%, #a06e22 100%);
-            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22 viewBox=%220 0 40 40%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%220%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23fffbe8%22/%3E%3Cstop offset=%220.45%22 stop-color=%22%23f6e2a0%22/%3E%3Cstop offset=%220.8%22 stop-color=%22%23d9a441%22/%3E%3Cstop offset=%221%22 stop-color=%22%239a6a1f%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f2cf7e%22 stroke-width=%226%22 stroke-linejoin=%22round%22 opacity=%220.25%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f2cf7e%22 stroke-width=%223.2%22 stroke-linejoin=%22round%22 opacity=%220.45%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22url(%23g)%22 stroke=%22%234a2f10%22 stroke-width=%222%22 stroke-linejoin=%22round%22/%3E%3Cpath d=%22M11.4 12.6 L11.4 25 L14.6 21.2%22 fill=%22none%22 stroke=%22%23ffffff%22 stroke-opacity=%220.6%22 stroke-width=%221.4%22 stroke-linecap=%22round%22/%3E%3C/svg%3E') 10 12, pointer !important;
+            cursor: url('../../assets/textures/cursors/cursor-gold-hover.png') 8 7, url('../../assets/textures/cursors/cursor-gold.png') 8 7, pointer !important;
             border: 2px solid #6e4a15;
             box-shadow: 0 0 0 2px rgba(0,0,0,0.35), 0 2px 6px rgba(0,0,0,0.55), 0 0 12px rgba(242,207,126,0.5);
             transition: transform 0.15s;
@@ -703,12 +734,12 @@
             height: 24px;
             border-radius: 50%;
             background: radial-gradient(circle at 35% 30%, #fff7dd 0%, #f2cf7e 40%, #d9a441 75%, #a06e22 100%);
-            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22 viewBox=%220 0 40 40%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%220%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23fffbe8%22/%3E%3Cstop offset=%220.45%22 stop-color=%22%23f6e2a0%22/%3E%3Cstop offset=%220.8%22 stop-color=%22%23d9a441%22/%3E%3Cstop offset=%221%22 stop-color=%22%239a6a1f%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f2cf7e%22 stroke-width=%226%22 stroke-linejoin=%22round%22 opacity=%220.25%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f2cf7e%22 stroke-width=%223.2%22 stroke-linejoin=%22round%22 opacity=%220.45%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22url(%23g)%22 stroke=%22%234a2f10%22 stroke-width=%222%22 stroke-linejoin=%22round%22/%3E%3Cpath d=%22M11.4 12.6 L11.4 25 L14.6 21.2%22 fill=%22none%22 stroke=%22%23ffffff%22 stroke-opacity=%220.6%22 stroke-width=%221.4%22 stroke-linecap=%22round%22/%3E%3C/svg%3E') 10 12, pointer !important;
+            cursor: url('../../assets/textures/cursors/cursor-gold-hover.png') 8 7, url('../../assets/textures/cursors/cursor-gold.png') 8 7, pointer !important;
             border: 2px solid #6e4a15;
             box-shadow: 0 0 0 2px rgba(0,0,0,0.35), 0 2px 6px rgba(0,0,0,0.55), 0 0 12px rgba(242,207,126,0.5);
         }
         .volume-value {
-            color: #f1c40f;
+            color: #8a5b00;
             font-weight: bold;
             margin-left: 8px;
         }
@@ -720,19 +751,15 @@
             display: flex; justify-content: center; align-items: center;
             z-index: 3000;
         }
+        /* Чорну плашку (rgba(26,26,46,.97)) і рамку прибрано: вікно малює текстура
+           ui-window.png зі спільного правила нижче, текст темний по пергаменту. */
         .confirm-box {
-            background: rgba(26,26,46,0.97);
-            border: 2px solid #f39c12;
-            border-radius: 12px;
-            padding: 24px 32px;
-            color: #fff;
+            /* Пункт 4: темніший текст по пергаменту (краще читається) */
+            color: #2f1d0b;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            box-shadow: 0 0 30px rgba(243,156,18,0.4);
-            text-align: center;
-            max-width: 380px;
         }
-        .confirm-box h3 { color: #f39c12; margin-bottom: 10px; font-size: 1.2em; }
-        .confirm-box p { color: #ccc; margin-bottom: 16px; font-size: 0.95em; }
+        .confirm-box h3 { color: #5b2a02; margin-bottom: 10px; font-size: 1.2em; }
+        .confirm-box p { color: #33200f; margin-bottom: 16px; font-size: 0.95em; }
         .confirm-btns { display: flex; gap: 14px; justify-content: center; }
         .confirm-btns button { min-width: 90px; padding: 10px 24px; font-size: 0.95em; }
         .confirm-btns .btn-yes {
@@ -929,7 +956,14 @@
         to   { opacity: 1; transform: translateY(0); }
     }
 
-    /* Модальні вікни та меню паузи тепер мають одну спільну текстуру. */
+    /* Модальні вікни та меню паузи мають одну спільну текстуру ui-window.png
+       (1168×753, пропорція 1.551). Тут:
+       – жодної чорної плашки під текстурою (background-color: transparent);
+       – aspect-ratio тримає пропорцію текстури, тому фон не розтягується;
+       – min-height: max-content — якщо контенту більше за пропорційну висоту,
+         вікно підростає і нічого не вилазить за пергамент;
+       – паддінги у % від ширини: пергаментна зона текстури x≈6.5…96%, y≈16…92%
+         (9.7% ширини ≈ 15% висоти зверху, 6% ширини ≈ 9% висоти знизу). */
     .settings-box,
     .game-menu-popup .menu-content,
     .confirm-box,
@@ -939,19 +973,30 @@
         border: 0;
         border-radius: 0;
         box-shadow: none;
+        box-sizing: border-box;
+        aspect-ratio: 1168 / 753;
+        min-height: max-content;
+        /* Паддінги — у px: % у flex-елементі рахуються від ширини оверлея (вікна екрана),
+           а не від самого вікна. Числа = зони текстури ui-window.png:
+           пергамент x≈6.5…96%, y≈16…92% від розміру вікна. */
+        padding: 60px 39px 36px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        color: #2f1d0b;
+        text-align: center;
     }
-    .confirm-box,
-    .disconnect-box {
-        color: #3b2a18;
-        padding: 58px 76px 54px;
-    }
-    /* Пункт 3: вікно з вартістю карти розвитку має вміщати 3 картки ресурсів в ОДИН ряд,
-       тому текстуроване вікно ширше за старий max-width: 380px */
-    .confirm-box {
-        max-width: min(600px, calc(100vw - 32px));
-    }
-    .confirm-box h3 { color: #6b3b0b; }
-    .confirm-box p { color: #4a301b; }
+    /* Ширина кожного вікна: висота = ширина / 1.551, а паддінги — від тієї ж ширини
+       (топ ≈ 9.7% ширини, боки ≈ 6.5%, низ ≈ 6%) */
+    .game-menu-popup .menu-content { width: min(540px, calc(100vw - 24px)); padding: 54px 35px 33px; }
+    .settings-box { width: min(460px, calc(100vw - 24px)); padding: 46px 30px 28px; }
+    #volumeModal .settings-box { width: min(640px, calc(100vw - 24px)); padding: 62px 42px 38px; }
+    .confirm-box { width: min(600px, calc(100vw - 24px)); padding: 60px 39px 36px; }
+    .disconnect-box { width: min(420px, calc(100vw - 24px)); padding: 42px 27px 26px; }
+    .confirm-box h3 { color: #5b2a02; }
+    .confirm-box p { color: #33200f; }
     .settings-box button,
     .game-menu-popup .menu-content button {
         background: var(--ui-button) center / 100% 100% no-repeat !important;
@@ -980,7 +1025,8 @@
         border-radius: 0 !important;
         padding: 0 !important;
     }
-    /* .dev-section прибрано звідси: секція «Мої карти розвитку» живе на текстурній вивісці (sign-dev-*) */
+    /* .dev-section прибрано звідси: секція «Мої карти розвитку» живе на текстурній вивісці
+       з пергаментом (menu/signs/sign-parchment.png) */
     /* .dice-area прибрано звідси: зона кидання кубиків тепер взагалі без фону
        (текстуру-піднос dice-tray.png видалено з репозиторію) */
     .dev-deck, .medal {
@@ -1215,36 +1261,56 @@
     .build-btn .btn-icon { width: 26px; height: 22px; }
     .build-btn .btn-icon.cancel-icon-s { width: auto; height: auto; font-size: 1.3em; }
 
-    /* Кубики: велика зона — тягнеться від НИЖНЬОЇ МЕЖІ вкладки «Будівництво» до кнопок (на 60px нижча за попередню).
-       Панель будівництва (завжди відкрита): top 286px + 240px = низ ~526px; колонка починається на 58px,
-       тому margin-top = 526 - 58 + ~18px запасу = 486px. Кубики + сума центровані по обох осях. */
-    .dice-area { flex: 1 1 auto; margin-top: 486px; justify-content: flex-end; gap: 8px; padding: 8px 10px; min-height: 0; }
+    /* Кубики: зона займає ПРАВИЙ стовпець сітки (обидва рядки), кубики + сума
+       притиснуті до низу. */
+    .dice-area { grid-area: area; justify-self: stretch; align-self: stretch; flex: 0 0 auto; margin-top: 0; justify-content: flex-end; gap: 6px; padding: 8px 10px; min-height: 0; }
     .dice-container { display: flex; gap: 12px; }
     .die { width: 48px; height: 48px; font-size: 1.6em; border-radius: 9px; }
     .total { font-size: 1.1em; color: #f1c40f; font-weight: bold; }
 
-    /* Низ правої колонки: [текстурна кнопка завершення ходу | зона кубиків].
-       під ними — «Обмін» на всю ширину. Рядок виноситься вліво на 172px (кнопка 164 + gap 8),
-       тому зона кубиків займає рівно 330px — ширину колонки, без накладання на карту. */
-    .dice-bottom { display: flex; flex-direction: row; gap: 8px; flex: 1 1 auto; min-height: 0; margin-left: -172px; }
+    /* Низ правої колонки: ділянка кубиків займає ПОВНУ ШИРИНУ вікон будівництва
+       (330px, як і sign-parchment у панелях трекінгів та будівництва), а стовпчик
+       кнопок (кидок кубиків НАД «Завершити хід») стоїть ЗЛІВА від ділянки.
+       Блок має ширину 500px і зміщений вліво (margin-left: -170px), тому зона
+       кубиків ідеально співпадає з вивісками праворуч, а кнопки винесені
+       ліворуч від неї (стовпець розширено з 140px до 170px — кнопки стали
+       ще лівіше). */
+    .dice-bottom {
+        display: grid;
+        grid-template-columns: 170px 330px;
+        grid-template-areas: "dice area" "endTurn area";
+        width: 500px;
+        margin-left: -170px;
+        align-content: end;
+        justify-items: start;
+        align-items: end;
+        gap: 8px;
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+    .end-turn-side { grid-area: endTurn; }
     .end-turn-side {
         display: flex;
         align-items: center;
         justify-content: center;
-        flex: 0 0 164px;
-        width: 164px;
-        height: 64px;
-        align-self: flex-end;
-        padding: 4px 8px;
+        flex: 0 0 auto;
+        /* Розмір у пропорції end-turn-btn.png (717×442): текстура не розтягується */
+        width: 140px;
+        height: auto;
+        aspect-ratio: 717 / 442;
+        box-sizing: border-box;
+        padding: 0;
         border: 0;
         border-radius: 0;
         background: url('../../assets/textures/buttons/end-turn-btn.png') center / 100% 100% no-repeat !important;
-        color: #fff;
-        font-size: 0.8rem;
-        font-weight: 700;
-        line-height: 1.1;
-        text-align: center;
-        text-shadow: 0 2px 3px rgba(0,0,0,0.9);
+        /* Кнопка БЕЗ напису, як .dice-side-btn: на текстурі вже є стрілка
+           повернення ходу, а напис її перекривав. Статус ходу («Ваш хід!»,
+           «Очікуємо хід інших гравців») JS пише в title — видно у підказці
+           при наведенні; сам напис завжди невидимий (color/font-size = 0). */
+        color: transparent;
+        font-size: 0;
+        line-height: 0;
+        text-shadow: none;
         overflow: hidden;
     }
     .end-turn-side:hover:not(:disabled) {
@@ -1252,6 +1318,36 @@
         box-shadow: none;
     }
     .end-turn-side:disabled { filter: grayscale(0.25) brightness(0.8); }
+    /* Текстурна кнопка кидка кубиків (поруч із «Завершити хід»): ті самі 164×64,
+       без напису — текстура з атласа (dice-btn.png), стан синхронізується з rollBtn. */
+    .dice-side-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        /* Розмір у пропорції dice-btn.png (716×440): текстура не розтягується */
+        width: 140px;
+        height: auto;
+        aspect-ratio: 716 / 440;
+        grid-area: dice;
+        box-sizing: border-box;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: url('../../assets/textures/buttons/dice-btn.png') center / 100% 100% no-repeat !important;
+        color: transparent;
+        font-size: 0;
+        line-height: 0;
+        text-shadow: none;
+        overflow: hidden;
+        box-shadow: none;
+        cursor: pointer;
+    }
+    .dice-side-btn:hover:not(:disabled) {
+        filter: brightness(1.12) saturate(1.05);
+        box-shadow: none;
+    }
+    .dice-side-btn:disabled { filter: grayscale(0.25) brightness(0.8); cursor: not-allowed; }
     .action-btns { flex-direction: row; gap: 8px; flex: 0 0 auto; }
     .action-btns button { flex: 1; min-width: 0; padding: 7px 4px; font-size: 0.88em; line-height: 1.2; }
     /* Скрол у «Моїх картах» — без видимої смуги */
@@ -1282,33 +1378,28 @@
         z-index: 3000; flex-direction: column;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
-    .disconnect-box {
-        background: rgba(26, 26, 46, 0.97);
-        border: 2px solid #e67e22;
-        border-radius: 16px;
-        padding: 30px 40px;
-        text-align: center;
-        color: #fff;
-        box-shadow: 0 0 40px rgba(230, 126, 34, 0.5);
-        max-width: 420px;
-    }
-    .disconnect-box .dc-title { font-size: 1.3em; color: #e67e22; margin-bottom: 12px; font-weight: bold; }
-    .disconnect-box .dc-name { font-size: 1.1em; color: #f1c40f; margin-bottom: 16px; }
-    .disconnect-box .dc-countdown { font-size: 3.5em; font-weight: bold; color: #fff; margin: 10px 0; }
-    .disconnect-box .dc-countdown.urgent { color: #e74c3c; animation: dc-pulse 1s infinite; }
-    .disconnect-box .dc-hint { font-size: 0.85em; color: #aaa; margin-top: 8px; }
+    /* Чорну плашку (rgba(26,26,46,.97)), рамку й тінь прибрано — вікно малює
+       текстура ui-window.png (спільне правило вище), текст темний по пергаменту. */
+    .disconnect-box .dc-title { font-size: 1.3em; color: #8c3105; margin-bottom: 12px; font-weight: bold; }
+    .disconnect-box .dc-name { font-size: 1.1em; color: #65490a; margin-bottom: 16px; }
+    .disconnect-box .dc-countdown { font-size: 3.2em; font-weight: bold; color: #2b1a0c; margin: 6px 0; }
+    .disconnect-box .dc-countdown.urgent { color: #c0392b; animation: dc-pulse 1s infinite; }
+    .disconnect-box .dc-hint { font-size: 0.85em; color: #55452e; margin-top: 8px; }
     @keyframes dc-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
 
     /* ===== БІЧНІ ВИВІСКИ — ЗАВЖДИ ВІДКРИТІ (без кнопок і висування) ===== */
-    /* Трекінги = МАЛА вивіска (sign-small-*, ~401×281), будівництво = ВЕЛИКА (sign-big-*, ~300×506).
-       Вирізані по контуру з атласу a52d5212, тло прибране. Ширина панелей 330px (текстура тягнеться 100%×100%). */
+    /* ОДНА текстура на трекінги й будівництво — вивіска з пергаментом
+       (menu/signs/sign-parchment.png, 1255×791, вирізана з атласу 56771dba, тло прибране).
+       Раніше тут були рандомні залізні вивіски sign-small-sign-big-*. Ширина панелей 330px,
+       висота = пропорція текстури (текстура тягнеться 100%×100%). */
     .side-panel-wrap {
         position: fixed;
         right: 6px;
         z-index: 50;
     }
     .side-panel-wrap.tracking-panel { top: 58px; }
-    .side-panel-wrap.building-panel { top: 286px; }
+    /* Трекінги 58..266 (висота 208), будівництво 278..518 (висота 240) — проміжок 12px */
+    .side-panel-wrap.building-panel { top: 278px; }
 
     .side-panel-content {
         position: relative;
@@ -1316,18 +1407,21 @@
         background-position: center;
         background-repeat: no-repeat;
         overflow: hidden;
-        /* Тінь по alpha-контуру текстури (нерівні краї дошки та шіст) + легке затемнення, щоб вивіска не зливалася зі стіною */
-        filter: brightness(0.8) saturate(0.92) drop-shadow(0 3px 5px rgba(0, 0, 0, 0.65));
+        /* Тінь по alpha-контуру текстури (нерівні краї дошки та шіст) без затемнення боксу
+           (пункт 5: filter brightness затемнював увесь прямокутний бокс навколо дошки) */
+        filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.65));
     }
-    /* Трекінги: мала вивіска 401×281 → 330×216 (вища на 60px — рядкам більше повітря). Дошка починається з ~27.5% висоти — текст нижче, тільки на дошці */
+    /* Трекінги: вивіска з пергаментом 1255×791 → 330×208 (пропорція текстури не спотворюється).
+       Перекладина зі стропами — верхні ~32% висоти, пергамент — від 31.9% до 90.6%,
+       тому текст лежить тільки на пергаменті (інсети нижче = межі пергаменту). */
     .tracking-panel .side-panel-content {
         width: 330px;
-        height: 216px;
-        background-image: url('../../assets/textures/menu/signs/sign-small-0.png');
+        height: 208px;
+        background-image: url('../../assets/textures/menu/signs/sign-parchment.png');
     }
     .tracking-panel .medals {
         position: absolute;
-        top: 31%; left: 9%; right: 9%; bottom: 7%;
+        top: 34%; left: 13%; right: 13%; bottom: 12%;
         display: flex; flex-direction: column; justify-content: space-evenly; gap: 4px;
     }
     .tracking-panel .medal { padding: 2px 6px; gap: 8px; }
@@ -1335,26 +1429,33 @@
     .tracking-panel .medal-title { font-size: 1.05em; }
     .tracking-panel .medal-stats { font-size: 0.95em; }
 
-    /* Будівництво: велика вивіска 300×506 → 330×240 (нижча вкладка). Дошка починається з ~14% висоти — текст нижче, тільки на дошці */
+    /* Будівництво: та сама вивіска, але виЩЕ за трекінги — 330×240 (було 330×208),
+       щоб три рядки «назва + кількість + вартість» не тіснилися. Пропорцію
+       текстури (1255×791) при цьому НЕ тягнемо: background-size: cover масштабує
+       її за висотою (240/791) і підрізає лише боки (≈25px з кожного) — саме там
+       у вивісці порожні поля, пергамент (x 11.2%…88.2% у розмірі 381px) лишається
+       цілим. Інсети контенту перераховані під цей розмір. */
     .building-panel .side-panel-content {
         width: 330px;
         height: 240px;
-        background-image: url('../../assets/textures/menu/signs/sign-big-0.png');
+        background-image: url('../../assets/textures/menu/signs/sign-parchment.png');
+        background-size: cover;
+        background-position: center;
     }
     .building-panel .build-panel {
         position: absolute;
-        top: 19%; left: 10%; right: 10%; bottom: 5%;
+        top: 34%; left: 8%; right: 8%; bottom: 11%;
         display: flex; flex-direction: column;
-        /* Рядки — компактною групою по центру дошки: фіксований проміжок 10px замість розтягування на всю дошку */
-        justify-content: center; gap: 10px;
+        /* Рядки — компактною групою по центру дошки: фіксований проміжок 12px замість розтягування на всю дошку */
+        justify-content: center; gap: 12px;
     }
     .building-panel .build-row { padding: 0; gap: 4px; }
-    .building-panel .build-row .br-name { font-size: 0.88em; }
-    .building-panel .build-row .br-count { font-size: 0.82em; min-width: 32px; }
+    .building-panel .build-row .br-name { font-size: 0.9em; }
+    .building-panel .build-row .br-count { font-size: 0.84em; min-width: 34px; }
     .building-panel .build-row .br-cost { gap: 1px; }
-    .building-panel .build-row .cost-card { width: 12px; height: 16px; }
+    .building-panel .build-row .cost-card { width: 14px; height: 19px; }
     .building-panel .build-btn { padding: 2px 3px; }
-    .building-panel .build-btn .btn-icon { width: 18px; height: 14px; font-size: 0.85em; }
+    .building-panel .build-btn .btn-icon { width: 21px; height: 16px; font-size: 0.85em; }
 
     /* .medal-stats тут НЕ обмежуємо: він є тільки в трекінгах, розмір задає .tracking-panel .medal-stats (0.95em) */
     .side-panel-content .sp-row {
@@ -1402,6 +1503,7 @@
         cursor: pointer;
         overflow: hidden;
         transition: filter 0.15s;
+        box-shadow: none;
     }
     .trade-popup .tp-btn:hover { filter: brightness(1.12) saturate(1.05); }
     .trade-popup .tp-btn.cancel {
@@ -1413,7 +1515,8 @@
     #tradeBtn { display: none !important; }
 
     /* ===== 3D КУБИКИ (фізичний кидок в області кубиків) ===== */
-    #diceArea { position: relative; cursor: pointer; }
+    /* Пункт 3: зона кубиків — не кнопка (кидок лише кнопкою), тому без pointer-курсора */
+    #diceArea { position: relative; cursor: default; }
     .dice3d-stage {
         position: absolute;
         pointer-events: none;
@@ -1427,24 +1530,21 @@
         transform-style: preserve-3d;
         will-change: transform;
     }
+    /* Грань — текстура з атласа (assets/textures/dice/die-N.png, нарізані
+       tools/make-die-faces.js): рамка, поле й ямки вже намальовані на ній, тому
+       жодних CSS-піпсів, градієнтів і внутрішніх тіней. Фон навколо грані
+       прозорий, а backface-visibility ховає внутрішні грані куба (інакше вони
+       просвічували б крізь прозорі кути). Сам background-image ставить
+       makeCube() — по одному на кожну грань. */
     .dice3d-face {
         position: absolute;
         inset: 0;
         box-sizing: border-box;
-        background: linear-gradient(135deg, #ffffff, #d7d7e0);
-        border: 2px solid #b7b7c2;
-        border-radius: 18%;
-        box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.16);
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        grid-template-rows: repeat(3, 1fr);
-        padding: 12%;
-    }
-    .dice3d-pip {
-        width: 76%; height: 76%;
-        place-self: center;
-        border-radius: 50%;
-        background: radial-gradient(circle at 35% 30%, #4a4a55, #15151b 72%);
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: 100% 100%;
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
     }
     /* Поки летять 3D-кубики (і лежать у результаті) — плоскі кубики заховані */
     .dice3d-active .dice-container,
@@ -1482,7 +1582,7 @@
         align-items: center;
         justify-content: center;
         padding-top: 6vh;
-        background-image: url('../../assets/textures/menu/af585fd8-a823-4e03-8b08-61ac4e772977.png');
+        background-image: url('../../assets/textures/menu/ecdd628b-f01f-4f17-89c9-8748d9ff842a.png');
         background-size: cover;
         background-position: center;
         transition: opacity 0.6s ease;
@@ -1492,15 +1592,14 @@
         opacity: 0;
         pointer-events: none;
     }
+    /* Назва гри — текстура assets/textures/menu/game-title.png (нарізана
+       tools/make-title.js: підрізані прозорі поля, пропорція 1600×251). Розмір
+       задає width, висота — авто; drop-shadow лишає об'єм і тепле сяйво, як було
+       у текстової версії з градієнтом. */
     #gameLoadingOverlay .mm-loading-logo {
-        font-family: 'Ruslan Display', 'Times New Roman', serif;
-        font-size: 5.2em;
-        letter-spacing: 4px;
-        background: linear-gradient(180deg, #fdf6d8 0%, #f2cf7e 30%, #d9a441 55%, #9a6a1f 80%, #6e4a15 100%);
-        -webkit-background-clip: text;
-        background-clip: text;
-        -webkit-text-fill-color: transparent;
-        -webkit-text-stroke: 1px rgba(62, 39, 12, 0.45);
+        display: block;
+        width: min(620px, 66vw);
+        height: auto;
         margin-bottom: 56px;
         filter: drop-shadow(0 4px 7px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 26px rgba(242, 207, 126, 0.3));
         animation: loadingLogoPulse 2.5s infinite ease-in-out;
@@ -1592,7 +1691,7 @@
 <!-- Вікно завантаження під час підключення гравців (пункт 1): фон — дерев'яний стіл,
      напис гри + полоска завантаження. Показується у матчмейкінгу, поки йде підключення. -->
 <div id="gameLoadingOverlay" style="display: none;">
-    <div class="mm-loading-logo">COLONIZATION</div>
+    <img class="mm-loading-logo" src="../../assets/textures/menu/game-title.png" alt="COLONIZATION">
     <div class="mm-loading-track">
         <div class="mm-loading-fill"></div>
     </div>
@@ -1623,13 +1722,13 @@
     <div style="background: rgba(26,26,46,0.98); border: 3px solid #f39c12; border-radius: 20px; padding: 40px; text-align: center; max-width: 600px; box-shadow: 0 0 50px rgba(243,156,18,0.6);">
         <h2 style="color: #f39c12; margin-bottom: 20px; font-size: 1.8em;">🎲 Початкова фаза: Кидання кубиків</h2>
         <p style="color: #ccc; margin-bottom: 15px; font-size: 1.1em;">Киньте кубики, щоб визначити порядок ходів</p>
-        <div id="initialDiceArea" title="Натисніть, щоб кинути кубики" style="position: relative; cursor: pointer; display: flex; gap: 15px; justify-content: center; margin-bottom: 15px;">
+        <div id="initialDiceArea" style="position: relative; cursor: default; display: flex; gap: 15px; justify-content: center; margin-bottom: 15px;">
             <div class="initial-die" id="initialDie1" style="width: 58px; height: 58px; background: linear-gradient(135deg, #fff, #ddd); border-radius: 9px; display: flex; justify-content: center; align-items: center; font-size: 2.1em; font-weight: bold; color: #333; box-shadow: 0 3px 10px rgba(0,0,0,0.3);">⚀</div>
             <div class="initial-die" id="initialDie2" style="width: 58px; height: 58px; background: linear-gradient(135deg, #fff, #ddd); border-radius: 9px; display: flex; justify-content: center; align-items: center; font-size: 2.1em; font-weight: bold; color: #333; box-shadow: 0 3px 10px rgba(0,0,0,0.3);">⚀</div>
         </div>
         <div id="dicePhaseStatus" style="color: #f1c40f; margin-bottom: 20px; font-size: 1.2em; font-weight: bold;"></div>
         <div id="dicePhaseResults" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;"></div>
-        <button id="rollDiceInitialBtn" title="Продовжити" style="padding: 15px 40px; font-size: 1.2em; background: linear-gradient(135deg, #9b59b6, #8e44ad); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold;">Продовжити</button>
+        <button id="rollDiceInitialBtn" title="Продовжити" style="cursor: pointer;">Продовжити</button>
         <!-- Таймер закриття вікна — ВНИЗУ вікна (пункт 1) -->
         <div id="dicePhaseCountdown" style="display: none;"></div>
     </div>
@@ -1642,12 +1741,12 @@
         <div id="buildPhaseInfo" style="color: #ccc; margin-bottom: 15px; font-size: 1.1em;"></div>
         <div id="buildPhaseOrder" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;"></div>
         <div id="buildPhaseStatus" style="color: #f1c40f; font-size: 1.2em; font-weight: bold;"></div>
-        <button id="initialBuildEndTurnBtn" title="Продовжити" style="display: none; padding: 15px 40px; font-size: 1.2em; background: linear-gradient(135deg, #27ae60, #22954c); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; margin-top: 15px;">Продовжити</button>
-        <button id="initialBuildOkBtn" title="ОК" style="display: none; padding: 15px 40px; font-size: 1.2em; background: linear-gradient(135deg, #3498db, #2980b9); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; margin-top: 15px;">ОК</button>
+        <button id="initialBuildEndTurnBtn" title="Продовжити" style="display: none; cursor: pointer; margin-top: 15px;">Продовжити</button>
+        <button id="initialBuildOkBtn" title="ОК" style="display: none; cursor: pointer; margin-top: 15px;">ОК</button>
     </div>
 </div>
 
-<!-- Your Turn Overlay видалено — текст виводиться на кнопці "endTurnBtn" -->
+<!-- Your Turn Overlay видалено — стан ходу показується підказкою (title) на кнопці "endTurnBtn" -->
 
     <div class="settings-overlay" id="settingsModal" style="display: none;">
         <div class="settings-box">
@@ -1704,11 +1803,12 @@
             <canvas id="mapCanvas"></canvas>
         </div>
 
-        <!-- Справа: кубики → кнопки (трекінги/будівництво перенесено на висувні вкладки справа) -->
+        <!-- Справа: кнопки (кидок + «Завершити хід») — ЗЛІВА, зона кубиків — праворуч від них -->
         <div class="right-panel">
             <div class="dice-bottom">
-                <button class="end-turn-side" id="endTurnBtn" title="Завершити поточний хід">Завершити хід</button>
-                <div class="dice-area" id="diceArea" title="Натисніть, щоб кинути кубики">
+                <button class="dice-side-btn" id="diceSideBtn" title="Кинути кубики" aria-label="Кинути кубики"></button>
+                <button class="end-turn-side" id="endTurnBtn" title="Завершити поточний хід"></button>
+                <div class="dice-area" id="diceArea">
                     <div class="dice-container">
                         <div class="die" id="die1"><span class="die-value">⚄</span></div>
                         <div class="die" id="die2"><span class="die-value">⚅</span></div>
@@ -1845,6 +1945,16 @@
         </div>
     </div>
 </div>
+
+<!-- К precache курсорів: Chromium ліниво завантажує url() у CSS `cursor`, тому
+     без цього перший нахил на кнопку мигтів би стандартним курсором.
+     Фони непрозорі й завантажуються просто в кеш — на вигляд нічого не змінюється. -->
+<script>
+['cursor-gold.png', 'cursor-gray.png', 'cursor-gold-hover.png'].forEach(function (name) {
+    const img = new Image();
+    img.src = '../../assets/textures/cursors/' + name;
+});
+</script>
 
 <script>
 const RESOURCES = {
@@ -2433,11 +2543,11 @@ let mapData = null,
     vertexGeom = null, 
     allHexes = [];
 
-// Деревяна текстура для фону (стіл). Файл лежить у assets/textures/menu/
+// Деревяна текстура для фону (стіл катки) — assets/textures/menu/ecdd628b-...png
 let woodTextureImg = null;
 (function loadWoodTexture() {
     const img = new Image();
-    img.src = '../../assets/textures/menu/af585fd8-a823-4e03-8b08-61ac4e772977.png';
+    img.src = '../../assets/textures/menu/ecdd628b-f01f-4f17-89c9-8748d9ff842a.png';
     img.onload = function() { woodTextureImg = img; if (mapData) renderMap(mapData, canvas, mapHexSize); };
     img.onerror = function() { console.warn('[BG] wooden table texture failed to load:', img.src); };
 })();
@@ -3288,9 +3398,12 @@ function renderMap(data, canvas, hexSize) {
         if(p.y<minY)minY=p.y;
         if(p.y>maxY)maxY=p.y;
     }
-    // Центруємо дошку точно в середині канваса (а не прибиваємо до лівого краю)
-    const MAP_LIFT = 65; // підйом карти вгору, щоб не заходила на панель карт ресурсів
-    const ox = (canvas.width - (maxX - minX)) / 2 - minX;
+    // Дошку центруємо РІВНО ПО ЦЕНТРУ канваса (пункт 4: раніше був зсув вправо
+    // на ~5.5% ширини — карта «з'їжджала» з центру). MAP_LIFT піднімає поле над
+    // панеллю ресурсних карт знизу, центруючи його у вільній вертикальній зоні.
+    const MAP_LIFT = 65;
+    const MAP_SHIFT_X = 0; // 0 = карта строго по центру канваса
+    const ox = (canvas.width - (maxX - minX)) / 2 - minX + MAP_SHIFT_X;
     const oy = (canvas.height - (maxY - minY)) / 2 - minY - MAP_LIFT;
     mapOffset = {ox,oy};
     // Фон = деревяна текстура столу
@@ -3405,15 +3518,8 @@ function renderMap(data, canvas, hexSize) {
             ctx.textAlign='center';
             ctx.textBaseline='middle';
             ctx.fillText(num.toString(),tcx,tcy);
-            const dots=Math.floor((6-Math.abs(7-num))/2)+1;
-            if(dots>0){
-                const dr=2,dsp=5,dy=tcy+tr*0.7,sx=tcx-(dots-1)*dsp/2;
-                ctx.fillStyle='rgba(0,0,0,0.3)';
-                for(let d=0;d<dots;d++){ctx.beginPath();
-                    ctx.arc(sx+d*dsp,dy,dr,0,Math.PI*2);
-                    ctx.fill();
-                }
-            }
+            // Крапки під цифрою (2/3/4 крапки залежно від числа) прибрано:
+            // вони дублювали саму цифру й злипалися з обводкою токена.
         }else{
             // Desert tile - draw robber figure ONLY if robber is on this desert hex
             if (gameState.robber.hexKey === k) {
@@ -5218,7 +5324,7 @@ function placeRobber(targetHexKey) {
             endTurnBtn.disabled = false;
             endTurnBtn.style.opacity = '1';
             endTurnBtn.style.cursor = 'pointer';
-            endTurnBtn.textContent = 'Завершити хід';
+            endTurnBtn.title = 'Завершити хід';
         }
     }
     
@@ -5258,7 +5364,13 @@ const Dice3D = (function () {
         4: 'rotateX(-90deg) translateZ(var(--hs))'
     };
     const FACE_N = { 1: [0, 0, 1], 6: [0, 0, -1], 2: [1, 0, 0], 5: [-1, 0, 0], 3: [0, -1, 0], 4: [0, 1, 0] };
-    const PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
+
+    // Текстури граней (нарізані tools/make-die-faces.js з атласа кубиків) — замість
+    // намальованих кодом піпсів. Прогріваємо їх одразу: background-image
+    // завантажується лише коли грань уперше з'являється, тож без прогріву перший
+    // кидок показував би порожні грані.
+    const DICE_FACE_URL = v => '../../assets/textures/dice/die-' + v + '.png';
+    for (let v = 1; v <= 6; v++) { const pre = new Image(); pre.src = DICE_FACE_URL(v); }
 
     function qAxis(ax, ang) { const h = ang / 2, s = Math.sin(h); return [ax[0] * s, ax[1] * s, ax[2] * s, Math.cos(h)]; }
     function qMul(a, b) {
@@ -5313,15 +5425,12 @@ const Dice3D = (function () {
         cube.style.height = s + 'px';
         cube.style.setProperty('--hs', (s / 2) + 'px');
         for (let v = 1; v <= 6; v++) {
+            // Грань = текстура кубика (грань 1 — один піп, грань 6 — шість піпсів);
+            // малюнок рамки/ямок уже на ній, CSS-піпсів більше немає.
             const f = document.createElement('div');
             f.className = 'dice3d-face';
             f.style.transform = FACE_TF[v];
-            for (const cell of PIPS[v]) {
-                const pip = document.createElement('div');
-                pip.className = 'dice3d-pip';
-                pip.style.gridArea = (Math.floor(cell / 3) + 1) + ' / ' + ((cell % 3) + 1);
-                f.appendChild(pip);
-            }
+            f.style.backgroundImage = "url('" + DICE_FACE_URL(v) + "')";
             cube.appendChild(f);
         }
         stage.appendChild(cube);
@@ -5856,19 +5965,33 @@ document.getElementById('buyDevBtn').addEventListener('click', buyDevCard);
 const _devDeckBtn = document.getElementById('devDeckBtn');
 if (_devDeckBtn) _devDeckBtn.addEventListener('click', buyDevCard);
 
-// ===== НОВИЙ UI: клік по кубиках = кидання кубиків =====
+// ===== НОВИЙ UI: кидання кубиків — ТІЛЬКИ кнопкою =====
 const _diceAreaEl = document.getElementById('diceArea');
+const _diceSideBtnEl = document.getElementById('diceSideBtn');
+// Один стан для зони кубиків (притемнення) і текстурної кнопки кидка: disabled, поки
+// rollBtn disabled (стан rollBtn спостерігається через MutationObserver — усі місця,
+// що блокують кидок, працюють із rollBtn, тому нова кнопка завжди синхронна).
+const syncDiceAreaState = () => {
+    const rb = document.getElementById('rollBtn');
+    const off = !!(rb && rb.disabled);
+    if (_diceAreaEl) _diceAreaEl.classList.toggle('disabled', off);
+    if (_diceSideBtnEl) _diceSideBtnEl.disabled = off;
+};
+const _rollBtn = document.getElementById('rollBtn');
+if (typeof MutationObserver !== 'undefined' && _rollBtn) {
+    new MutationObserver(syncDiceAreaState).observe(_rollBtn, { attributes: true, attributeFilter: ['disabled', 'style'] });
+}
+syncDiceAreaState();
+// Пункт: клік по ЗОНІ кубиків більше НЕ кидає кубики — обробника click прибрано, зона
+// лише показує результат. Кубики кидаються ВИКЛЮЧНО кнопкою (нижче або #rollBtn).
 if (_diceAreaEl) {
-    const syncDiceAreaState = () => {
-        const rb = document.getElementById('rollBtn');
-        _diceAreaEl.classList.toggle('disabled', !!(rb && rb.disabled));
-    };
-    const _rollBtn = document.getElementById('rollBtn');
-    if (typeof MutationObserver !== 'undefined' && _rollBtn) {
-        new MutationObserver(syncDiceAreaState).observe(_rollBtn, { attributes: true, attributeFilter: ['disabled', 'style'] });
-    }
-    syncDiceAreaState();
-    _diceAreaEl.addEventListener('click', () => {
+    _diceAreaEl.removeAttribute('title');
+    _diceAreaEl.style.cursor = 'default';
+}
+// Текстурна кнопка кидка (стоять ЗЛІВА від зони кубиків): той самий захист від
+// повторного кидка, що й у rollBtn (rollBtn.disabled під час анімації та не в свій хід).
+if (_diceSideBtnEl) {
+    _diceSideBtnEl.addEventListener('click', () => {
         const rb = document.getElementById('rollBtn');
         if (rb && !rb.disabled) rollDice();
     });
@@ -5932,9 +6055,10 @@ function resizeCanvas() {
     canvas.style.height = canvas.height + 'px';
 }
 // Масштаб карти (0..1): 1.0 = карта на максимум на весь канвас, менше = менша карта.
-// 0.65 — дошка компактніша: зверху і знизу лишаються чисті поля перед
-// панеллю гравців і панеллю карт ресурсів (щоб не заходила за них).
-const MAP_SCALE = 0.74;
+// 0.80 — дошка більша за попередню (0.74): поле «продовжене» вправо (разом із
+// MAP_SHIFT_X), бо ліворуч від зони кубиків лишились лише дві кнопки. Зверху і знизу
+// досі лишаються чисті поля перед панеллю гравців і панеллю карт ресурсів.
+const MAP_SCALE = 0.8;
 function calculateHexSize() {
     const height = canvas.height;
     const width = canvas.width;
@@ -6536,7 +6660,7 @@ function registerMultiplayerHandlers(client) {
         // Also update the endTurnBtn to show waiting message (same as in game)
         const endTurnBtn = document.getElementById('endTurnBtn');
         if (endTurnBtn && isMultiplayer) {
-            endTurnBtn.textContent = 'Очікуємо хід інших гравців';
+            endTurnBtn.title = 'Очікуємо хід інших гравців';
             endTurnBtn.disabled = true;
             endTurnBtn.style.display = 'inline-block';
             endTurnBtn.style.opacity = '1';
@@ -6650,7 +6774,7 @@ function registerMultiplayerHandlers(client) {
                     endTurnBtn.disabled = false;
                     endTurnBtn.style.opacity = '1';
                     endTurnBtn.style.cursor = 'pointer';
-                    endTurnBtn.textContent = 'Завершити хід';
+                    endTurnBtn.title = 'Завершити хід';
                 }
             }
             
@@ -7138,7 +7262,7 @@ function registerMultiplayerHandlers(client) {
         // Reset end turn button
         const endTurnBtn = document.getElementById('endTurnBtn');
         if (endTurnBtn) {
-            endTurnBtn.textContent = 'Завершити хід';
+            endTurnBtn.title = 'Завершити хід';
             endTurnBtn.disabled = true;
             endTurnBtn.style.opacity = '0.5';
             endTurnBtn.style.cursor = 'not-allowed';
@@ -7349,25 +7473,17 @@ function clearMatchmakingSession() {
 
 
 
-// ===== ВИВІСКИ НА ЗАЛІЗНИХ ШЕСТАХ (вирізані по контуру з атласу a52d5212) =====
-// Малі (трекінги) і великі (будівництво + «Мої карти розвитку» — ті самі 3 ГОТОВІ великі вивіски).
-// РАНДОМ — при кожному вході в катку.
-const SIGN_GROUP_FILES = {
-    small: ['sign-small-0.png', 'sign-small-1.png', 'sign-small-2.png'],
-    big:   ['sign-big-0.png', 'sign-big-1.png', 'sign-big-2.png'],
-    dev:   ['sign-big-0.png', 'sign-big-1.png', 'sign-big-2.png']
-};
-(function assignRandomSigns() {
-    const pick = arr => arr[Math.floor(Math.random() * arr.length)];
-    const base = '../../assets/textures/menu/signs/';
-    const left = document.getElementById('signContentLeft');
-    const right = document.getElementById('signContentRight');
-    if (left) left.style.backgroundImage = "url('" + base + pick(SIGN_GROUP_FILES.small) + "')";
-    if (right) right.style.backgroundImage = "url('" + base + pick(SIGN_GROUP_FILES.big) + "')";
+// ===== ВИВІСКА З ПЕРГАМЕНТОМ (одна текстура на всі вивіски) =====
+// Раніше тут був РАНДОМ із 3 малих (трекінги) і 3 великих (будівництво + «Мої карти розвитку»)
+// ЗАЛІЗНИХ вивісок (атлас a52d5212). Тепер усюди ОДНА текстура
+// menu/signs/sign-parchment.png (вирізана з атласу 56771dba, тло прибране):
+// трекінги й будівництво беруть її з CSS, «Мої карти розвитку» — звідси.
+const SIGN_TEXTURE = '../../assets/textures/menu/signs/sign-parchment.png';
+(function applySignTexture() {
     const devSec = document.getElementById('devSignSection');
     if (devSec) {
         devSec.classList.add('textured');
-        devSec.style.backgroundImage = "url('" + base + pick(SIGN_GROUP_FILES.dev) + "')";
+        devSec.style.backgroundImage = "url('" + SIGN_TEXTURE + "')";
     }
 })();
 
@@ -8610,10 +8726,10 @@ function updateTurnOrderPanel() {
         avatar.className = 'turn-order-avatar-sign';
         const _myId = (typeof myPlayerId !== 'undefined' && myPlayerId) ? myPlayerId : null;
         const isMyCard = (pid === 'me') || (_myId && pid === _myId);
-        // Той самий ключ і набір іконок, що й у профілі (splash.html): icon-0..icon-8
+        // Той самий ключ і набір іконок, що й у профілі (splash.html): icon-0..icon-19
         let avIdx = parseInt(localStorage.getItem('avatarIcon'), 10);
-        if (!Number.isInteger(avIdx) || avIdx < 0 || avIdx > 8) avIdx = 0;
-        const foreignIdx = (typeof info.avatar === 'number' && info.avatar >= 0 && info.avatar <= 8) ? info.avatar : null;
+        if (!Number.isInteger(avIdx) || avIdx < 0 || avIdx > 19) avIdx = 0;
+        const foreignIdx = (typeof info.avatar === 'number' && info.avatar >= 0 && info.avatar <= 19) ? info.avatar : null;
         const useIdx = isMyCard ? avIdx : foreignIdx;
         if (useIdx !== null) {
             // Іконка профілю = сама іконка (без кружка), на весь слот аватара
@@ -8761,15 +8877,10 @@ function startDicePhase(data) {
     // Замінюємо стару кнопку на нову (без клонування)
     initialRollBtn.parentNode.replaceChild(newBtn, initialRollBtn);
 
-    // Клік по ОБЛАСТІ КУБИКІВ = кинути (те саме, що кнопка «Продовжити»)
+    // Пункт: клік по ОБЛАСТІ кубиків у початковій фазі БІЛЬШЕ НЕ кидає кубики —
+    // кидок здійснюється ТІЛЬКИ кнопкою «Продовжити» (обробник нижче).
     const _initArea = document.getElementById('initialDiceArea');
-    if (_initArea && !_initArea._areaRollBound) {
-        _initArea._areaRollBound = true;
-        _initArea.addEventListener('click', function () {
-            const b = document.getElementById('rollDiceInitialBtn');
-            if (b && !b.disabled && b.style.display !== 'none' && initialPhase.myRoll === null) b.click();
-        });
-    }
+    if (_initArea) _initArea.style.cursor = 'default';
 
     // Додаємо обробник кліку
     newBtn.addEventListener('click', function() {
@@ -9074,10 +9185,11 @@ function showYourTurn(data) {
         tradeBtn.style.cursor = 'pointer';
     }
     
-    // Оновлюємо кнопку endTurnBtn: показуємо "🎯 Ваш хід!" тільки як текст статусу
+    // Оновлюємо кнопку endTurnBtn: «🎯 Ваш хід!» — тільки як підказка (title),
+    // сама кнопка текстури без напису
     const endTurnBtn = document.getElementById('endTurnBtn');
     if (endTurnBtn && isMultiplayer) {
-        endTurnBtn.textContent = 'Ваш хід!';
+        endTurnBtn.title = 'Ваш хід!';
         endTurnBtn.style.display = 'inline-block';
         endTurnBtn.disabled = true; // кнопка неактивна — нею не можна завершити хід, поки не кинуті кубики
         endTurnBtn.style.opacity = '1';
@@ -9121,10 +9233,10 @@ function showWaitingForTurn(data) {
         tradeBtn.style.cursor = 'not-allowed';
     }
     
-    // Оновлюємо кнопку endTurnBtn: показуємо "⏳ Очікуємо хід інших гравців"
+    // Оновлюємо кнопку endTurnBtn: «⏳ Очікуємо хід інших гравців» — у title
     const endTurnBtn = document.getElementById('endTurnBtn');
     if (endTurnBtn && isMultiplayer) {
-        endTurnBtn.textContent = 'Очікуємо хід інших гравців';
+        endTurnBtn.title = 'Очікуємо хід інших гравців';
         endTurnBtn.style.display = 'inline-block';
         endTurnBtn.disabled = true;
         endTurnBtn.style.opacity = '1';
@@ -9209,7 +9321,7 @@ function handleRegularDiceRoll() {
     if (endTurnBtn) {
         endTurnBtn.style.display = 'inline-block';
         endTurnBtn.disabled = true;
-        endTurnBtn.textContent = 'Завершити хід';
+        endTurnBtn.title = 'Завершити хід';
         endTurnBtn.style.opacity = '0.5';
         endTurnBtn.style.cursor = 'not-allowed';
         endTurnBtn.onclick = null;
@@ -9253,7 +9365,7 @@ function handleEndTurn() {
     // Update UI to show waiting state immediately
     const endTurnBtn = document.getElementById('endTurnBtn');
     if (endTurnBtn && isMultiplayer) {
-        endTurnBtn.textContent = 'Очікуємо хід інших гравців';
+        endTurnBtn.title = 'Очікуємо хід інших гравців';
         endTurnBtn.disabled = true;
         endTurnBtn.style.display = 'inline-block';
         endTurnBtn.style.opacity = '1';
@@ -9678,13 +9790,13 @@ updateBuildStats = function() {
             <div id="restartVotesList" style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; text-align: left;"></div>
             <div id="restartVotesStatus" style="color: #aaa; font-size: 0.9em; margin-bottom: 10px;"></div>
             <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
-                <button id="voteRestartBtn" title="Зіграти ще раз" style="padding: 12px 30px; font-size: 1.1em; background: linear-gradient(135deg, #27ae60, #229954); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: all 0.2s;">Зіграти ще раз</button>
+                <button id="voteRestartBtn" title="Зіграти ще раз" style="cursor: pointer; transition: all 0.2s;">Зіграти ще раз</button>
                 <button id="findNewOpponentBtn" style="display: none; padding: 12px 30px; font-size: 1.1em; background: linear-gradient(135deg, #3498db, #2980b9); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: all 0.2s;">🎲 Новий суперник</button>
             </div>
         </div>
         
         <div style="display: flex; gap: 10px; justify-content: center;">
-            <button id="gameOverExitBtn" title="Вийти" style="padding: 12px 30px; font-size: 1.1em; background: linear-gradient(135deg, #e74c3c, #c0392b); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: all 0.2s;">Вийти</button>
+            <button id="gameOverExitBtn" title="Вийти" style="cursor: pointer; transition: all 0.2s;">Вийти</button>
         </div>
     </div>
 </div>
@@ -9698,7 +9810,7 @@ updateBuildStats = function() {
             <h2 style="color: #3498db; margin-bottom: 15px; font-size: 1.8em;">ПОШУК НОВОГО СУПЕРНИКА</h2>
             <div id="mmSearchStatus" style="color: #ccc; font-size: 1.1em; margin-bottom: 10px;">Пошук суперника...</div>
             <div id="mmSearchQueue" style="color: #888; font-size: 0.9em; margin-bottom: 25px;">Гравців у черзі: 1</div>
-            <button id="mmSearchCancelBtn" title="Скасувати" style="padding: 10px 26px; font-size: 1em; background: linear-gradient(135deg, #e74c3c, #c0392b); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: all 0.2s;">Скасувати</button>
+            <button id="mmSearchCancelBtn" title="Скасувати" style="cursor: pointer; transition: all 0.2s;">Скасувати</button>
         </div>
         <!-- Стан: суперника знайдено -->
         <div id="mmFoundState" style="display: none;">
@@ -9726,7 +9838,7 @@ updateBuildStats = function() {
     /* ===== ЄДИНИЙ ШРИФТ УСЬОГО UI — Forum (схожий за духом на заголовковий
        Ruslan Display, але з іншим малюнком; повна українська кирилиця, локальний
        файл у assets/fonts). Блок у кінці body — перекриває ВСІ стилі та inline.
-       Виняток: заголовок гри на екрані загрузки лишається Ruslan Display. ===== */
+       Винятків більше немає: назва гри — картинка (game-title.png), а не текст. ===== */
     @font-face {
         font-family: 'Forum';
         font-style: normal;
@@ -9734,7 +9846,6 @@ updateBuildStats = function() {
         src: url('../../assets/fonts/Forum-Regular.ttf') format('truetype');
     }
     body, body * { font-family: 'Forum', 'Times New Roman', serif !important; }
-    #gameLoadingOverlay .mm-loading-logo { font-family: 'Ruslan Display', 'Times New Roman', serif !important; }
 </style>
 </body>
 </html>

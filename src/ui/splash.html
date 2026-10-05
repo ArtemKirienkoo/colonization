@@ -26,17 +26,28 @@
             src: url('../../assets/fonts/RuslanDisplay-Regular.ttf') format('truetype');
         }
         
-        /* ===== CUSTOM CURSOR ===== */
-        /* Default: golden mouse cursor arrow */
-        html { cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2232%22 height=%2232%22 viewBox=%220 0 32 32%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%220%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23fdf6d8%22/%3E%3Cstop offset=%220.45%22 stop-color=%22%23f2cf7e%22/%3E%3Cstop offset=%220.8%22 stop-color=%22%23d9a441%22/%3E%3Cstop offset=%221%22 stop-color=%22%238a5a24%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d=%22M7 8 L7 24 L12 18 L16 24 L20 20 L14 14 L23 14 Z%22 transform=%22translate(1.6 2)%22 fill=%22%23000000%22 opacity=%220.3%22/%3E%3Cpath d=%22M7 8 L7 24 L12 18 L16 24 L20 20 L14 14 L23 14 Z%22 fill=%22url(%23g)%22 stroke=%22%234a2f10%22 stroke-width=%221.6%22 stroke-linejoin=%22round%22/%3E%3Cpath d=%22M9.2 11.2 L9.2 19.8 L11.8 16.6%22 fill=%22none%22 stroke=%22%23ffffff%22 stroke-opacity=%220.55%22 stroke-width=%221.3%22 stroke-linecap=%22round%22/%3E%3C/svg%3E') 8 8, auto !important; }
+        /* ===== CUSTOM CURSOR =====
+           Натрілки з атласу (assets/textures/cursors/, нарізані tools/make-cursor.js):
+           cursor-gold — звичайний, cursor-gold-hover — із золотим ореолом на
+           інтерактивних елементах, cursor-gray — на заблокованих.
+           Числа після url() — hotspot (вістря натрілки) у пікселях файлу.
+           Натрілка в усіх трьох файлах однакового розміру (36px) і ОДНАКОВИЙ
+           канвас (43×50, hotspot 8 7; у срібної 9 7 — її вістря на 1px правіше),
+           тому вказівка не з'їжджає при переході між станами і Chromium не
+           перевиділяє спрайт іншого розміру — раніше саме це лишало «силуети»
+           курсора на кнопках. */
+        html { cursor: url('../../assets/textures/cursors/cursor-gold.png') 8 7, auto !important; }
         body, body * { cursor: inherit !important; }
-        /* Hover: BIG WHITE arrow with golden glow on interactive elements */
+        /* Hover: золота натрілка з ореолом на інтерактивних елементах.
+           Другий url() у списку — фолбек: якщо варіант стану ще не готовий,
+           Chromium покаже базову золоту натрілку, а не системний курсор /
+           білу руку (вони «блимали» поверх гри при наведенні). */
         button, .menu-btn, .mode-btn, .back-btn, .room-item, .yop-res-option, .primary, .secondary, .exit-btn, .volume-slider-container input[type="range"] {
-            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22 viewBox=%220 0 40 40%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%220%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23fffbe8%22/%3E%3Cstop offset=%220.45%22 stop-color=%22%23f6e2a0%22/%3E%3Cstop offset=%220.8%22 stop-color=%22%23d9a441%22/%3E%3Cstop offset=%221%22 stop-color=%22%239a6a1f%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f2cf7e%22 stroke-width=%226%22 stroke-linejoin=%22round%22 opacity=%220.25%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f2cf7e%22 stroke-width=%223.2%22 stroke-linejoin=%22round%22 opacity=%220.45%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22url(%23g)%22 stroke=%22%234a2f10%22 stroke-width=%222%22 stroke-linejoin=%22round%22/%3E%3Cpath d=%22M11.4 12.6 L11.4 25 L14.6 21.2%22 fill=%22none%22 stroke=%22%23ffffff%22 stroke-opacity=%220.6%22 stroke-width=%221.4%22 stroke-linecap=%22round%22/%3E%3C/svg%3E') 10 12, pointer !important;
+            cursor: url('../../assets/textures/cursors/cursor-gold-hover.png') 8 7, url('../../assets/textures/cursors/cursor-gold.png') 8 7, pointer !important;
         }
-        /* Disabled: gray arrow */
+        /* Disabled: срібна натрілка (той самий принцип із фолбеком) */
         .menu-btn[disabled], button[disabled], .disabled, .buy-dev-btn.disabled {
-            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2232%22 height=%2232%22 viewBox=%220 0 32 32%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%220%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23d6d6d6%22/%3E%3Cstop offset=%221%22 stop-color=%22%23808080%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d=%22M7 8 L7 24 L12 18 L16 24 L20 20 L14 14 L23 14 Z%22 fill=%22url(%23g)%22 stroke=%22%233f3f3f%22 stroke-width=%221.6%22 stroke-linejoin=%22round%22 opacity=%220.9%22/%3E%3C/svg%3E') 8 8, not-allowed !important;
+            cursor: url('../../assets/textures/cursors/cursor-gray.png') 9 7, url('../../assets/textures/cursors/cursor-gold.png') 8 7, not-allowed !important;
         }
         body {
             background: #0d1b2a;
@@ -53,9 +64,10 @@
             justify-content: center;
             overflow: hidden;
         }
-        /* Винятки: власне тінь/градієнт (логотип, відсотки) малюються фільтрами —
-           загальна тінь текста їм шкодить; у полях вводу тінь знижує читабельність */
-        .logo, .loading-logo, .loading-status-percent,
+        /* Винятки: відсотки на екрані загрузки малюють власну тінь фільтром —
+           загальна тінь текста їм шкодить; у полях вводу тінь знижує
+           читабельність. Назви гри тут більше немає — вона картинка. */
+        .loading-status-percent,
         input, textarea, select {
             text-shadow: none;
         }
@@ -101,21 +113,22 @@
             text-align: center;
             padding: 40px;
         }
+        /* Назва гри — текстура assets/textures/menu/game-title.png (нарізана
+           tools/make-title.js: підрізані прозорі поля, пропорція 1600×251).
+           Розмір задає width, висота — авто; drop-shadow лишає об'єм і тепле
+           сяйво, як було у текстової версії з градієнтом. */
         .logo {
-            font-family: 'Ruslan Display', 'Times New Roman', serif;
-            font-size: 6em;
+            display: block;
+            width: min(780px, 72vw);
+            height: auto;
+            /* картинка — блок, а .main-content це звичайний блок із text-align:
+               center (він центрує лише інлайн-вміст), тому центруємо полями */
+            margin-left: auto;
+            margin-right: auto;
             margin-top: -46px;      /* назва ще вище */
             margin-bottom: 24px;
-            /* «Старе золото» під тематику (пергамент → золото → бронза),
-               вертикальний градієнт дає ефект гравіровки на металі */
-            background: linear-gradient(180deg, #fdf6d8 0%, #f2cf7e 30%, #d9a441 55%, #9a6a1f 80%, #6e4a15 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            -webkit-text-stroke: 1px rgba(62, 39, 12, 0.45);
-            letter-spacing: 4px;
-            /* drop-shadow (а не text-shadow): малюється ПОВЕРХ готових градієнтних
-               літер, не просвічує крізь transparent-fill, дає глибину + тепле сяйво */
+            /* drop-shadow (а не text-shadow): малюється ПОВЕРХ готового малюнка,
+               дає глибину + тепле сяйво навколо літер */
             filter: drop-shadow(0 4px 7px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 26px rgba(242, 207, 126, 0.3));
         }
         .title {
@@ -215,16 +228,11 @@
             opacity: 0;
             pointer-events: none;
         }
+        /* Та сама назва, що й у меню — текстура game-title.png, не текст */
         .loading-logo {
-            font-family: 'Ruslan Display', 'Times New Roman', serif;
-            font-size: 6em;
-            letter-spacing: 4px;
-            /* Той самий «старий золотий» градієнт, що й у меню (пергамент → бронза) */
-            background: linear-gradient(180deg, #fdf6d8 0%, #f2cf7e 30%, #d9a441 55%, #9a6a1f 80%, #6e4a15 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            -webkit-text-stroke: 1px rgba(62, 39, 12, 0.45);
+            display: block;
+            width: min(700px, 70vw);
+            height: auto;
             margin-bottom: 50px;
             filter: drop-shadow(0 4px 7px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 26px rgba(242, 207, 126, 0.3));
             animation: loadingLogoPulse 2.5s infinite ease-in-out;
@@ -360,30 +368,79 @@
             align-items: center;
             z-index: 3000;
         }
+        /* Вікно малює текстура ui-window.png (1168×753, пропорція 1.551) на ВЕСЬ бокс:
+           раніше тут був background-size: contain, через що зверху/знизу боксу лишалися
+           чорні смуги (просвічував темний overlay), а контент вилазив за пергамент.
+           aspect-ratio тримає пропорцію текстури; min-height: max-content підростає,
+           якщо контенту більше — тоді ніщо не виходить за межі вікна. */
         .settings-box {
             position: relative;
             z-index: 1;
-            background: var(--ui-window) center / contain no-repeat;
+            background: var(--ui-window) center / 100% 100% no-repeat;
             background-color: transparent;
             border: none;
             border-radius: 0;
-            padding: 58px 76px 54px;
-            color: #3b2a18;
+            box-sizing: border-box;
+            aspect-ratio: 1168 / 753;
+            min-height: max-content;
+            width: min(620px, calc(100vw - 24px));
+            /* Паддінги — у px: % у flex-елементі рахуються від ширини оверлея, а не вікна.
+               Числа = зони текстури: пергамент x≈6.5…96%, y≈16…92% (топ 9.7% ширини,
+               боки 6.5%, низ 6%) */
+            padding: 62px 40px 38px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            color: #2f1d0b;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             text-align: center;
-            max-width: 560px;
-            min-width: 360px;
         }
+        /* Ширші вікна для модалок із високим вмістом (висота = ширина / 1.551,
+           паддінги пропорційні тій самій ширині) */
+        #gameModeModal .settings-box,
+        #createRoomModal .settings-box { width: min(720px, calc(100vw - 24px)); padding: 70px 47px 43px; }
+        #registerModal .settings-box,
+        #loginModal .settings-box,
+        #bindEmailModal .settings-box,
+        #forgotPassModal .settings-box { width: min(680px, calc(100vw - 24px)); padding: 66px 44px 41px; }
+        #roomCreatedModal .settings-box { width: min(800px, calc(100vw - 24px)); padding: 78px 52px 48px; }
+        /* Гучність: вікно ширше за базове — 720px (як вибір режиму гри). Три
+           повзунки з підписами, «Назад» і заголовок у вужчому боксі тіснилися,
+           а сама розмітка гучності тепер легше читається. Висота = 720 / 1.551. */
+        #volumeModal .settings-box { width: min(720px, calc(100vw - 24px)); padding: 70px 47px 43px; }
+        #volumeModal .volume-slider-container { margin: 12px 0; }
+        #volumeModal .volume-slider-container label { font-size: 1.05em; }
+        #volumeModal .volume-slider-container input[type="range"] { height: 20px; border-radius: 10px; }
+        #volumeModal .volume-slider-container input[type="range"]::-webkit-slider-thumb { width: 32px; height: 32px; }
+        #volumeModal .volume-slider-container input[type="range"]::-moz-range-thumb { width: 32px; height: 32px; }
+        /* Пункт 5: вікно профілю було завширшки 880px — вміст «розмазаний» по центру.
+           720px: картка, кнопки й заголовок утворюють акуратну колонку. */
+        /* Пункт 3: вікно профілю — ширше (900px): вміст (картка + кнопки + статус)
+           раніше не вміщався у пергамент, тому «Вийти» звисав за нижню рамку, а
+           «Реєстрація/Вхід» і сама картка стискалися по висоті. Паддінги = межі
+           пергаменту ui-window.png (топ 10.87% ширини, боки 6.55%, низ 7.96%). */
+        #profileModal .settings-box { width: min(900px, calc(100vw - 24px)); padding: 98px 59px 72px; }
         .settings-box h3 {
-            color: #6b3b0b;
+            color: #5b2a02;
             margin-bottom: 16px;
             font-size: 1.3em;
             text-shadow: none;
         }
         .settings-box button {
-            padding: 16px 38px;
+            /* Фіксований розмір у пропорції ui-button.png (1451×466): кнопки не
+               розтягуються ні по ширині, ні по висоті (розмір як і був, ≈208px) */
+            width: 208px;
+            max-width: 100%;
+            aspect-ratio: 1451 / 466;
+            box-sizing: border-box;
+            padding: 0 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-size: 1.05em;
-            margin: 6px 0;
+            margin: 0;
             border: none;
             border-radius: 0;
             cursor: pointer;
@@ -408,16 +465,18 @@
             filter: brightness(0.94);
             box-shadow: none;
         }
-        /* Компактні кнопки у вікнах: сервісні контроли мають власні розміри. */
+        /* Компактні кнопки у вікнах: фіксований розмір у пропорції текстури */
         .settings-box > button,
         .settings-box .mode-btn,
         .settings-box .back-btn {
-            display: block;
-            width: fit-content;
-            min-width: 210px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 208px;
             max-width: 100%;
-            margin-left: auto;
-            margin-right: auto;
+            aspect-ratio: 1451 / 466;
+            box-sizing: border-box;
+            margin: 0;
         }
         .settings-box button.back-btn {
             background: var(--ui-button) center / contain no-repeat !important;
@@ -491,13 +550,13 @@
 
         /* ===== ВІКНО ВІДНОВЛЕННЯ ПАРОЛЯ ===== */
         .fp-hint {
-            color: #bbb;
+            color: #4a3018; /* Пункт 4: темний текст по пергаменту (був #bbb) */
             font-size: 0.92em;
             line-height: 1.45;
             margin: 4px 0 12px;
         }
         .fp-email-label {
-            color: #f39c12;
+            color: #8a5600;
             font-size: 1em;
             margin-bottom: 10px;
         }
@@ -508,26 +567,55 @@
             font-family: monospace;
         }
         .fp-dev-hint {
-            color: #888;
+            color: #6b4a22; /* Пункт 4: темніший текст по пергаменту */
             font-size: 0.8em;
             margin-top: 6px;
         }
         .fp-login-prefill {
-            color: #f39c12;
+            color: #8a5600;
             font-size: 0.95em;
             margin-bottom: 10px;
         }
 
-        /* ===== ВИБІР ІКОНКИ ГРАВЦЯ (окремі відцентровані файли) ===== */
+        /* ===== ВИБІР ІКОНКИ ГРАВЦЯ (сітка 5×4 на весь пергамент вікна) ===== */
+        /* Вікно ширше за звичайні модалки: сітка 5×4 разом із заголовком і кнопкою
+           «Назад» мусить уміститися у пергамент ui-window.png (x 6.5…93.3%,
+           y 16.9…87.5% текстури) — звідси паддінги нижче. */
+        #avatarModal .settings-box {
+            width: min(1100px, calc(100vw - 24px));
+            padding: 120px 72px 88px;
+        }
+        #avatarGrid {
+            /* Сітка тягнеться на весь вільний простір пергаменту (flex: 1) — порожнього
+               пергаменту знизу більше немає. Розмір кружечка виставляє JS
+               (layoutAvatarGrid): min(клітинка по ширині, клітинка по висоті),
+               тому іконки завжди вписані у вікно і не залазять на рамку. */
+            flex: 1 1 auto;
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            grid-auto-rows: 1fr;
+            justify-items: center;
+            align-items: center;
+            gap: 14px 12px;
+            width: 100%;
+            min-height: 0;
+            margin: 6px 0 10px;
+            --avatar-d: 76px;
+        }
         .settings-box button.avatar-option {
             padding: 0;
-            width: 76px;
-            height: 76px;
-            min-width: 76px;
+            width: var(--avatar-d, 76px);
+            height: var(--avatar-d, 76px);
+            min-width: 0;
             margin: 0;
+            box-sizing: border-box;
             border-radius: 50%;
             border: 3px solid rgba(255, 255, 255, 0.35);
-            background: #1a1a1a !important;
+            /* Фон задаємо КОЛІРОМ (не шорткатом background!) і картинку через змінну:
+               шорткат `background: … !important` зі спільного правила кнопок затирав
+               інлайн-картинку — через це іконки у вікні вибору не показувались. */
+            background-color: #1a1a1a !important;
+            background-image: var(--avatar-img, none) !important;
             background-size: contain !important;
             background-position: center !important;
             background-repeat: no-repeat !important;
@@ -535,7 +623,8 @@
             -webkit-mask-image: none;
             mask-image: none;
             box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(0, 0, 0, 0.35);
-            transition: all 0.2s;
+            /* Без transition на width/height: розмір перераховує JS при ресайзі */
+            transition: transform 0.2s, border-color 0.2s, filter 0.2s;
         }
         .settings-box button.avatar-option:hover {
             transform: scale(1.07);
@@ -575,11 +664,15 @@
         /* ===== VOLUME SETTINGS ===== */
         .volume-slider-container {
             margin: 12px 0;
+            /* width: 100% — без нього контейнер у флекс-колонці (.settings-box
+               з align-items: center) стискається до ширини підпису, і повзунок
+               виходить вузькою смужкою. Як в index.html. */
+            width: 100%;
             text-align: left;
         }
         .volume-slider-container label {
             display: block;
-            color: #f7f0dc;
+            color: #331e0c; /* Пункт 4: підписи повзунків на пергаменті (був світлий #f7f0dc) */
             margin-bottom: 6px;
             font-size: 0.95em;
             font-weight: 700;
@@ -604,7 +697,7 @@
             border-radius: 50%;
             /* кована золота заклепка */
             background: radial-gradient(circle at 35% 30%, #fff7dd 0%, #f2cf7e 40%, #d9a441 75%, #a06e22 100%);
-            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22 viewBox=%220 0 40 40%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%220%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23fffbe8%22/%3E%3Cstop offset=%220.45%22 stop-color=%22%23f6e2a0%22/%3E%3Cstop offset=%220.8%22 stop-color=%22%23d9a441%22/%3E%3Cstop offset=%221%22 stop-color=%22%239a6a1f%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f2cf7e%22 stroke-width=%226%22 stroke-linejoin=%22round%22 opacity=%220.25%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f2cf7e%22 stroke-width=%223.2%22 stroke-linejoin=%22round%22 opacity=%220.45%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22url(%23g)%22 stroke=%22%234a2f10%22 stroke-width=%222%22 stroke-linejoin=%22round%22/%3E%3Cpath d=%22M11.4 12.6 L11.4 25 L14.6 21.2%22 fill=%22none%22 stroke=%22%23ffffff%22 stroke-opacity=%220.6%22 stroke-width=%221.4%22 stroke-linecap=%22round%22/%3E%3C/svg%3E') 10 12, pointer !important;
+            cursor: url('../../assets/textures/cursors/cursor-gold-hover.png') 8 7, url('../../assets/textures/cursors/cursor-gold.png') 8 7, pointer !important;
             border: 2px solid #6e4a15;
             box-shadow: 0 0 0 2px rgba(0,0,0,0.35), 0 2px 6px rgba(0,0,0,0.55), 0 0 12px rgba(242,207,126,0.5);
             transition: transform 0.15s;
@@ -617,7 +710,7 @@
             height: 24px;
             border-radius: 50%;
             background: radial-gradient(circle at 35% 30%, #fff7dd 0%, #f2cf7e 40%, #d9a441 75%, #a06e22 100%);
-            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22 viewBox=%220 0 40 40%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%220%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23fffbe8%22/%3E%3Cstop offset=%220.45%22 stop-color=%22%23f6e2a0%22/%3E%3Cstop offset=%220.8%22 stop-color=%22%23d9a441%22/%3E%3Cstop offset=%221%22 stop-color=%22%239a6a1f%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f2cf7e%22 stroke-width=%226%22 stroke-linejoin=%22round%22 opacity=%220.25%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22none%22 stroke=%22%23f2cf7e%22 stroke-width=%223.2%22 stroke-linejoin=%22round%22 opacity=%220.45%22/%3E%3Cpath d=%22M9 10 L9 30 L15 22 L20 30 L26 24 L18 17 L30 17 Z%22 fill=%22url(%23g)%22 stroke=%22%234a2f10%22 stroke-width=%222%22 stroke-linejoin=%22round%22/%3E%3Cpath d=%22M11.4 12.6 L11.4 25 L14.6 21.2%22 fill=%22none%22 stroke=%22%23ffffff%22 stroke-opacity=%220.6%22 stroke-width=%221.4%22 stroke-linecap=%22round%22/%3E%3C/svg%3E') 10 12, pointer !important;
+            cursor: url('../../assets/textures/cursors/cursor-gold-hover.png') 8 7, url('../../assets/textures/cursors/cursor-gold.png') 8 7, pointer !important;
             border: 2px solid #6e4a15;
             box-shadow: 0 0 0 2px rgba(0,0,0,0.35), 0 2px 6px rgba(0,0,0,0.55), 0 0 12px rgba(242,207,126,0.5);
         }
@@ -635,24 +728,36 @@
         
         /* ===== COLOR SELECTION ===== */
         .color-option:disabled {
-            cursor: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2232%22 height=%2232%22 viewBox=%220 0 32 32%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%220%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23d6d6d6%22/%3E%3Cstop offset=%221%22 stop-color=%22%23808080%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d=%22M7 8 L7 24 L12 18 L16 24 L20 20 L14 14 L23 14 Z%22 fill=%22url(%23g)%22 stroke=%22%233f3f3f%22 stroke-width=%221.6%22 stroke-linejoin=%22round%22 opacity=%220.9%22/%3E%3C/svg%3E') 8 8, not-allowed !important;
+            cursor: url('../../assets/textures/cursors/cursor-gray.png') 9 7, url('../../assets/textures/cursors/cursor-gold.png') 8 7, not-allowed !important;
         }
 
         /* ===== PLAYER PROFILE (кнопка у верхньому кутку + вікна) ===== */
         #profileBtn {
             position: fixed;
-            top: 0; /* ланцюги бейджа ростуть від самого верха екрана */
-            right: 12px;
+            top: 0; /* перекладина зі стропами притиснута до самого верха екрана */
+            right: auto;
+            left: 12px; /* бейдж профілю — у ЛІВОМУ верхньому куті (прохання: перенести з правого) */
             z-index: 2500;
             display: flex;
             align-items: center;
-            gap: 11px;
-            width: 300px;
-            /* Висоту і padding-top виставляє JS під обрану дошку:
-               padding-top = ланцюги, висота = повна комірка текстури —
-               завдяки border-box контент центрується рівно на дошці */
-            padding: 0 34px 0 18px;
-            background-color: transparent;
+            /* Вміст (аватар + нік + кубки) — ПО ЦЕНТРУ пергаменту, а не від
+               лівого краю (прохання). Бокові паддінги нижче дорівнюють рамці
+               вивіски (пергамент займає x ≈ 11.2%…88.2% текстури), тому центр
+               паддінг-боксу ≈ центр пергаменту (49.7% ширини). */
+            justify-content: center;
+            gap: 9px;
+            width: 280px; /* бейдж звужено з 360px — менше перекриває меню */
+            /* Фон — вивіска з пергаментом (та сама, що на бічних панелях у катці).
+               box-sizing: border-box — щоб паддінги не додавались до висоти.
+               Висоту і вертикальні паддінги виставляє JS під пропорцію текстури:
+               padding-top = перекладина зі стропами (вище пергаменту),
+               padding-bottom = нижній край пергаменту, тому контент центрується
+               рівно на пергаменті. Бокові паддінги = рамка вивіски (11.2% / 11.8%). */
+            padding: 0 33px 0 31px;
+            box-sizing: border-box;
+            background-image: url('../../assets/textures/menu/signs/sign-parchment.png');
+            background-size: 100% 100%;
+            background-position: center top;
             background-repeat: no-repeat;
             border: none;
             cursor: pointer;
@@ -664,8 +769,8 @@
             filter: brightness(1.09);
         }
         .profile-avatar {
-            width: 46px;
-            height: 46px;
+            width: 38px;
+            height: 38px;
             border-radius: 50%;
             /* темний круглий диск під іконку: прозорі кути іконки показують круг, а не квадрат */
             background: radial-gradient(circle at 50% 30%, #3a3a3a, #171717 85%);
@@ -679,12 +784,17 @@
             overflow: hidden;
             box-shadow: inset 0 -3px 6px rgba(0,0,0,0.25), 0 2px 6px rgba(0,0,0,0.35);
         }
-        .profile-avatar svg { width: 26px; height: 26px; }
+        .profile-avatar svg { width: 21px; height: 21px; }
         .profile-nick {
             color: #fff;
             font-weight: 600;
-            font-size: 1.05em;
-            max-width: 190px;
+            font-size: 0.95em;
+            /* 116px, а не 138px: рядок тепер центрується, тож довгий нік не має
+               випирати за пергамент (аватар 38 + 2×gap 9 + кубки ≈ 45 = ≈101px,
+               а паддінг-бокс = 280 − 31 − 33 = 216px). */
+            max-width: 116px;
+            min-width: 0; /* дозволяє flex-елементу стискатися до …  */
+            flex-shrink: 1;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
@@ -692,7 +802,7 @@
         .profile-cups {
             color: #f1c40f;
             font-weight: 700;
-            font-size: 1em;
+            font-size: 0.9em;
             white-space: nowrap;
             display: flex;
             align-items: center;
@@ -737,39 +847,71 @@
             background: rgba(231,76,60,0.35) !important;
             color: #fff !important;
         }
+        /* ===== ВІКНО ПРОФІЛЮ (пункт 5: акуратна, вирівнена картка) ===== */
+        /* Було: напівпрозорий білий бокс (на пергаменті виглядав «брудною» плямою),
+           кнопки всередині картки з margin-top:auto (стрибали вниз), нік — білий текст
+           по пергаменту. Стало: рівна картка, аватар + рядки даних у двох колонках,
+           кнопки в один рядок по центру, темний читабельний текст. */
         .profile-card {
             display: flex;
             flex-direction: column;
-            gap: 14px;
-            padding: 14px;
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(243,156,18,0.2);
-            border-radius: 10px;
-            margin-bottom: 16px;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            /* Пункт 3: без max-width — дані гравця розтягуються на всю ширину пергаменту */
+            max-width: none;
+            margin: 0 auto 6px;
+            padding: 10px 16px;
+            box-sizing: border-box;
+            background: rgba(107, 59, 11, 0.07);
+            border: 1px solid rgba(107, 59, 11, 0.22);
+            border-radius: 12px;
             text-align: left;
         }
+        /* Аватар — у лівій колонці, рядки даних — у правій (однакові відступи) */
         .profile-identity {
-            display: flex;
+            display: grid;
+            grid-template-columns: auto 1fr;
             align-items: center;
-            gap: 14px;
+            gap: 16px;
+            width: 100%;
+        }
+        .profile-lines {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            min-width: 0;
         }
         .profile-actions {
             display: flex;
-            gap: 8px;
+            gap: 14px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            width: 100%;
         }
+        /* Кнопки у фіксованій текстурній ширині (208px) — як в усіх інших вікнах */
         .profile-actions .mode-btn {
-            flex: 1;
-            width: auto;
-            min-width: 0; /* ряд із двох кнопок має влазити у вікно */
-            margin-top: 0;
-            margin-bottom: 0;
+            flex: 0 0 auto;
+            width: 208px;
+            min-width: 0;
+            margin: 0;
         }
-        .profile-friends-btn {
-            margin-top: auto;
+        /* Кнопки всередині картки — в один рядок підряд, по центру */
+        .profile-inline-btns {
+            display: flex;
+            gap: 14px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            width: 100%;
         }
-        .profile-card .profile-avatar { width: 56px; height: 56px; }
-        .profile-card .profile-avatar svg { width: 32px; height: 32px; }
-        .profile-info-nick { font-size: 1.2em; font-weight: bold; color: #fff; }
+        /* Розміри підігнані так, щоб картка + два рядки кнопок + статус
+           гарантовано вміщалися у пергамент вікна (900×580, робоча висота
+           ≈410px): аватар 54px, рядки даних компактніші, інтервали 3px. */
+        .profile-card .profile-avatar { width: 54px; height: 54px; }
+        .profile-card .profile-avatar svg { width: 30px; height: 30px; }
+        .profile-info-nick { font-size: 1.15em; font-weight: bold; color: #4a2405; line-height: 1.2; word-break: break-word; }
         .profile-nick-row { display: flex; align-items: center; gap: 8px; }
         .edit-nick-btn,
         .settings-box button.edit-nick-btn {
@@ -798,19 +940,17 @@
             background: rgba(243,156,18,0.35);
         }
         .profile-info-id {
-            font-size: 1.05em;
-            color: #ccc;
+            font-size: 0.92em;
+            color: #4a3018; /* Пункт 4: темний текст по пергаменту (був світлий #ccc) */
             font-family: monospace;
-            margin-top: 5px;
             word-break: break-all;
         }
         .profile-info-cups {
-            font-size: 1.05em;
-            color: #f1c40f;
+            font-size: 0.98em;
+            color: #8a5600; /* Пункт 4: золотий #f1c40f на пергаменті не читався */
             font-weight: 700;
-            margin-top: 3px;
         }
-        .profile-id-row { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+        .profile-id-row { display: flex; align-items: center; gap: 8px; margin-top: 3px; }
         .profile-id-row .profile-info-id { margin-top: 0; }
         .profile-copy-btn,
         .settings-box button.profile-copy-btn {
@@ -924,13 +1064,13 @@
 <body class="boot-loading">
     <!-- Анімований фон головного меню (відео-луп з асетів користувача) -->
     <video class="bg-video" autoplay muted loop playsinline preload="auto">
-        <source src="../../assets/textures/menu/0331f2e3336021c488d45b19.mp4" type="video/mp4">
+        <source src="../../assets/textures/menu/5c824a5fde1f6999881372e9.mp4" type="video/mp4">
     </video>
     <div class="bg-vignette"></div>
 
     <!-- Server Loading Screen (видимий при запуску гри, поки сервер не готовий) -->
     <div id="serverLoadingScreen">
-        <div class="loading-logo">COLONIZATION</div>
+        <img class="loading-logo" src="../../assets/textures/menu/game-title.png" alt="COLONIZATION">
         <div class="progress-track">
             <div class="progress-fill" id="serverProgressFill"></div>
         </div>
@@ -976,23 +1116,29 @@
                         <div class="profile-info-cups" id="profileModalCups">🏆 Кубки: 0</div>
                     </div>
                 </div>
-                <button id="profileFriendsBtn" class="mode-btn profile-friends-btn" type="button">Друзі<span class="btn-badge" id="profileFriendsBadge" style="display:none;"></span></button>
-                <button id="bindEmailBtn" class="mode-btn profile-friends-btn" type="button" style="display:none;">📧 Привʼязати email</button>
+                <!-- Обгортка в один рядок (flex) — раніше ці дві кнопки лежали
+                     прямо в .profile-card, а картка це flex-column, тож вони
+                     ставали стовпчиком і з'їдали ~77px висоти: через це нижній
+                     рядок і статус вилазили за пергамент вікна. -->
+                <div class="profile-inline-btns">
+                    <button id="profileFriendsBtn" class="mode-btn profile-friends-btn" type="button">Друзі<span class="btn-badge" id="profileFriendsBadge" style="display:none;"></span></button>
+                    <button id="bindEmailBtn" class="mode-btn profile-friends-btn" type="button" style="display:none;">📧 Привʼязати email</button>
+                </div>
             </div>
             <div class="profile-actions">
                 <button id="openRegisterBtn" class="mode-btn">Реєстрація</button>
                 <button id="openLoginBtn" class="mode-btn">Вхід</button>
+                <button id="backFromProfile" class="back-btn">Вийти</button>
             </div>
-            <button id="backFromProfile" class="back-btn">Вийти</button>
             <div id="profileStatus" style="color:#27ae60; font-size:0.9em; min-height:1.3em; margin-bottom:0;"></div>
         </div>
     </div>
 
     <!-- Avatar Picker Modal (відкривається кліком по іконці у профілі) -->
     <div class="settings-overlay" id="avatarModal" style="display: none;">
-        <div class="settings-box" style="max-width: 380px;">
+        <div class="settings-box">
             <h3>ВИБІР ІКОНКИ</h3>
-            <div id="avatarGrid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; justify-items: center; margin: 18px 0 20px;"></div>
+            <div id="avatarGrid"></div>
             <button id="backFromAvatar" class="back-btn">Назад</button>
         </div>
     </div>
@@ -1121,7 +1267,7 @@
     </div>
 
 <div class="main-content">
-    <div class="logo">COLONIZATION</div>
+    <img class="logo" src="../../assets/textures/menu/game-title.png" alt="COLONIZATION">
     <div class="menu-buttons">
         <button class="menu-btn primary" id="newGameBtn">Нова гра</button>
         <button class="menu-btn secondary" id="settingsBtn">Налаштування</button>
@@ -1193,7 +1339,7 @@
 
 <!-- Multiplayer Lobby Modal -->
 <div class="settings-overlay" id="multiplayerLobbyModal" style="display: none;">
-    <div class="settings-box" style="max-width: 500px; min-width: 400px;">
+    <div class="settings-box">
         
         <!-- Loading indicator -->
         <div id="connectionLoading" style="display: none; margin-bottom: 15px; padding: 15px; background: rgba(243,156,18,0.1); border-radius: 6px; border: 1px solid rgba(243,156,18,0.2);">
@@ -1259,7 +1405,7 @@
 
 <!-- Color Selection Modal -->
 <div class="settings-overlay" id="colorSelectionModal" style="display: none;">
-    <div class="settings-box" style="max-width: 400px;">
+    <div class="settings-box">
         <h3>ВИБЕРІТЬ КОЛІР</h3>
         <div id="colorOptions" style="display: flex; gap: 10px; justify-content: center; margin: 20px 0;">
             <button class="color-option" data-color="red" style="width: 60px; height: 60px; border-radius: 50%; background: #e74c3c; border: 3px solid #fff; cursor: pointer; transition: all 0.2s;" title="Червоний"></button>
@@ -1312,6 +1458,16 @@
         <button id="backFromVolume" class="back-btn">Назад</button>
     </div>
 </div>
+
+    <!-- К precache курсорів: Chromium ліниво завантажує url() у CSS `cursor`, тому
+         без цього перший нахил на кнопку мигтів би стандартним курсором.
+         Фони непрозорі й завантажуються просто в кеш — на вигляд нічого не змінюється. -->
+    <script>
+        ['cursor-gold.png', 'cursor-gray.png', 'cursor-gold-hover.png'].forEach(function (name) {
+            const img = new Image();
+            img.src = '../../assets/textures/cursors/' + name;
+        });
+    </script>
 
     <script>
         /* Усі звичайні кнопки використовують одну текстуру ui-button.png.
@@ -2364,11 +2520,11 @@
             if (acc && typeof acc.cups === 'number') return acc.cups;
             return getGuestCups();
         }
-        // ===== ІКОНКИ ГРАВЦЯ (спрайт 3×3: assets/textures/67853b01-….png) =====
+        // ===== ІКОНКИ ГРАВЦЯ (атлас 5×4 = 20 іконок, assets/textures/player-icons/90e1fdd9-….png) =====
         // Вибір зберігається локально і відправляється на сервер разом із ніком
         // при створенні/приєднанні до кімнати. За замовчуванням — перша (індекс 0).
         const AVATAR_KEY = 'avatarIcon';
-        const AVATAR_ICONS = Array.from({ length: 9 }, (_, i) => `../../assets/textures/player-icons/icon-${i}.png`);
+        const AVATAR_ICONS = Array.from({ length: 20 }, (_, i) => `../../assets/textures/player-icons/icon-${i}.png`);
         function normalizeAvatarIndex(v) {
             const n = parseInt(v, 10);
             return (Number.isInteger(n) && n >= 0 && n < AVATAR_ICONS.length) ? n : 0;
@@ -2398,6 +2554,25 @@
             applyAvatarToEl(document.querySelector('#profileBtn .profile-avatar'));
             applyAvatarToEl(document.querySelector('#profileModal .profile-avatar'));
         }
+        // Розкладка сітки вибору іконки: кружечки = min(клітинка по ширині, клітинка по висоті),
+        // тому сітка 5×4 завжди вписана у пергамент вікна (і не залазить на рамку).
+        const AVATAR_COLS = 5;
+        const AVATAR_ROWS = 4;
+        function layoutAvatarGrid() {
+            const grid = document.getElementById('avatarGrid');
+            const modal = document.getElementById('avatarModal');
+            if (!grid || !modal || modal.style.display === 'none') return;
+            const cs = getComputedStyle(grid);
+            const gapX = parseFloat(cs.columnGap) || 12;
+            const gapY = parseFloat(cs.rowGap) || 14;
+            const w = grid.clientWidth, h = grid.clientHeight;
+            if (!w || !h) return;
+            const d = Math.floor(Math.min((w - (AVATAR_COLS - 1) * gapX) / AVATAR_COLS,
+                                         (h - (AVATAR_ROWS - 1) * gapY) / AVATAR_ROWS));
+            grid.style.setProperty('--avatar-d', Math.max(32, d) + 'px');
+        }
+        window.addEventListener('resize', layoutAvatarGrid);
+
         function openAvatarPicker() {
             const grid = document.getElementById('avatarGrid');
             if (!grid) return;
@@ -2407,6 +2582,9 @@
                 const b = document.createElement('button');
                 b.type = 'button';
                 b.className = 'avatar-option' + (i === cur ? ' selected' : '');
+                // Пункт 1: через змінну --avatar-img (CSS підхоплює з !important і перебиває
+                // загальний стиль кнопок .settings-box button, що раніше затирав фон)
+                b.style.setProperty('--avatar-img', `url("${AVATAR_ICONS[i]}")`);
                 b.style.backgroundImage = `url("${AVATAR_ICONS[i]}")`;
                 b.title = 'Іконка ' + (i + 1);
                 b.addEventListener('click', () => {
@@ -2424,6 +2602,7 @@
             }
             document.getElementById('profileModal').style.display = 'none';
             document.getElementById('avatarModal').style.display = 'flex';
+            requestAnimationFrame(layoutAvatarGrid);
         }
 
         function updateProfileUI(statusText) {
@@ -3883,62 +4062,37 @@
         }
 
         /* ===== ТЕКСТУРИ МЕНЮ =====
-           Малі вивіски профілю (badge) залишені без змін; для всіх великих
-           модальних вікон використовується ui-window.png. */
-        const MENU_WOOD = {
-            badge: [
-                { url: '../../assets/textures/menu/cut/small-0.png', w: 655, h: 249, bt: 102 },
-                { url: '../../assets/textures/menu/cut/small-1.png', w: 652, h: 250, bt: 109 },
-                { url: '../../assets/textures/menu/cut/small-2.png', w: 664, h: 239, bt: 84 },
-                { url: '../../assets/textures/menu/cut/small-3.png', w: 661, h: 237, bt: 88 },
-                { url: '../../assets/textures/menu/cut/small-4.png', w: 664, h: 221, bt: 78 },
-                { url: '../../assets/textures/menu/cut/small-5.png', w: 656, h: 221, bt: 79 },
-                { url: '../../assets/textures/menu/cut/small-6.png', w: 662, h: 197, bt: 73 },
-                { url: '../../assets/textures/menu/cut/small-7.png', w: 654, h: 196, bt: 74 }
-            ]
-        };
+           Бейдж профілю — вивіска з пергаментом (menu/signs/sign-parchment.png,
+           1255×791): та сама, що на бічних панелях у катці. Раніше тут був рандом
+           із 8 дошок на ланцюгах (menu/cut/small-*.png) — ті файли видалено.
+           Для всіх великих модальних вікон використовується ui-window.png. */
 
-        // Кроп-прямокутник rect із листа tex розтягується рівно на всю площу el
-        // (background-size > 100% + процентна позиція X0/(imgW-W0) — стандартна
-        // формула точного спрайт-кропу).
-        function mapWoodSprite(el, tex, rect) {
-            el.style.backgroundImage = 'url("' + tex.url + '")';
-            el.style.backgroundSize =
-                (tex.w / rect.w * 100).toFixed(4) + '% ' +
-                (tex.h / rect.h * 100).toFixed(4) + '%';
-            // якщо кроп займає всю ширину/висоту листа — зсув 0 (ділення
-            // tex.w - rect.w = 0 дало б NaN → невалідний background-position,
-            // який браузер відкидає ціліком, і спрайт малюється з 0 0)
-            const px = rect.w >= tex.w ? 0 : rect.x / (tex.w - rect.w) * 100;
-            const py = rect.h >= tex.h ? 0 : rect.y / (tex.h - rect.h) * 100;
-            el.style.backgroundPosition = px.toFixed(4) + '% ' + py.toFixed(4) + '%';
-        }
-
-        // Бейдж профілю у головному меню: рандомна дошка НА ЛАНЦЮГАХ.
-        // Бейдж — це повна комірка (ланцюги + дошка), притиснута до верха
-        // екрана: ланцюги ростуть від верха екрана, контент сидить на дошці.
-        (function initProfileBadgeWood() {
+        // Бейдж профілю у головному меню: вивіска з пергаментом.
+        // Вивіска висить на перекладині зі стропами, притиснута до самого верха
+        // екрана; аватар, нік і кубки сидять на пергаменті.
+        // Явна висота = пропорція текстури (інакше фон 100%×100% тягнеться під
+        // авто-висоту контенту), паддінги = перекладина зі стропами зверху та
+        // нижній край пергаменту знизу (заміряні по самій текстурі: пергамент
+        // займає 31.9%…90.6% висоти), тому контент центрується рівно на ньому.
+        (function initProfileSign() {
             const btn = document.getElementById('profileBtn');
             if (!btn) return;
-            const t = MENU_WOOD.badge[Math.floor(Math.random() * MENU_WOOD.badge.length)];
-            mapWoodSprite(btn, t, { x: 0, y: 0, w: t.w, h: t.h });
-            const scale = 300 / t.w; // ширина бейджа 300px у CSS
-            // Явна висота = природна висота комірки: інакше фон (100%×100%)
-            // тягнеться під авто-висоту контенту, і дошка з ланцюгами зсувається.
-            // padding-top = ланцюги; контент центрується у решті (на дошці).
-            btn.style.height = Math.round(t.h * scale) + 'px';
-            btn.style.paddingTop = Math.round(t.bt * scale) + 'px';
+            const w = 280;                            // ширина бейджа у CSS
+            const h = Math.round(w * 791 / 1255);     // ~177px — пропорція sign-parchment.png
+            btn.style.height = h + 'px';
+            btn.style.paddingTop = Math.round(h * 0.319) + 'px';
+            btn.style.paddingBottom = Math.round(h * 0.094) + 'px';
         })();
 
-        // Модальні вікна використовують ui-window.png; маленькі вивіски профілю
-        // (MENU_WOOD.badge) залишаються без змін.
+        // Модальні вікна використовують ui-window.png; бейдж профілю —
+        // вивіску з пергаментом (initProfileSign вище).
     </script>
 <style>
     /* ===== ЄДИНИЙ ШРИФТ УСЬОГО UI — Forum (схожий за духом на заголовковий
        Ruslan Display, але з іншим малюнком; повна українська кирилиця, локальний
        файл у assets/fonts). Блок у кінці body — перекриває ВСІ стилі та inline.
-       Винятки: заголовок гри (.logo) і екран загрузки (.loading-logo,
-       .loading-status-percent) лишаються Ruslan Display. ===== */
+       Виняток: відсотки на екрані загрузки (.loading-status-percent)
+       лишаються Ruslan Display — назва гри тепер картинка (game-title.png). ===== */
     @font-face {
         font-family: 'Forum';
         font-style: normal;
@@ -3946,7 +4100,7 @@
         src: url('../../assets/fonts/Forum-Regular.ttf') format('truetype');
     }
     body, body * { font-family: 'Forum', 'Times New Roman', serif !important; }
-    .logo, .loading-logo, .loading-status-percent { font-family: 'Ruslan Display', 'Times New Roman', serif !important; }
+    .loading-status-percent { font-family: 'Ruslan Display', 'Times New Roman', serif !important; }
 </style>
 </body>
 </html>

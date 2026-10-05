@@ -2322,7 +2322,7 @@ io.on('connection', (socket) => {
                 name: playerName || 'Гравець',
                 isHost: true,
                 color: color || defaultColors[0],
-                avatar: (Number.isInteger(avatar) && avatar >= 0 && avatar <= 8) ? avatar : 0
+                avatar: (Number.isInteger(avatar) && avatar >= 0 && avatar <= 19) ? avatar : 0
             }],
             gameState: null,
             createdAt: Date.now(),
@@ -2400,7 +2400,7 @@ io.on('connection', (socket) => {
             name: playerName || 'Гравець',
             isHost: false,
             color: assignedColor,
-            avatar: (Number.isInteger(avatar) && avatar >= 0 && avatar <= 8) ? avatar : 0
+            avatar: (Number.isInteger(avatar) && avatar >= 0 && avatar <= 19) ? avatar : 0
         });
         
         socket.join(roomCode);
@@ -4211,7 +4211,7 @@ io.on('connection', (socket) => {
         matchmakingQueue.push({
             socketId: socket.id,
             playerName: playerName || 'Гравець',
-            avatar: (Number.isInteger(avatar) && avatar >= 0 && avatar <= 8) ? avatar : 0,
+            avatar: (Number.isInteger(avatar) && avatar >= 0 && avatar <= 19) ? avatar : 0,
             joinedAt: Date.now()
         });
 
@@ -4290,7 +4290,7 @@ io.on('connection', (socket) => {
         matchmakingQueue.push({
             socketId: socket.id,
             playerName: leaver.name || 'Гравець',
-            avatar: (Number.isInteger(leaver.avatar) && leaver.avatar >= 0 && leaver.avatar <= 8) ? leaver.avatar : 0,
+            avatar: (Number.isInteger(leaver.avatar) && leaver.avatar >= 0 && leaver.avatar <= 19) ? leaver.avatar : 0,
             joinedAt: Date.now()
         });
         console.log('[matchmaking] Player requeued for new opponent:', socket.id, leaver.name, 'Queue size:', matchmakingQueue.length);
