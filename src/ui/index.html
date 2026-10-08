@@ -934,15 +934,17 @@
         box-sizing: border-box;
         width: max-content;
         max-width: 100%;
-        min-width: min(484px, 92vw);
-        min-height: 92px;
+        /* П.10: плашка компактніша (було min 484×92, font 1.05em) — менше карт
+           закриває по центру екрана. */
+        min-width: min(360px, 92vw);
+        min-height: 74px;
         /* Паддінг по горизонталі пропорційний ширині: темна зона текстури — 6% з кожного
-           боку, тому 56px на вузькій плашці й 8% (≈70px) на широкій тримають текст
+           боку, тому 40px на вузькій плашці й 7% на широкій тримають текст
            усередині рамки навіть для довгих повідомлень у два рядки. */
-        padding: 18px max(56px, 8%);
+        padding: 14px max(40px, 7%);
         color: #f5e8ca;
         font-weight: 700;
-        font-size: 1.05em;
+        font-size: 1em;
         line-height: 1.3;
         text-align: center;
         text-shadow: 0 2px 5px rgba(0, 0, 0, 0.95), 0 0 12px rgba(0, 0, 0, 0.55);
@@ -1089,7 +1091,9 @@
         display: flex !important;
         flex-direction: column !important;
         flex-wrap: nowrap !important;
-        align-items: stretch !important;
+        /* П.12: картки НЕ тягнуться на всю ширину панелі — фіксована довжина
+           (див. .turn-order-item width), тому вирівнювання по початку */
+        align-items: flex-start !important;
         justify-content: flex-start !important;
         gap: 6px !important;
         overflow-y: auto !important;
@@ -1100,12 +1104,19 @@
     .turn-order-item {
         flex: 0 0 auto !important;
         min-width: 0 !important;
+        /* П.12: прозорий прямокутник прибрано (rgba-фон базового правила і
+           активного стану), банер коротший — картка фіксовано 300px замість
+           розтягу на всю ширину панелі (330px). */
+        background: transparent !important;
+        width: min(300px, 100%);
         /* Флажок = 2 шари: емблема (щит із планкою) ліворуч, ТРОХИ РОЗШИРЕНА
            (185×237 замість 170×237 — пункт 1), банер праворуч тягнеться на решту.
            Прямокутної кайми нема (пункт 3): підсвітка активного ходу лягає
-           drop-shadow'ом по контуру САМОЇ текстури (active-turn нижче). */
-        padding: 8px !important;
-        min-height: 74px !important;
+           drop-shadow'ом по контуру САМОЇ текстури (active-turn нижче).
+           П.12: сумарний розмір збільшено під більший аватар (висота 74→84,
+           паддінг 8→10). */
+        padding: 10px !important;
+        min-height: 84px !important;
         border: none !important;
         border-radius: 0 !important;
         justify-content: flex-start;
@@ -1147,12 +1158,14 @@
     .turn-order-item.active-turn::after {
         filter: drop-shadow(0 0 3px rgba(241, 196, 15, 0.95)) drop-shadow(0 0 8px rgba(241, 196, 15, 0.8)) drop-shadow(0 0 14px rgba(241, 196, 15, 0.5));
     }
-    /* Нік — вертикально по ЦЕНТРУ текстури флажка (пункт 2), ліворуч на банері */
-    .turn-order-label { position: absolute !important; left: 68px !important; top: 50% !important; transform: translateY(-50%) !important; text-shadow: 0 1px 3px rgba(0,0,0,0.65); font-size: 1.0em; flex-direction: row; align-items: baseline; gap: 5px !important; white-space: nowrap; z-index: 1; }
-    .turn-order-name { max-width: 168px; font-size: 0.85em; color: #fff !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Нік — вертикально по ЦЕНТРУ текстури флажка (пункт 2), ліворуч на банері.
+       П.12: підпис трохи лівіше (68 → 64px), нік вужчий — під картку 300px. */
+    .turn-order-label { position: absolute !important; left: 64px !important; top: 50% !important; transform: translateY(-50%) !important; text-shadow: 0 1px 3px rgba(0,0,0,0.65); font-size: 1.0em; flex-direction: row; align-items: baseline; gap: 5px !important; white-space: nowrap; z-index: 1; }
+    .turn-order-name { max-width: 148px; font-size: 0.85em; color: #fff !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .turn-order-sep { display: none !important; }
-    /* Кількість ПО — прям на ПРАВІЙ стороні флажка (пункт 4), по центру висоти */
-    .turn-order-vp { position: absolute !important; right: 20px !important; top: 50% !important; transform: translateY(-50%) !important; color: #fff !important; font-size: 1.0em !important; font-weight: bold; white-space: nowrap; z-index: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.7); }
+    /* Кількість ПО — прям на ПРАВІЙ стороні флажка (пункт 4), по центру висоти;
+       п.12: лівіше (20 → 18px від краю коротшої картки), допис «ПО» додає JS */
+    .turn-order-vp { position: absolute !important; right: 18px !important; top: 50% !important; transform: translateY(-50%) !important; color: #fff !important; font-size: 1.0em !important; font-weight: bold; white-space: nowrap; z-index: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.7); }
     .turn-order-item.active-turn .turn-order-name,
     .turn-order-item.active-turn .turn-order-sep,
     .turn-order-item.active-turn .turn-order-vp {
@@ -1161,13 +1174,14 @@
     }
     /* Аватар — абсолютний, ПОВЕРХ емблеми флажка зліва; нік + ПО праворуч на банері */
     .turn-order-avatar-sign {
-        /* Іконка — ПОВЕРХ емблеми флажка (абсолютна), по центру розширеної емблеми */
+        /* Іконка — ПОВЕРХ емблеми флажка (абсолютна), по центру розширеної емблеми.
+           П.12: аватар більший (28 → 36px), під нього збільшено всю картку. */
         position: absolute !important;
-        left: 15px !important;
+        left: 12px !important;
         top: 50% !important;
         transform: translateY(-50%) !important;
-        width: 28px !important;
-        height: 28px !important;
+        width: 36px !important;
+        height: 36px !important;
         flex-shrink: 0;
         background-size: 100% 100% !important;
         background-position: center !important;
@@ -1262,25 +1276,25 @@
     .build-btn .btn-icon.cancel-icon-s { width: auto; height: auto; font-size: 1.3em; }
 
     /* Кубики: зона займає ПРАВИЙ стовпець сітки (обидва рядки), кубики + сума
-       притиснуті до низу. */
-    .dice-area { grid-area: area; justify-self: stretch; align-self: stretch; flex: 0 0 auto; margin-top: 0; justify-content: flex-end; gap: 6px; padding: 8px 10px; min-height: 0; }
+       притиснуті до низу. п.7: самі кубики трохи більші, а «територія» зони
+       по висоті трохи менша (зайвий верхній простір прибрано). */
+    .dice-area { grid-area: area; justify-self: stretch; align-self: stretch; flex: 0 0 auto; margin-top: 0; justify-content: flex-end; gap: 4px; padding: 4px 10px 6px; min-height: 0; }
     .dice-container { display: flex; gap: 12px; }
-    .die { width: 48px; height: 48px; font-size: 1.6em; border-radius: 9px; }
+    .die { width: 56px; height: 56px; font-size: 1.8em; border-radius: 10px; }
     .total { font-size: 1.1em; color: #f1c40f; font-weight: bold; }
 
     /* Низ правої колонки: ділянка кубиків займає ПОВНУ ШИРИНУ вікон будівництва
        (330px, як і sign-parchment у панелях трекінгів та будівництва), а стовпчик
        кнопок (кидок кубиків НАД «Завершити хід») стоїть ЗЛІВА від ділянки.
-       Блок має ширину 500px і зміщений вліво (margin-left: -170px), тому зона
-       кубиків ідеально співпадає з вивісками праворуч, а кнопки винесені
-       ліворуч від неї (стовпець розширено з 140px до 170px — кнопки стали
-       ще лівіше). */
+       П.9: кнопки зменшені (ширина 140→116px), лівий стовпець
+       170→140px; area лишається точно під вивісками праворуч, бо margin-left
+       завжди = -ширина лівого стовпця. */
     .dice-bottom {
         display: grid;
-        grid-template-columns: 170px 330px;
+        grid-template-columns: 140px 330px;
         grid-template-areas: "dice area" "endTurn area";
-        width: 500px;
-        margin-left: -170px;
+        width: 470px;
+        margin-left: -140px;
         align-content: end;
         justify-items: start;
         align-items: end;
@@ -1294,8 +1308,9 @@
         align-items: center;
         justify-content: center;
         flex: 0 0 auto;
-        /* Розмір у пропорції end-turn-btn.png (717×442): текстура не розтягується */
-        width: 140px;
+        /* Розмір у пропорції end-turn-btn.png (717×442): текстура не розтягується.
+           П.9: 140 → 116px — кнопка менше краде місця в колонці. */
+        width: 116px;
         height: auto;
         aspect-ratio: 717 / 442;
         box-sizing: border-box;
@@ -1325,8 +1340,9 @@
         align-items: center;
         justify-content: center;
         flex: 0 0 auto;
-        /* Розмір у пропорції dice-btn.png (716×440): текстура не розтягується */
-        width: 140px;
+        /* Розмір у пропорції dice-btn.png (716×440): текстура не розтягується.
+           П.9: 140 → 116px (як і «Завершити хід»). */
+        width: 116px;
         height: auto;
         aspect-ratio: 716 / 440;
         grid-area: dice;
@@ -1398,7 +1414,7 @@
         z-index: 50;
     }
     .side-panel-wrap.tracking-panel { top: 58px; }
-    /* Трекінги 58..266 (висота 208), будівництво 278..518 (висота 240) — проміжок 12px */
+    /* Трекінги 58..266 (висота 208), будівництво 278..542 (висота 264, п.8) — проміжок 12px */
     .side-panel-wrap.building-panel { top: 278px; }
 
     .side-panel-content {
@@ -1429,15 +1445,15 @@
     .tracking-panel .medal-title { font-size: 1.05em; }
     .tracking-panel .medal-stats { font-size: 0.95em; }
 
-    /* Будівництво: та сама вивіска, але виЩЕ за трекінги — 330×240 (було 330×208),
-       щоб три рядки «назва + кількість + вартість» не тіснилися. Пропорцію
+    /* Будівництво: та сама вивіска, але виЩЕ за трекінги — 330×264 (п.8; було 240,
+       щоб три рядки «назва + кількість + вартість» не тіснилися). Пропорцію
        текстури (1255×791) при цьому НЕ тягнемо: background-size: cover масштабує
-       її за висотою (240/791) і підрізає лише боки (≈25px з кожного) — саме там
-       у вивісці порожні поля, пергамент (x 11.2%…88.2% у розмірі 381px) лишається
-       цілим. Інсети контенту перераховані під цей розмір. */
+       її за висотою (264/791 → ширина 419px) і підрізає лише боки (≈44px = 10.6%
+       з кожного — менше за початок пергаменту 11.2%), тому пергамент лишається
+       цілим. Інсети контенту у % перераховуються автоматично. */
     .building-panel .side-panel-content {
         width: 330px;
-        height: 240px;
+        height: 264px;
         background-image: url('../../assets/textures/menu/signs/sign-parchment.png');
         background-size: cover;
         background-position: center;
@@ -1722,7 +1738,9 @@
     <div style="background: rgba(26,26,46,0.98); border: 3px solid #f39c12; border-radius: 20px; padding: 40px; text-align: center; max-width: 600px; box-shadow: 0 0 50px rgba(243,156,18,0.6);">
         <h2 style="color: #f39c12; margin-bottom: 20px; font-size: 1.8em;">🎲 Початкова фаза: Кидання кубиків</h2>
         <p style="color: #ccc; margin-bottom: 15px; font-size: 1.1em;">Киньте кубики, щоб визначити порядок ходів</p>
-        <div id="initialDiceArea" style="position: relative; cursor: default; display: flex; gap: 15px; justify-content: center; margin-bottom: 15px;">
+        <!-- П.11: вікно кидка ВИЩЕ (min-height 116px, кубики по центру) — 3D-кубики
+             більше не залітають на текст над/під вікном -->
+        <div id="initialDiceArea" style="position: relative; cursor: default; display: flex; gap: 15px; justify-content: center; align-items: center; min-height: 116px; margin-bottom: 15px;">
             <div class="initial-die" id="initialDie1" style="width: 58px; height: 58px; background: linear-gradient(135deg, #fff, #ddd); border-radius: 9px; display: flex; justify-content: center; align-items: center; font-size: 2.1em; font-weight: bold; color: #333; box-shadow: 0 3px 10px rgba(0,0,0,0.3);">⚀</div>
             <div class="initial-die" id="initialDie2" style="width: 58px; height: 58px; background: linear-gradient(135deg, #fff, #ddd); border-radius: 9px; display: flex; justify-content: center; align-items: center; font-size: 2.1em; font-weight: bold; color: #333; box-shadow: 0 3px 10px rgba(0,0,0,0.3);">⚀</div>
         </div>
@@ -5463,8 +5481,11 @@ const Dice3D = (function () {
             stage.style.top = '4px'; stage.style.bottom = '34px';
             stage.style.height = 'auto';
         } else {
+            // П.11: сцена майже в межах вікна кидка (було top -46px — кубики
+            // злітали на заголовок/підпис). Розмаху для гравітації вистачає:
+            // вікно тепер 116px заввишки, стеля кидка — трохи нижче його верху.
             stage.style.left = '-26px'; stage.style.right = '-26px';
-            stage.style.top = '-46px'; stage.style.bottom = '-4px';
+            stage.style.top = '-14px'; stage.style.bottom = '-4px';
             stage.style.height = 'auto';
         }
     }
@@ -5482,7 +5503,8 @@ const Dice3D = (function () {
         if (!host) return;
         clearStage(host);
         const isGameArea = host.id === 'diceArea';
-        const size = isGameArea ? 30 : 34;
+        /* п.7: кубики трохи більші (було 30/34) */
+        const size = isGameArea ? 36 : 40;
         const stage = ensureStageEl(host);
         setupStage(stage, isGameArea);
         host.classList.add('dice3d-active');
@@ -8759,7 +8781,8 @@ function updateTurnOrderPanel() {
 
         const vpSpan = document.createElement('span');
         vpSpan.className = 'turn-order-vp';
-        vpSpan.textContent = getTurnPanelVP(pid);
+        // П.12: допис «ПО» біля числа («7 ПО»), а не голе число
+        vpSpan.textContent = getTurnPanelVP(pid) + ' ПО';
 
         label.appendChild(nameSpan);
 

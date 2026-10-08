@@ -404,7 +404,19 @@
         #registerModal .settings-box,
         #loginModal .settings-box,
         #bindEmailModal .settings-box,
+        #addFriendModal .settings-box,
         #forgotPassModal .settings-box { width: min(680px, calc(100vw - 24px)); padding: 66px 44px 41px; }
+        /* п.3: вікно «Додати друга» (рандомні рекомендації «Можливо, зацікавлять»)
+           було вузьким і низьким — список стискався. Робимо його вищим за решту:
+           ширше вікно + вищий скрол списку. */
+        #addFriendModal .settings-box { width: min(760px, calc(100vw - 24px)); padding: 74px 49px 45px; }
+        #addFriendModal .friends-scroll { max-height: 340px; }
+        /* п.5: реєстрація з новим полем email — текст-підказка і поля компактніші,
+           щоб усе влізало у пергамент без переповнення. */
+        #registerModal .fp-hint { font-size: 0.82em; line-height: 1.35; margin: 2px 0 6px; }
+        #registerModal .auth-input { padding: 10px 14px; margin: 5px 0; font-size: 0.95em; }
+        /* п.6: вікно прив'язки email трохи вище — email не заходить за кнопки. */
+        #bindEmailModal .settings-box { width: min(700px, calc(100vw - 24px)); padding: 72px 46px 46px; }
         #roomCreatedModal .settings-box { width: min(800px, calc(100vw - 24px)); padding: 78px 52px 48px; }
         /* Гучність: вікно ширше за базове — 720px (як вибір режиму гри). Три
            повзунки з підписами, «Назад» і заголовок у вужчому боксі тіснилися,
@@ -661,7 +673,37 @@
             transform: scale(1.05);
         }
 
-        /* ===== VOLUME SETTINGS ===== */
+        /* ===== VOLUME SETTINGS + ДЕРЕВ'ЯНІ СКРОЛБАРИ (п.2) =====
+           Повзунки гучності й вертикальні скролбари списків (друзі, кімнати) —
+           в одному стилі: темний дерев'яний брус + кована золота заклепка-бігунок,
+           щоб не виглядало «калхозно» (біла системна смуга). */
+        .friends-scroll,
+        #roomsList {
+            scrollbar-width: thin;
+            scrollbar-color: #d9a441 #2b1a0c;
+        }
+        .friends-scroll::-webkit-scrollbar,
+        #roomsList::-webkit-scrollbar { width: 12px; }
+        .friends-scroll::-webkit-scrollbar-track,
+        #roomsList::-webkit-scrollbar-track {
+            background: linear-gradient(to right, #4a2f18 0%, #2b1a0c 100%);
+            border: 2px solid #6e4a15;
+            border-radius: 7px;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.65);
+        }
+        .friends-scroll::-webkit-scrollbar-thumb,
+        #roomsList::-webkit-scrollbar-thumb {
+            background: radial-gradient(circle at 35% 30%, #fff7dd 0%, #f2cf7e 40%, #d9a441 75%, #a06e22 100%);
+            border: 2px solid #6e4a15;
+            border-radius: 7px;
+            box-shadow: 0 0 0 1px rgba(0,0,0,0.35), 0 0 8px rgba(242,207,126,0.4);
+        }
+        .friends-scroll::-webkit-scrollbar-thumb:hover,
+        #roomsList::-webkit-scrollbar-thumb:hover { filter: brightness(1.12); }
+        /* Білих стрілок-кнопок на кінцях смуги нема (п.2): лишається тільки
+           дерев'яний брус + золота заклепка. */
+        .friends-scroll::-webkit-scrollbar-button,
+        #roomsList::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
         .volume-slider-container {
             margin: 12px 0;
             /* width: 100% — без нього контейнер у флекс-колонці (.settings-box
@@ -789,10 +831,8 @@
             color: #fff;
             font-weight: 600;
             font-size: 0.95em;
-            /* 116px, а не 138px: рядок тепер центрується, тож довгий нік не має
-               випирати за пергамент (аватар 38 + 2×gap 9 + кубки ≈ 45 = ≈101px,
-               а паддінг-бокс = 280 − 31 − 33 = 216px). */
-            max-width: 116px;
+            /* Кубки приховано (п.1), тож ніку більше місця: було 116px */
+            max-width: 150px;
             min-width: 0; /* дозволяє flex-елементу стискатися до …  */
             flex-shrink: 1;
             overflow: hidden;
@@ -800,14 +840,8 @@
             white-space: nowrap;
         }
         .profile-cups {
-            color: #f1c40f;
-            font-weight: 700;
-            font-size: 0.9em;
-            white-space: nowrap;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            flex-shrink: 0;
+            /* Кубки приховано з UI (п.1): БД-поле cups лишається, логіка не чіпається */
+            display: none !important;
         }
         /* Червоний квадратик-бейдж із кількістю запитів у друзі */
         .btn-badge {
@@ -946,9 +980,8 @@
             word-break: break-all;
         }
         .profile-info-cups {
-            font-size: 0.98em;
-            color: #8a5600; /* Пункт 4: золотий #f1c40f на пергаменті не читався */
-            font-weight: 700;
+            /* Кубки приховано з UI (п.1): БД-поле cups лишається, логіка не чіпається */
+            display: none !important;
         }
         .profile-id-row { display: flex; align-items: center; gap: 8px; margin-top: 3px; }
         .profile-id-row .profile-info-id { margin-top: 0; }
@@ -1149,6 +1182,8 @@
             <h3>РЕЄСТРАЦІЯ</h3>
             <input type="text" id="regLoginInput" class="auth-input" placeholder="Придумайте логін" maxlength="20" autocomplete="off">
             <input type="password" id="regPassInput" class="auth-input" placeholder="Придумайте пароль">
+            <input type="text" id="regEmailInput" class="auth-input" placeholder="Email (необов'язково)" maxlength="254" autocomplete="off">
+            <div class="fp-hint" style="text-align:left;">Email потрібен для відновлення пароля, якщо ви його забудете. Ви можете у будь-який момент прив'язати або змінити свій email.</div>
             <div class="auth-error" id="regError"></div>
             <button id="confirmRegisterBtn" class="mode-btn">Зареєструватися</button>
             <button id="backFromRegister" class="back-btn">Вийти</button>
@@ -2724,6 +2759,8 @@
             document.getElementById('regError').textContent = '';
             document.getElementById('regLoginInput').value = '';
             document.getElementById('regPassInput').value = '';
+            const _re = document.getElementById('regEmailInput');
+            if (_re) _re.value = '';
             document.getElementById('profileModal').style.display = 'none';
             document.getElementById('registerModal').style.display = 'flex';
             document.getElementById('regLoginInput').focus();
@@ -2738,16 +2775,22 @@
             audioManager.playClickSound();
             const login = document.getElementById('regLoginInput').value.trim();
             const password = document.getElementById('regPassInput').value;
+            const emailRaw = (document.getElementById('regEmailInput')?.value || '').trim();
             const errEl = document.getElementById('regError');
             if (!login || !password) {
                 errEl.textContent = 'Введіть логін і пароль!';
+                return;
+            }
+            // Email необов'язковий (п.4): якщо введено — мінімальна перевірка формату
+            if (emailRaw && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw)) {
+                errEl.textContent = 'Введіть коректний email або лишіть поле порожнім';
                 return;
             }
             errEl.textContent = '';
             const btn = document.getElementById('confirmRegisterBtn');
             btn.disabled = true;
             try {
-                const res = await authRequest('auth-register', { login, password, nick: login });
+                const res = await authRequest('auth-register', { login, password, nick: login, email: emailRaw || undefined });
                 if (res.success) {
                     setAccount({ playerId: res.playerId, nick: res.nick, login: res.login || res.nick, cups: (typeof res.cups === 'number') ? res.cups : 0, email: res.email || '' });
                     document.getElementById('registerModal').style.display = 'none';
@@ -2809,6 +2852,7 @@
         // Enter у полях вводу
         document.getElementById('regLoginInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doRegister(); });
         document.getElementById('regPassInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doRegister(); });
+        document.getElementById('regEmailInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doRegister(); });
         document.getElementById('loginLoginInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
         document.getElementById('loginPassInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
 

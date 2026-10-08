@@ -1620,9 +1620,15 @@ io.on('connection', (socket) => {
 
     // ===== AUTH: РЕЄСТРАЦІЯ АКАУНТА =====
     // Працює постійно (сервер завжди запущений), гравці можуть реєструватися будь-коли
-    socket.on('auth-register', async ({ login, password }) => {
+    socket.on('auth-register', async ({ login, password, email }) => {
         login = String(login || '').trim();
         password = String(password || '');
+        // Email необов'язковий (п.4): валідуємо лише якщо введено; в БД пишемо як є
+        const emailNorm = String(email || '').trim().toLowerCase();
+        if (emailNorm && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm)) {
+            socket.emit('auth-register-result', { success: false, error: 'Введіть коректний email або лишіть поле порожнім' });
+            return;
+        }
 
         // Валідація: і логін, і пароль обов'язкові (поля не можуть бути порожніми)
         if (!login || !password) {
@@ -1642,6 +1648,8 @@ io.on('connection', (socket) => {
             // Пароль зберігається ТІЛЬКИ як scrypt-хеш (відкритий текст не пишемо в БД ніколи)
             password: hashPassword(password),
             cups: 0,
+            // Email необов'язковий (п.4): пишемо лише якщо введено; поле лишається у БД
+            email: emailNorm || '',
             // Айді друзів (потрапляють сюди після взаємного підтвердження запиту)
             friends: [],
             // Вхідні запити «додати в друзі», що чекають відповіді (Прийняти/Відхилити);
@@ -1658,6 +1666,14 @@ io.on('connection', (socket) => {
                     socket.emit('auth-register-result', { success: false, error: 'Такий логін вже занятий!' });
                     return;
                 }
+                // Email унікальний (якщо введено): не даємо двом акаунтам один email
+                if (emailNorm) {
+                    const emailTaken = await accountsCollection.findOne({ email: emailNorm });
+                    if (emailTaken) {
+                        socket.emit('auth-register-result', { success: false, error: 'Цей email вже привʼязаний до іншого акаунта' });
+                        return;
+                    }
+                }
                 // Нік теж має бути унікальним (він — ключ у списках друзів)
                 for (let i = 0; i < 20; i++) {
                     if (!(await accountsCollection.findOne({ nick: account.nick }))) break;
@@ -1665,7 +1681,7 @@ io.on('connection', (socket) => {
                 }
                 await accountsCollection.insertOne(account);
                 console.log('[auth] Registered (Atlas):', login, '->', account.id);
-                socket.emit('auth-register-result', { success: true, playerId: account.id, nick: account.nick, login: account.login, cups: account.cups || 0 });
+                socket.emit('auth-register-result', { success: true, playerId: account.id, nick: account.nick, login: account.login, cups: account.cups || 0, email: account.email || '' });
             } catch (e) {
                 console.error('[auth] Register error:', e.message);
                 socket.emit('auth-register-result', { success: false, error: 'Помилка бази даних' });
@@ -1679,6 +1695,14 @@ io.on('connection', (socket) => {
             socket.emit('auth-register-result', { success: false, error: 'Такий логін вже занятий!' });
             return;
         }
+        // Email унікальний і тут (якщо введено)
+        if (emailNorm) {
+            const emailTakenLocal = await findAccountByEmail(emailNorm);
+            if (emailTakenLocal) {
+                socket.emit('auth-register-result', { success: false, error: 'Цей email вже привʼязаний до іншого акаунта' });
+                return;
+            }
+        }
 
         accounts[key] = account;
 
@@ -1689,7 +1713,7 @@ io.on('connection', (socket) => {
         }
 
         console.log('[auth] Registered account (local JSON):', login, '->', account.id);
-        socket.emit('auth-register-result', { success: true, playerId: account.id, nick: account.nick, login: account.login, cups: account.cups || 0 });
+        socket.emit('auth-register-result', { success: true, playerId: account.id, nick: account.nick, login: account.login, cups: account.cups || 0, email: account.email || '' });
     });
 
     // ===== AUTH: ПЕРЕВІРКА АКАУНТА (валідація клієнтського кешу) =====
