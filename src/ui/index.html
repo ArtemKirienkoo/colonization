@@ -1121,7 +1121,10 @@
         border-radius: 0 !important;
         justify-content: flex-start;
         gap: 10px !important;
-        box-shadow: 0 3px 10px rgba(0,0,0,0.35) !important;
+        /* П.6: прямокутна тінь прибрана — box-shadow з border-radius: 0 малював
+           темний прямокутний контур навколо прозорої картки (ефект «ліпшого
+           прямокутника з каймою»). Глибину дають тільки текстури емблеми/банера. */
+        box-shadow: none !important;
         position: relative !important;
     }
     /* Емблема флажка: висота = висота флажка; ТРОХИ РОЗШИРЕНА (пункт 1): емблема
@@ -1135,18 +1138,19 @@
         pointer-events: none;
         z-index: 0;
     }
-    /* Лівий шар — емблема (щит із планкою), фіксована ширина, contain */
+    /* Лівий шар — емблема (щит із планкою), фіксована ширина, contain.
+       П.7: ліва частина ширша (60 → 68px), щоб іконка-аватар вміщалась у щит. */
     .turn-order-item::before {
         left: 0;
-        width: 60px;
+        width: 68px;
         background-image: var(--flag-emblem);
         background-size: contain;
         background-position: center;
         background-repeat: no-repeat;
     }
-    /* Правий шар — банер, розтягується на решту картки */
+    /* Правий шар — банер, розтягується на решту картки (п.7: зсунуто під ширшу емблему) */
     .turn-order-item::after {
-        left: 52px;
+        left: 60px;
         right: 0;
         background-image: var(--flag-banner);
         background-size: 100% 100%;
@@ -1158,14 +1162,15 @@
     .turn-order-item.active-turn::after {
         filter: drop-shadow(0 0 3px rgba(241, 196, 15, 0.95)) drop-shadow(0 0 8px rgba(241, 196, 15, 0.8)) drop-shadow(0 0 14px rgba(241, 196, 15, 0.5));
     }
-    /* Нік — вертикально по ЦЕНТРУ текстури флажка (пункт 2), ліворуч на банері.
-       П.12: підпис трохи лівіше (68 → 64px), нік вужчий — під картку 300px. */
-    .turn-order-label { position: absolute !important; left: 64px !important; top: 50% !important; transform: translateY(-50%) !important; text-shadow: 0 1px 3px rgba(0,0,0,0.65); font-size: 1.0em; flex-direction: row; align-items: baseline; gap: 5px !important; white-space: nowrap; z-index: 1; }
+    /* Нік — вертикально по ЦЕНТРУ текстури флажка (п.8: центруємо по центру рядка,
+       align-items: center замість baseline — baseline зсував текст відносно центру),
+       ліворуч на банері. П.7: підпис правіше (64 → 70px) під ширшу емблему. */
+    .turn-order-label { position: absolute !important; left: 70px !important; top: 50% !important; transform: translateY(-50%) !important; text-shadow: 0 1px 3px rgba(0,0,0,0.65); font-size: 1.0em; flex-direction: row; align-items: center; line-height: 1; gap: 5px !important; white-space: nowrap; z-index: 1; }
     .turn-order-name { max-width: 148px; font-size: 0.85em; color: #fff !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .turn-order-sep { display: none !important; }
     /* Кількість ПО — прям на ПРАВІЙ стороні флажка (пункт 4), по центру висоти;
-       п.12: лівіше (20 → 18px від краю коротшої картки), допис «ПО» додає JS */
-    .turn-order-vp { position: absolute !important; right: 18px !important; top: 50% !important; transform: translateY(-50%) !important; color: #fff !important; font-size: 1.0em !important; font-weight: bold; white-space: nowrap; z-index: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.7); }
+       п.9: лівіше (18 → 36px від краю картки), допис «ПО» додає JS */
+    .turn-order-vp { position: absolute !important; right: 36px !important; top: 50% !important; transform: translateY(-50%) !important; color: #fff !important; font-size: 1.0em !important; font-weight: bold; white-space: nowrap; z-index: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.7); }
     .turn-order-item.active-turn .turn-order-name,
     .turn-order-item.active-turn .turn-order-sep,
     .turn-order-item.active-turn .turn-order-vp {
@@ -1174,10 +1179,11 @@
     }
     /* Аватар — абсолютний, ПОВЕРХ емблеми флажка зліва; нік + ПО праворуч на банері */
     .turn-order-avatar-sign {
-        /* Іконка — ПОВЕРХ емблеми флажка (абсолютна), по центру розширеної емблеми.
+        /* Іконка — ПОВЕРХ емблеми флажка (абсолютна), по центру розширеної емблеми
+           (п.7: емблема 68px → центр 34px → left 16px для аватара 36px).
            П.12: аватар більший (28 → 36px), під нього збільшено всю картку. */
         position: absolute !important;
-        left: 12px !important;
+        left: 16px !important;
         top: 50% !important;
         transform: translateY(-50%) !important;
         width: 36px !important;
@@ -1414,8 +1420,9 @@
         z-index: 50;
     }
     .side-panel-wrap.tracking-panel { top: 58px; }
-    /* Трекінги 58..266 (висота 208), будівництво 278..542 (висота 264, п.8) — проміжок 12px */
-    .side-panel-wrap.building-panel { top: 278px; }
+    /* Трекінги 58..257 (висота 199, п.5), будівництво 269..521 (висота 252, п.5;
+       п.8 було 264) — проміжок 12px */
+    .side-panel-wrap.building-panel { top: 269px; }
 
     .side-panel-content {
         position: relative;
@@ -1430,9 +1437,11 @@
     /* Трекінги: вивіска з пергаментом 1255×791 → 330×208 (пропорція текстури не спотворюється).
        Перекладина зі стропами — верхні ~32% висоти, пергамент — від 31.9% до 90.6%,
        тому текст лежить тільки на пергаменті (інсети нижче = межі пергаменту). */
+    /* П.5: панель трекінгів «чучуть» менша — 316×199 (пропорція текстури
+       1255×791 ≈ 1.587 збережена: 316/199 = 1.588), текст дрібніший. */
     .tracking-panel .side-panel-content {
-        width: 330px;
-        height: 208px;
+        width: 316px;
+        height: 199px;
         background-image: url('../../assets/textures/menu/signs/sign-parchment.png');
     }
     .tracking-panel .medals {
@@ -1441,19 +1450,16 @@
         display: flex; flex-direction: column; justify-content: space-evenly; gap: 4px;
     }
     .tracking-panel .medal { padding: 2px 6px; gap: 8px; }
-    .tracking-panel .medal-icon { width: 34px; height: 34px; font-size: 1em; }
-    .tracking-panel .medal-title { font-size: 1.05em; }
-    .tracking-panel .medal-stats { font-size: 0.95em; }
+    .tracking-panel .medal-icon { width: 31px; height: 31px; font-size: 1em; }
+    .tracking-panel .medal-title { font-size: 0.98em; }
+    .tracking-panel .medal-stats { font-size: 0.88em; }
 
-    /* Будівництво: та сама вивіска, але виЩЕ за трекінги — 330×264 (п.8; було 240,
-       щоб три рядки «назва + кількість + вартість» не тіснилися). Пропорцію
-       текстури (1255×791) при цьому НЕ тягнемо: background-size: cover масштабує
-       її за висотою (264/791 → ширина 419px) і підрізає лише боки (≈44px = 10.6%
-       з кожного — менше за початок пергаменту 11.2%), тому пергамент лишається
-       цілим. Інсети контенту у % перераховуються автоматично. */
+    /* П.5: будівництво «чучуть» менше — 330×252 (було 264 за п.8). Кроп cover
+       при 252: масштаб 252/791 → ширина ≈400px, зріз ≈35px з боку (8.7% < 11.2%),
+       пергамент лишається цілим. Інсети контенту у % перераховуються автоматично. */
     .building-panel .side-panel-content {
         width: 330px;
-        height: 264px;
+        height: 252px;
         background-image: url('../../assets/textures/menu/signs/sign-parchment.png');
         background-size: cover;
         background-position: center;
@@ -1462,12 +1468,12 @@
         position: absolute;
         top: 34%; left: 8%; right: 8%; bottom: 11%;
         display: flex; flex-direction: column;
-        /* Рядки — компактною групою по центру дошки: фіксований проміжок 12px замість розтягування на всю дошку */
-        justify-content: center; gap: 12px;
+        /* Рядки — компактною групою по центру дошки: фіксований проміжок 8px замість розтягування на всю дошку (п.5) */
+        justify-content: center; gap: 8px;
     }
     .building-panel .build-row { padding: 0; gap: 4px; }
-    .building-panel .build-row .br-name { font-size: 0.9em; }
-    .building-panel .build-row .br-count { font-size: 0.84em; min-width: 34px; }
+    .building-panel .build-row .br-name { font-size: 0.85em; }
+    .building-panel .build-row .br-count { font-size: 0.8em; min-width: 32px; }
     .building-panel .build-row .br-cost { gap: 1px; }
     .building-panel .build-row .cost-card { width: 14px; height: 19px; }
     .building-panel .build-btn { padding: 2px 3px; }

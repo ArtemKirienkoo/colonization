@@ -401,7 +401,10 @@
            паддінги пропорційні тій самій ширині) */
         #gameModeModal .settings-box,
         #createRoomModal .settings-box { width: min(720px, calc(100vw - 24px)); padding: 70px 47px 43px; }
-        #registerModal .settings-box,
+        /* п.1 (нове): вікно реєстрації БІЛЬШЕ (860px) — заголовок, три поля,
+           підказка про email і обидві кнопки вміщуються у пергамент без
+           випадання за рамки (було 680px — «Вийти» звисав за низ). */
+        #registerModal .settings-box { width: min(860px, calc(100vw - 24px)); padding: 92px 56px 68px; }
         #loginModal .settings-box,
         #bindEmailModal .settings-box,
         #addFriendModal .settings-box,
@@ -409,8 +412,20 @@
         /* п.3: вікно «Додати друга» (рандомні рекомендації «Можливо, зацікавлять»)
            було вузьким і низьким — список стискався. Робимо його вищим за решту:
            ширше вікно + вищий скрол списку. */
-        #addFriendModal .settings-box { width: min(760px, calc(100vw - 24px)); padding: 74px 49px 45px; }
-        #addFriendModal .friends-scroll { max-height: 340px; }
+        /* п.2/п.3 (нове): вікна «Друзі» і «Додати друга» більші (860px),
+           списки вищі (340/400px); у «Друзях» кнопка «Додати друга» тепер
+           в один рядок з «Вийти» під списком (.friends-btn-row). */
+        #friendsModal .settings-box,
+        #addFriendModal .settings-box { width: min(860px, calc(100vw - 24px)); padding: 92px 56px 68px; }
+        #friendsModal .friends-scroll { max-height: 340px; }
+        #addFriendModal .friends-scroll { max-height: 400px; }
+        .friends-btn-row {
+            display: flex;
+            gap: 14px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+        }
         /* п.5: реєстрація з новим полем email — текст-підказка і поля компактніші,
            щоб усе влізало у пергамент без переповнення. */
         #registerModal .fp-hint { font-size: 0.82em; line-height: 1.35; margin: 2px 0 6px; }
@@ -660,6 +675,14 @@
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
             flex-shrink: 0;
             display: inline-block;
+        }
+        /* П.4: список гравців у кімнаті — більший нік та іконка */
+        #playersList > div {
+            font-size: 1.1em;
+        }
+        #playersList .room-player-avatar {
+            width: 34px;
+            height: 34px;
         }
         /* Іконка у картці профілю — клікабельна (відкриває вибір іконки) */
         .profile-card .profile-avatar {
@@ -1272,11 +1295,13 @@
     <div class="settings-overlay" id="friendsModal" style="display: none;">
         <div class="settings-box">
             <h3>ДРУЗІ</h3>
-            <button id="openAddFriendBtn" class="mode-btn">➕ Додати друга</button>
             <div id="friendsList" class="friends-scroll">
                 <div class="friend-empty">Завантаження…</div>
             </div>
-            <button id="backFromFriends" class="back-btn">Вийти</button>
+            <div class="friends-btn-row">
+                <button id="openAddFriendBtn" class="mode-btn">➕ Додати друга</button>
+                <button id="backFromFriends" class="back-btn">Вийти</button>
+            </div>
         </div>
     </div>
 
