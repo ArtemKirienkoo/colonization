@@ -692,7 +692,7 @@
         .volume-slider-container {
             margin: 6px 0;
             width: 100%;
-            text-align: left;
+            text-align: center;
         }
         .volume-slider-container label {
             display: block;
@@ -1798,15 +1798,15 @@
             <h3>ГУЧНІСТЬ</h3>
             <div class="volume-slider-container">
                 <label>Загальна гучність: <span class="volume-value" id="masterVolumeValue">100%</span></label>
-                <input type="range" id="masterVolume" min="0" max="100" value="100">
+                <input type="range" id="masterVolume" min="0" max="100" value="100" step="1">
             </div>
             <div class="volume-slider-container">
                 <label>Музика: <span class="volume-value" id="musicVolumeValue">100%</span></label>
-                <input type="range" id="musicVolume" min="0" max="100" value="100">
+                <input type="range" id="musicVolume" min="0" max="100" value="100" step="1">
             </div>
             <div class="volume-slider-container">
                 <label>Звуки: <span class="volume-value" id="sfxVolumeValue">100%</span></label>
-                <input type="range" id="sfxVolume" min="0" max="100" value="100">
+                <input type="range" id="sfxVolume" min="0" max="100" value="100" step="1">
             </div>
             <button id="backFromVolume" class="back-btn">Назад</button>
         </div>

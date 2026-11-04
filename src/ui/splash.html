@@ -818,11 +818,8 @@
         #roomsList::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
         .volume-slider-container {
             margin: 12px 0;
-            /* width: 100% — без нього контейнер у флекс-колонці (.settings-box
-               з align-items: center) стискається до ширини підпису, і повзунок
-               виходить вузькою смужкою. Як в index.html. */
             width: 100%;
-            text-align: left;
+            text-align: center;
         }
         .volume-slider-container label {
             display: block;
@@ -832,7 +829,8 @@
             font-weight: 700;
         }
         .volume-slider-container input[type="range"] {
-            width: 100%;
+            width: 85%;
+            max-width: 460px;
             height: 14px;
             border-radius: 8px;
             outline: none;
@@ -1641,15 +1639,15 @@
         <h3>ГУЧНІСТЬ</h3>
         <div class="volume-slider-container">
             <label>Загальна гучність: <span class="volume-value" id="masterVolumeValue">100%</span></label>
-            <input type="range" id="masterVolume" min="0" max="100" value="100">
+            <input type="range" id="masterVolume" min="0" max="100" value="100" step="1">
         </div>
         <div class="volume-slider-container">
             <label>Музика: <span class="volume-value" id="musicVolumeValue">100%</span></label>
-            <input type="range" id="musicVolume" min="0" max="100" value="100">
+            <input type="range" id="musicVolume" min="0" max="100" value="100" step="1">
         </div>
         <div class="volume-slider-container">
             <label>Звуки: <span class="volume-value" id="sfxVolumeValue">100%</span></label>
-            <input type="range" id="sfxVolume" min="0" max="100" value="100">
+            <input type="range" id="sfxVolume" min="0" max="100" value="100" step="1">
         </div>
         <button id="backFromVolume" class="back-btn">Назад</button>
     </div>
