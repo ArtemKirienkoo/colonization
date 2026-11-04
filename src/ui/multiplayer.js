@@ -1,0 +1,628 @@
+﻿// Multiplayer Client for Colonization
+// This file handles the multiplayer connection and game state synchronization
+
+class MultiplayerClient {
+    constructor() {
+        this.socket = null;
+        this.roomCode = null;
+        this.isHost = false;
+        this.playerName = 'Гравець';
+        this.players = [];
+        this.connected = false;
+        this.pendingListeners = [];
+    }
+
+    // Safe wrapper for socket.on() - queues handlers if socket is not connected yet
+    _safeOn(event, callback) {
+        if (this.socket) {
+            this.socket.on(event, callback);
+        } else {
+            this.pendingListeners.push({ event, callback });
+        }
+    }
+
+    // Log all outgoing emits for debugging
+    _logEmit(event, data) {
+        console.log(`[MULTIPLAYER EMIT] ${event}:`, data);
+    }
+
+    // Connect to server
+    connect(serverUrl = 'http://localhost:3000') {
+        if (typeof io === 'undefined') {
+            console.error('Socket.IO client not loaded');
+            return Promise.reject('Socket.IO РєР»С–С”РЅС‚ РЅРµ Р·Р°РІР°РЅС‚Р°Р¶РµРЅРёР№');
+        }
+
+        console.log('РџС–РґРєР»СЋС‡РµРЅРЅСЏ РґРѕ СЃРµСЂРІРµСЂР°:', serverUrl);
+        
+        // Configure Socket.IO with better error handling and retry logic
+        // timeout: 90000 — хмарний Render free tier "засинає" після ~15 хв
+        // бездіяльності, а холодний старт займає 30–60 с. Таймаут менший за
+        // холодний старт спричиняв помилку "Не вдалося підключитися до сервера".
+        this.socket = io(serverUrl, {
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionAttempts: 20,
+            reconnectionDelay: 3000,
+            reconnectionDelayMax: 15000,
+            timeout: 90000,
+            forceNew: true,
+            upgrade: true,
+            allowUpgrade: true
+        });
+
+        return new Promise((resolve, reject) => {
+            let initialConnection = true;
+            const timeout = setTimeout(() => {
+                console.error('РўР°Р№РјР°СѓС‚ РїС–РґРєР»СЋС‡РµРЅРЅСЏ РїС–СЃР»СЏ 30 СЃРµРєСѓРЅРґ');
+                if (this.socket) {
+                    this.socket.disconnect();
+                }
+                reject(new Error('РўР°Р№РјР°СѓС‚ РїС–РґРєР»СЋС‡РµРЅРЅСЏ. РњРѕР¶Р»РёРІС– РїСЂРёС‡РёРЅРё:\n1. РЎРµСЂРІРµСЂ РЅРµ Р·Р°РїСѓС‰РµРЅРёР№\n2. Р¤Р°С”СЂРІРѕР» Р±Р»РѕРєСѓС” РїРѕСЂС‚ 3000\n3. РќРµРїСЂР°РІРёР»СЊРЅР° Р°РґСЂРµСЃР° СЃРµСЂРІРµСЂР°'));
+            }, 90000);
+
+            this.socket.on('connect', () => {
+                clearTimeout(timeout);
+                this.connected = true;
+                console.log('РџС–РґРєР»СЋС‡РµРЅРѕ РґРѕ СЃРµСЂРІРµСЂР°:', this.socket.id);
+                try {
+                    const existingPlayerId = sessionStorage.getItem('multiplayerPlayerId');
+                    if (!existingPlayerId) {
+                        sessionStorage.setItem('multiplayerPlayerId', this.socket.id);
+                    } else {
+                        console.log('Р—Р±РµСЂРµР¶РµРЅРѕ СЃС‚Р°СЂРёР№ multiplayerPlayerId РґР»СЏ reconnect:', existingPlayerId);
+                    }
+                } catch (error) {
+                    console.warn('РќРµ РІРґР°Р»РѕСЃСЏ Р·Р±РµСЂРµРіС‚Рё multiplayerPlayerId:', error);
+                }
+                // Attach any queued listeners registered before socket creation
+                for (const listener of this.pendingListeners) {
+                    this.socket.on(listener.event, listener.callback);
+                }
+                this.pendingListeners = [];
+                // Debug: log any incoming socket events for troubleshooting
+                try {
+                    this.socket.onAny((event, ...args) => {
+                        console.log('[socket.onAny] event=', event, 'args=', args);
+                    });
+                } catch (e) {
+                    console.warn('onAny not supported or failed:', e);
+                }
+                // If this is a reconnection (not initial), request game state sync
+                if (!initialConnection && this.roomCode) {
+                    console.log('[Reconnect] Requesting game state sync after reconnection');
+                    let oldPlayerId = null;
+                    try {
+                        oldPlayerId = sessionStorage.getItem('multiplayerPlayerId');
+                    } catch (e) {}
+                    this.socket.emit('request-game-state', {
+                        roomCode: this.roomCode,
+                        oldPlayerId: oldPlayerId
+                    });
+                    // The server maps the existing player entry onto THIS socket id.
+                    // Keep the stored id in sync so future rejoins find the same
+                    // player entry instead of creating a duplicate.
+                    try {
+                        sessionStorage.setItem('multiplayerPlayerId', this.socket.id);
+                    } catch (e) {}
+                }
+                initialConnection = false;
+                resolve();
+            });
+
+            this.socket.on('connect_error', (error) => {
+                console.error('РџРѕРјРёР»РєР° РїС–РґРєР»СЋС‡РµРЅРЅСЏ:', error);
+                // Only disconnect and reject during initial connection attempt
+                // After initial connection, let Socket.IO handle reconnection automatically
+                if (initialConnection) {
+                    if (this.socket) {
+                        this.socket.disconnect();
+                    }
+                    clearTimeout(timeout);
+                    reject(error);
+                }
+                // During reconnection, don't disconnect вЂ” let Socket.IO retry
+            });
+
+            this.socket.on('reconnect_attempt', (attempt) => {
+                console.log('РЎРїСЂРѕР±Р° РїРµСЂРµРїС–РґРєР»СЋС‡РµРЅРЅСЏ:', attempt);
+            });
+
+            this.socket.on('reconnect', (attempt) => {
+                console.log('РџРµСЂРµРїС–РґРєР»СЋС‡РµРЅРѕ РґРѕ СЃРµСЂРІРµСЂР° РїС–СЃР»СЏ', attempt, 'СЃРїСЂРѕР±');
+                this.connected = true;
+            });
+
+            this.socket.on('reconnect_failed', () => {
+                if (initialConnection) {
+                    if (this.socket) {
+                        this.socket.disconnect();
+                    }
+                    clearTimeout(timeout);
+                    reject(new Error('РќРµ РІРґР°Р»РѕСЃСЏ РїС–РґРєР»СЋС‡РёС‚РёСЃСЏ РґРѕ СЃРµСЂРІРµСЂР° РїС–СЃР»СЏ 20 СЃРїСЂРѕР±.\nРџРµСЂРµРІС–СЂС‚Рµ:\n1. РЎРµСЂРІРµСЂ Р·Р°РїСѓС‰РµРЅРёР№ (npm start)\n2. РџРѕСЂС‚ 3000 РЅРµ Р·Р°Р±Р»РѕРєРѕРІР°РЅРёР№ С„Р°С”СЂРІРѕР»РѕРј\n3. РћР±РёРґРІР° РіСЂР°РІС†С– РІ РѕРґРЅС–Р№ РјРµСЂРµР¶С– (РґР»СЏ Р»РѕРєР°Р»СЊРЅРѕС— РіСЂРё)'));
+                }
+                console.error('РќРµ РІРґР°Р»РѕСЃСЏ РїРµСЂРµРїС–РґРєР»СЋС‡РёС‚РёСЃСЏ');
+            });
+
+            this.socket.on('disconnect', (reason) => {
+                console.log('Р’С–РґРєР»СЋС‡РµРЅРѕ:', reason);
+                this.connected = false;
+            });
+
+            this.socket.on('error', (error) => {
+                console.error('Socket.IO РїРѕРјРёР»РєР°:', error);
+            });
+        });
+    }
+
+    // Create a new room
+    createRoom(roomName, playerName, maxPlayers, color, avatar) {
+        this.playerName = playerName || 'Гравець';
+        this.isHost = true;
+
+        return new Promise((resolve, reject) => {
+            this._logEmit('create-room', { roomName, playerName: this.playerName, maxPlayers, color, avatar });
+            this.socket.emit('create-room', { roomName, playerName: this.playerName, maxPlayers, color, avatar });
+
+            const onRoomCreated = (data) => {
+                this.roomCode = data.roomCode;
+                this.players = data.players;
+                this.socket.off('room-created', onRoomCreated);
+                this.socket.off('create-room-error', onCreateRoomError);
+                resolve(data);
+            };
+
+            const onCreateRoomError = (error) => {
+                this.socket.off('room-created', onRoomCreated);
+                this.socket.off('create-room-error', onCreateRoomError);
+                reject(new Error(error.message));
+            };
+
+            this.socket.on('room-created', onRoomCreated);
+            this.socket.on('create-room-error', onCreateRoomError);
+        });
+    }
+
+    // Join an existing room
+    joinRoom(roomCode, playerName, color, avatar) {
+        this.playerName = playerName || 'Гравець';
+        this.roomCode = roomCode.toUpperCase();
+
+        return new Promise((resolve, reject) => {
+            this._logEmit('join-room', { roomCode: this.roomCode, playerName: this.playerName, color, avatar });
+            this.socket.emit('join-room', { roomCode: this.roomCode, playerName: this.playerName, color, avatar });
+
+            const onRoomJoined = (data) => {
+                this.players = data.players;
+                this.socket.off('room-joined', onRoomJoined);
+                this.socket.off('join-error', onJoinError);
+                resolve(data);
+            };
+
+            const onJoinError = (error) => {
+                this.socket.off('room-joined', onRoomJoined);
+                this.socket.off('join-error', onJoinError);
+                reject(error.message);
+            };
+
+            this.socket.on('room-joined', onRoomJoined);
+            this.socket.on('join-error', onJoinError);
+        });
+    }
+
+    // Get list of active rooms
+    getRoomsList() {
+        return new Promise((resolve) => {
+            this.socket.emit('get-rooms');
+            const onRoomsList = (rooms) => {
+                this.socket.off('rooms-list', onRoomsList);
+                resolve(rooms);
+            };
+            this.socket.on('rooms-list', onRoomsList);
+        });
+    }
+
+    // Start the game (host only)
+    startGame() {
+        if (!this.isHost) return;
+        this._logEmit('start-game', { roomCode: this.roomCode });
+        this.socket.emit('start-game', { roomCode: this.roomCode });
+    }
+
+    // Store map state (host sends map to server)
+    storeMap(mapData) {
+        if (!this.isHost) return;
+        this._logEmit('store-map', { roomCode: this.roomCode, hasMapData: !!mapData });
+        this.socket.emit('store-map', { roomCode: this.roomCode, mapData });
+    }
+
+    // Rejoin room after page navigation (when game starts)
+    rejoinRoom(roomCode, isHost, playerName) {
+        this.roomCode = roomCode;
+        this.isHost = isHost;
+        // Ім'я гравця потрібне серверу як fallback, щоб знайти ТОЙ САМИЙ запис
+        // гравця і не створити дублікат, якщо старий id уже загубився.
+        if (playerName) this.playerName = playerName;
+        let oldPlayerId = null;
+        try {
+            oldPlayerId = sessionStorage.getItem('multiplayerPlayerId');
+        } catch (error) {
+            console.warn('РќРµ РІРґР°Р»РѕСЃСЏ РїСЂРѕС‡РёС‚Р°С‚Рё multiplayerPlayerId:', error);
+        }
+        console.log('[MultiplayerClient] rejoinRoom', { roomCode, isHost, oldPlayerId, socketId: this.socket?.id });
+        this._logEmit('rejoin-room', { roomCode, isHost, oldPlayerId });
+        this.socket.emit('rejoin-room', { roomCode, isHost, oldPlayerId, playerName: this.playerName });
+
+        // The server maps the existing player entry onto THIS socket id
+        // (or creates a new entry with it). Store the current socket id as our
+        // canonical player id so the NEXT rejoin (e.g., returning to the room
+        // lobby after a game) finds the same entry instead of duplicating it.
+        try {
+            sessionStorage.setItem('multiplayerPlayerId', this.socket.id);
+        } catch (e) {}
+
+        // Fallback: request full game state in case any phase events were emitted
+        // before the client rejoined and missed them. Server will emit 'game-state-sync'.
+        try {
+            console.log('[MultiplayerClient] request-game-state', { roomCode, socketId: this.socket?.id, oldPlayerId });
+            this._logEmit('request-game-state', { roomCode, oldPlayerId });
+            this.socket.emit('request-game-state', { roomCode, oldPlayerId });
+        } catch (e) {
+            console.warn('[MultiplayerClient] request-game-state failed', e);
+        }
+
+        // Additional fallback: request game state again after a delay
+        // This handles the case where the server hasn't processed 'start-game' yet
+        // when the client first rejoined (race condition on game start)
+        setTimeout(() => {
+            if (this.socket && this.roomCode) {
+                console.log('[MultiplayerClient] delayed request-game-state (fallback)', { roomCode, socketId: this.socket?.id });
+                this._logEmit('request-game-state (delayed)', { roomCode, oldPlayerId });
+                this.socket.emit('request-game-state', { roomCode, oldPlayerId });
+            }
+        }, 2000);
+    }
+
+    // Sync a building action to all players in the room (stores on server)
+    syncBuild(type, data) {
+        this._logEmit('sync-build', { roomCode: this.roomCode, type, data });
+        this.socket.emit('sync-build', {
+            roomCode: this.roomCode,
+            type,
+            data
+        });
+    }
+
+    // Send game action to other players
+    sendGameAction(action, payload) {
+        this._logEmit('game-action', { roomCode: this.roomCode, action, payload });
+        this.socket.emit('game-action', {
+            roomCode: this.roomCode,
+            action,
+            payload
+        });
+    }
+
+    // Roll dice during initial phase
+    rollDiceInitial(die1, die2) {
+        this._logEmit('dice-roll', { roomCode: this.roomCode, playerId: this.socket.id, die1, die2 });
+        this.socket.emit('dice-roll', {
+            roomCode: this.roomCode,
+            playerId: this.socket.id,
+            die1,
+            die2
+        });
+    }
+
+    // Change player color
+    changeColor(playerId, color) {
+        this._logEmit('change-color', { roomCode: this.roomCode, playerId, color });
+        this.socket.emit('change-color', {
+            roomCode: this.roomCode,
+            playerId,
+            color
+        });
+    }
+
+    // Handle color changed event
+    onColorChanged(callback) {
+        this._safeOn('color-changed', callback);
+    }
+
+    // Handle color change failed event
+    onColorChangeFailed(callback) {
+        this._safeOn('color-change-failed', callback);
+    }
+
+    // Handle sync-buildings (receiving all buildings after reconnect)
+    onSyncBuildings(callback) {
+        this._safeOn('sync-buildings', callback);
+    }
+
+    // Handle player joined
+    onPlayerJoined(callback) {
+        this._safeOn('player-joined', callback);
+    }
+
+    // Handle player left
+    onPlayerLeft(callback) {
+        this._safeOn('player-left', callback);
+    }
+
+    // Handle game started
+    onGameStarted(callback) {
+        this._safeOn('game-started', callback);
+    }
+
+    // Handle start dice phase
+    onStartDicePhase(callback) {
+        this._safeOn('start-dice-phase', callback);
+    }
+
+    // Handle player dice rolled (initial)
+    onPlayerDiceRolled(callback) {
+        this._safeOn('player-dice-rolled', callback);
+    }
+
+    // Handle initial build start
+    onInitialBuildStart(callback) {
+        this._safeOn('initial-build-start', callback);
+    }
+
+    // Handle initial build next player
+    onInitialBuildNextPlayer(callback) {
+        this._safeOn('initial-build-next-player', callback);
+    }
+
+    // Handle initial build round 2 start
+    onInitialBuildRound2Start(callback) {
+        this._safeOn('initial-build-round2-start', callback);
+    }
+
+    // Handle initial build - your turn!
+    onInitialBuildYourTurn(callback) {
+        this._safeOn('initial-build-your-turn', callback);
+    }
+
+    // Handle initial build - waiting for other player
+    onInitialBuildWaiting(callback) {
+        this._safeOn('initial-build-waiting', callback);
+    }
+
+    // Handle initial build - your done (turn ended, waiting)
+    onInitialBuildYourDone(callback) {
+        this._safeOn('initial-build-your-done', callback);
+    }
+
+    // Notify server that initial build turn is complete (server tracks progress)
+    endInitialBuildTurn() {
+        this._logEmit('initial-build-end-turn', { roomCode: this.roomCode, playerId: this.socket.id });
+        this.socket.emit('initial-build-end-turn', {
+            roomCode: this.roomCode,
+            playerId: this.socket.id
+        });
+    }
+
+    // ===== REGULAR TURN EVENTS =====
+
+    // Handle "your-turn" event (it's this player's turn)
+    onYourTurn(callback) {
+        this._safeOn('your-turn', callback);
+    }
+
+    // Handle "waiting-for-turn" event (waiting for another player)
+    onWaitingForTurn(callback) {
+        this._safeOn('waiting-for-turn', callback);
+    }
+
+    // Handle regular dice rolled (during regular gameplay)
+    onRegularDiceRolled(callback) {
+        this._safeOn('regular-dice-rolled', callback);
+    }
+
+    // Handle resource collection (after dice roll)
+    onCollectResources(callback) {
+        this._safeOn('collect-resources', callback);
+    }
+
+    // Handle regular game start
+    onRegularGameStart(callback) {
+        this._safeOn('regular-game-start', callback);
+    }
+
+    // Handle turn ended
+    onTurnEnded(callback) {
+        this._safeOn('turn-ended', callback);
+    }
+
+    // Handle action error
+    onActionError(callback) {
+        this._safeOn('action-error', callback);
+    }
+
+    // Handle dice tie (re-roll needed)
+    onDiceTie(callback) {
+        this._safeOn('dice-tie', callback);
+    }
+
+    // Handle building synced (confirmation from server)
+    onBuildingSynced(callback) {
+        this._safeOn('building-synced', callback);
+    }
+
+    // Handle robber position synced from server
+    onRobberSynced(callback) {
+        this._safeOn('robber-synced', callback);
+    }
+
+    // Handle game state sync (for reconnection)
+    onGameStateSync(callback) {
+        this._safeOn('game-state-sync', callback);
+    }
+
+    // Handle knight activated event
+    onKnightActivated(callback) {
+        this._safeOn('knight-activated', callback);
+    }
+
+    // Handle roads card activated event
+    onRoadsActivated(callback) {
+        this._safeOn('roads-activated', callback);
+    }
+
+    // Handle resource stolen event
+    onResourceStolen(callback) {
+        this._safeOn('resource-stolen', callback);
+    }
+
+    // Handle dev card purchased event
+    onDevCardPurchased(callback) {
+        this._safeOn('dev-card-purchased', callback);
+    }
+
+    // Handle monopoly completed event
+    onMonopolyCompleted(callback) {
+        this._safeOn('monopoly-completed', callback);
+    }
+
+    onPlentyActivated(callback) {
+        this._safeOn('plenty-activated', callback);
+    }
+
+    onResourcesSynced(callback) {
+        this._safeOn('resources-synced', callback);
+    }
+
+    // Handle dev cards sync (for reconnection)
+    onSyncDevCards(callback) {
+        this._safeOn('sync-dev-cards', callback);
+    }
+
+    // Handle authoritative medals sync (largest army / longest road with escalation)
+    onMedalsSynced(callback) {
+        this._safeOn('medals-synced', callback);
+    }
+
+    // Handle game over (victory)
+    onGameOver(callback) {
+        this._safeOn('game-over', callback);
+    }
+
+    // Handle game over blocked (player left during game-over, restart disabled)
+    onGameOverBlocked(callback) {
+        this._safeOn('game-over-blocked', callback);
+    }
+
+    // Handle victory points synced from server
+    onVPSynced(callback) {
+        this._safeOn('vp-synced', callback);
+    }
+
+    // Handle restart votes updated
+    onRestartVotesUpdated(callback) {
+        this._safeOn('restart-votes-updated', callback);
+    }
+
+    // Handle restart started
+    onRestartStarted(callback) {
+        this._safeOn('restart-started', callback);
+    }
+
+    // Handle player disconnected (during game)
+    onPlayerDisconnected(callback) {
+        this._safeOn('player-disconnected', callback);
+    }
+
+    // Handle host disconnected (during game)
+    onHostDisconnected(callback) {
+        this._safeOn('host-disconnected', callback);
+    }
+
+    onPlayerReturned(callback) {
+        this._safeOn('player-returned', callback);
+    }
+
+    // Handle room not found (rejoin failed)
+    onRoomNotFound(callback) {
+        this._safeOn('room-not-found', callback);
+    }
+    // Sync victory points to server
+    syncVP(vp) {
+        this._logEmit('sync-vp', { roomCode: this.roomCode, playerId: this.socket.id, vp });
+        this.socket.emit('sync-vp', {
+            roomCode: this.roomCode,
+            playerId: this.socket.id,
+            vp
+        });
+    }
+
+    // Vote to restart the game
+    voteRestart() {
+        this._logEmit('restart-vote', { roomCode: this.roomCode });
+        this.socket.emit('restart-vote', { roomCode: this.roomCode });
+    }
+
+    // Request game state sync from server
+    requestGameStateSync() {
+        if (this.socket && this.roomCode) {
+            this._logEmit('request-game-state', { roomCode: this.roomCode, playerId: this.socket.id });
+            this.socket.emit('request-game-state', {
+                roomCode: this.roomCode,
+                playerId: this.socket.id
+            });
+        }
+    }
+
+    // ===== REGULAR TURN EMITTERS =====
+
+    // Roll dice during regular turn (2 dice)
+    rollRegularDice(die1, die2) {
+        this._logEmit('regular-dice-roll', { roomCode: this.roomCode, playerId: this.socket.id, die1, die2 });
+        this.socket.emit('regular-dice-roll', {
+            roomCode: this.roomCode,
+            playerId: this.socket.id,
+            die1,
+            die2
+        });
+    }
+
+    // End current turn
+    endTurn() {
+        this._logEmit('end-turn', { roomCode: this.roomCode, playerId: this.socket.id });
+        this.socket.emit('end-turn', {
+            roomCode: this.roomCode,
+            playerId: this.socket.id
+        });
+    }
+
+    // Handle room closed (host left)
+    onRoomClosed(callback) {
+        this._safeOn('room-closed', callback);
+    }
+
+    // Handle rooms list update
+    onRoomsList(callback) {
+        this._safeOn('rooms-list', callback);
+    }
+
+    // Leave room explicitly
+    leaveRoom() {
+        if (this.roomCode) {
+            this._logEmit('leave-room', { roomCode: this.roomCode });
+            this.socket.emit('leave-room', { roomCode: this.roomCode });
+            this.roomCode = null;
+            this.isHost = false;
+        }
+    }
+
+    // Disconnect from server
+    disconnect() {
+        if (this.socket) {
+            this.socket.disconnect();
+            this.connected = false;
+        }
+    }
+}
+
+// The file is loaded via <script> in index.html / splash.html (browser only)
+window.MultiplayerClient = MultiplayerClient;

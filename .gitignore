@@ -1,0 +1,11 @@
+node_modules/
+dist/
+dist_build/
+release/
+Колонізатори/
+*.log
+.DS_Store
+Thumbs.db
+accounts.json
+
+_backup_signs_original/
